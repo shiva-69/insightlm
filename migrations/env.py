@@ -1,8 +1,11 @@
 """Alembic environment.
 
 Every module's persistence models are imported here so ``Base.metadata`` is complete.
-A missing import means autogenerate silently proposes dropping that module's tables --
-which is why the CI drift gate runs ``--autogenerate --check`` on a clean database.
+**Every module with persistence must be listed below.** A missing import does not
+fail loudly: autogenerate simply proposes dropping that module's tables, and a
+migration generated from that diff would delete real data. This is why CI runs
+``alembic check`` against a freshly migrated database -- the gate caught exactly this
+omission when the Phase 1 tables were added.
 """
 
 from __future__ import annotations
@@ -13,8 +16,10 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 # Imported for their side effect of registering tables on Base.metadata.
+from insightlm.documents.adapters import models as _documents_models  # noqa: F401
 from insightlm.governance.adapters import models as _governance_models  # noqa: F401
 from insightlm.identity.adapters import models as _identity_models  # noqa: F401
+from insightlm.retrieval.adapters import models as _retrieval_models  # noqa: F401
 from insightlm.settings import get_settings
 from insightlm.shared.adapters.db import models as _shared_models  # noqa: F401
 from insightlm.shared.adapters.db.base import Base

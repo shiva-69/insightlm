@@ -17,7 +17,9 @@ path in ADR-0016.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -28,11 +30,21 @@ from insightlm.shared.observability.logging import get_logger
 _logger = get_logger(__name__)
 
 
+Publisher = Callable[[str, dict[str, Any], str], Awaitable[None]]
+"""(event_type, payload, tenant_id) -> enqueued. Injected so the relay stays testable
+without a queue, and so what "publish" means can change without touching this file."""
+
+
 class OutboxRelay:
     def __init__(
-        self, session_factory: async_sessionmaker[AsyncSession], *, batch_size: int = 100
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        *,
+        publisher: Publisher | None = None,
+        batch_size: int = 100,
     ) -> None:
         self._session_factory = session_factory
+        self._publisher = publisher
         self._batch_size = batch_size
 
     async def drain(self) -> int:
@@ -58,15 +70,16 @@ class OutboxRelay:
                 ).scalars()
 
                 for row in rows:
-                    # Phase 1 enqueues the matching ARQ job here. Phase 0 records the
-                    # publication so the relay, its ordering and its observability are
-                    # proven before anything depends on them.
+                    if self._publisher is not None:
+                        await self._publisher(row.event_type, dict(row.payload), str(row.tenant_id))
                     _logger.info(
                         "outbox_event_published",
                         event_type=row.event_type,
                         event_id=str(row.id),
                         tenant_id=str(row.tenant_id),
                     )
+                    # Marked processed only after the publisher accepted it. A crash
+                    # between the two redelivers, which is why consumers are idempotent.
                     row.processed_at = datetime.now(UTC)
                     row.attempts += 1
                     published += 1

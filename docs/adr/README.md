@@ -32,9 +32,9 @@ made — listed so the vocabulary is designed rather than accreted.
 | [0001](0001-single-python-service-hexagonal.md) | Single Python service with a hexagonal structure, not a polyglot split | 0 |
 | [0002](0002-postgres-pgvector-single-store.md) | PostgreSQL + pgvector as the single store for rows and vectors | 0 |
 | [0003](0003-in-app-jwt-auth.md) | In-app JWT auth rather than Keycloak | 0 |
-| 0004 | Structure-aware chunking with persisted geometry spans | 1 |
+| [0004](0004-structure-aware-chunking.md) | Structure-aware chunking with persisted geometry spans | 1 |
 | [0005](0005-unit-of-work-contract.md) | An explicit unit of work, with exactly one commit site | 0 |
-| 0006 | The citation contract: structured claims, validated before display | 1 |
+| [0006](0006-the-citation-contract.md) | The citation contract: structured claims, validated before display | 1 |
 | 0007 | Hybrid lexical + dense retrieval fused with RRF | 3 |
 | 0008 | Cross-encoder reranker selection and its cost/quality trade-off | 3 |
 | 0009 | Semantic caching strategy and invalidation on corpus version | 3 |

@@ -1,1 +1,1 @@
-"""retrieval :: ports layer."""
+"""retrieval :: ports."""

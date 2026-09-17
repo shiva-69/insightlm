@@ -22,6 +22,15 @@ dependencies = [
     "python-multipart>=0.0.17",
     "httpx>=0.28",
     "tenacity>=9.0",
+    # --- Phase 1: document engine -------------------------------------------
+    "anthropic>=0.40",
+    "pymupdf>=1.25",          # text + per-character geometry; see spikes/
+    # boto3 is sync, driven from asyncio via to_thread. aioboto3 would avoid that
+    # but pins aiobotocore to exact botocore versions, which is a dependency
+    # headache out of proportion to putting a few PDFs in a bucket.
+    "boto3>=1.35",
+    "python-docx>=1.1",
+    "pgvector>=0.3",
     "opentelemetry-api>=1.28",
     "opentelemetry-sdk>=1.28",
     "opentelemetry-exporter-otlp-proto-grpc>=1.28",
@@ -104,8 +113,16 @@ mypy_path = "src"
 packages = ["insightlm"]
 
 [[tool.mypy.overrides]]
-module = ["testcontainers.*", "arq.*"]
+module = ["testcontainers.*", "arq.*", "docx.*", "boto3.*", "botocore.*", "pgvector.*"]
 ignore_missing_imports = true
+
+# PyMuPDF ships partial stubs: `Document` is iterable and `get_text("rawdict")`
+# returns a nested dict at runtime, but neither is declared. Narrowing the relaxation
+# to this one adapter keeps --strict everywhere else, and keeps the untyped surface
+# behind a port.
+[[tool.mypy.overrides]]
+module = ["insightlm.documents.adapters.pymupdf_parser"]
+disallow_untyped_calls = false
 
 # ---------------------------------------------------------------- pytest
 [tool.pytest.ini_options]
@@ -115,6 +132,13 @@ testpaths = ["tests"]
 addopts = "-q --strict-markers --strict-config"
 markers = [
     "integration: requires real infrastructure via testcontainers",
+]
+filterwarnings = [
+    "error::RuntimeWarning",
+    # PyMuPDF's SWIG bindings trip this on import; nothing we can act on.
+    "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
 ]
 
 [tool.coverage.run]

@@ -173,3 +173,34 @@ async def test_responses_never_leak_password_hashes_or_token_hashes(
 async def test_the_correlation_id_is_echoed_back(client: AsyncClient, container: Container) -> None:
     response = await client.get("/health", headers={"X-Correlation-ID": "trace-me-123"})
     assert response.headers["X-Correlation-ID"] == "trace-me-123"
+
+
+async def test_the_correlation_id_reaches_error_responses(
+    client: AsyncClient, container: Container
+) -> None:
+    """Regression test for a silent middleware bug.
+
+    The correlation middleware was originally written on Starlette's
+    `BaseHTTPMiddleware`, which runs the downstream application in a *separate task*.
+    `contextvars` bound before `call_next` therefore never reached the request --
+    every log line and every error body carried a null correlation id while the
+    middleware looked entirely correct.
+
+    Echoing the header back is not enough to catch it: that worked the whole time.
+    Only reading the id from inside a handler does.
+    """
+    response = await client.get("/members", headers={"X-Correlation-ID": "trace-abc-123"})
+
+    assert response.status_code == 401
+    assert response.headers["X-Correlation-ID"] == "trace-abc-123"
+    assert response.json()["correlation_id"] == "trace-abc-123"
+
+
+async def test_a_generated_correlation_id_is_used_when_none_is_supplied(
+    client: AsyncClient, container: Container
+) -> None:
+    response = await client.get("/members")
+
+    generated = response.headers["X-Correlation-ID"]
+    assert generated
+    assert response.json()["correlation_id"] == generated

@@ -12,6 +12,13 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from insightlm.ask_service import AskService
+from insightlm.documents.adapters.pymupdf_parser import PyMuPdfParser
+from insightlm.documents.adapters.s3_store import S3ObjectStore
+from insightlm.documents.adapters.uow import SqlAlchemyDocumentsUnitOfWork
+from insightlm.documents.application.upload import UploadDocument
+from insightlm.documents.ports.repositories import DocumentsUnitOfWork
+from insightlm.documents.ports.storage import ObjectStore
 from insightlm.governance.application.audit_queries import ListAuditEntries, VerifyAuditChain
 from insightlm.governance.ports.uow import GovernanceUnitOfWork
 from insightlm.identity.adapters.security import Argon2PasswordHasher, JwtTokenIssuer
@@ -25,13 +32,23 @@ from insightlm.identity.application.members import (
 )
 from insightlm.identity.application.register import RegisterOwner
 from insightlm.identity.ports.uow import IdentityUnitOfWork
+from insightlm.retrieval.adapters.anthropic_generator import AnthropicGroundedGenerator
+from insightlm.retrieval.adapters.chunker import StructureAwareChunker
+from insightlm.retrieval.adapters.embedding import HashingEmbedder, VoyageEmbedder
+from insightlm.retrieval.adapters.extractive_generator import ExtractiveGenerator
+from insightlm.retrieval.ports.generation import GroundedGenerator
+from insightlm.retrieval.ports.indexing import Embedder
 from insightlm.settings import Settings
 from insightlm.shared.adapters.clock import SystemClock
 from insightlm.shared.adapters.db.base import create_engine, create_session_factory
 from insightlm.shared.domain.ids import TenantId, UserId
+from insightlm.shared.observability.logging import get_logger
 from insightlm.shared.ports.clock import Clock
 from insightlm.shared.ports.password import PasswordHasher
 from insightlm.shared.ports.tokens import TokenIssuer
+from insightlm.worker.ingestion import IngestionPipeline
+
+_logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +61,9 @@ class Container:
     clock: Clock
     password_hasher: PasswordHasher
     token_issuer: TokenIssuer
+    object_store: ObjectStore
+    embedder: Embedder
+    generator: GroundedGenerator
 
     register_owner: RegisterOwner
     authenticate: Authenticate
@@ -54,6 +74,10 @@ class Container:
     revoke_membership: RevokeMembership
     list_audit_entries: ListAuditEntries
     verify_audit_chain: VerifyAuditChain
+    upload_document: UploadDocument
+    ask: AskService
+    ingestion: IngestionPipeline
+    documents_uow: object
 
     async def dispose(self) -> None:
         await self.engine.dispose()
@@ -87,6 +111,17 @@ def build_container(settings: Settings) -> Container:
             session_factory, clock, tenant_id=tenant_id, user_id=user_id
         )
 
+    store = S3ObjectStore(settings)
+    embedder = _build_embedder(settings)
+    generator = _build_generator(settings)
+
+    def documents_uow(
+        *, tenant_id: TenantId | None = None, user_id: UserId | None = None
+    ) -> DocumentsUnitOfWork:
+        return SqlAlchemyDocumentsUnitOfWork(
+            session_factory, clock, tenant_id=tenant_id, user_id=user_id
+        )
+
     return Container(
         settings=settings,
         engine=engine,
@@ -111,4 +146,51 @@ def build_container(settings: Settings) -> Container:
         revoke_membership=RevokeMembership(uow_factory, clock),
         list_audit_entries=ListAuditEntries(governance_uow_factory),
         verify_audit_chain=VerifyAuditChain(governance_uow_factory),
+        object_store=store,
+        embedder=embedder,
+        generator=generator,
+        upload_document=UploadDocument(documents_uow, store, clock),
+        ask=AskService(session_factory, embedder=embedder, generator=generator),
+        ingestion=IngestionPipeline(
+            session_factory,
+            store=store,
+            parser=PyMuPdfParser(),
+            chunker=StructureAwareChunker(),
+            embedder=embedder,
+            clock=clock,
+        ),
+        documents_uow=documents_uow,
     )
+
+
+def _build_embedder(settings: Settings) -> Embedder:
+    """Real embeddings when a key is configured, deterministic offline ones otherwise.
+
+    The fallback is not a stub. It makes CI, a clean checkout and a live demo all work
+    with no account and no network -- and because it is deterministic, retrieval tests
+    assert exact rankings. Its quality ceiling is real and documented; Phase 2's eval
+    harness measures the gap rather than assuming it.
+    """
+    if settings.voyage_api_key is not None:
+        return VoyageEmbedder(settings.voyage_api_key.get_secret_value())
+    _logger.info("using_offline_embedder", reason="no VOYAGE_API_KEY configured")
+    return HashingEmbedder()
+
+
+def _build_generator(settings: Settings) -> GroundedGenerator:
+    """Claude when a key is configured, the extractive baseline otherwise.
+
+    The extractive generator cannot hallucinate -- every claim is copied verbatim from
+    a retrieved span -- so the citation contract holds either way. What it cannot do is
+    synthesise across sources, which is precisely the difference Phase 2 measures.
+    """
+    if settings.anthropic_api_key is not None:
+        from anthropic import AsyncAnthropic
+
+        return AnthropicGroundedGenerator(
+            AsyncAnthropic(api_key=settings.anthropic_api_key.get_secret_value()),
+            model=settings.generation_model,
+            effort=settings.generation_effort,
+        )
+    _logger.info("using_offline_generator", reason="no ANTHROPIC_API_KEY configured")
+    return ExtractiveGenerator()

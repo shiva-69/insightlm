@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
 from insightlm import __version__
 from insightlm.api.errors import register_exception_handlers
 from insightlm.api.middleware import CorrelationMiddleware
-from insightlm.api.routers import audit, auth, health, members
+from insightlm.api.routers import ask, audit, auth, documents, health, members
 from insightlm.bootstrap import Container, build_container
 from insightlm.settings import Settings, get_settings
 from insightlm.shared.observability.logging import configure_logging, get_logger
@@ -20,9 +22,13 @@ _logger = get_logger(__name__)
 DESCRIPTION = """
 Evidence-grounded document intelligence, applied to hiring.
 
-**Phase 0** exposes the platform foundation: workspaces, authentication, team
-invitations with role-based access, and the tamper-evident audit log that every later
-module writes to.
+**Phase 0** -- the platform foundation: workspaces, authentication, team invitations
+with role-based access, and the tamper-evident audit log every later module writes to.
+
+**Phase 1** -- the document engine: upload, a resumable ingestion pipeline, and
+grounded question answering where *every claim carries a citation that resolves to an
+exact span in the source document*. A claim whose citation cannot be resolved is never
+shown.
 """
 
 
@@ -66,5 +72,16 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
     app.include_router(auth.router)
     app.include_router(members.router)
     app.include_router(audit.router)
+    app.include_router(documents.router)
+    app.include_router(ask.router)
+
+    # The bundled evidence viewer. A single page, served by the API, so the citation
+    # contract can be demonstrated end to end without a Node toolchain. The production
+    # frontend is a separate concern; this exists to prove the loop works.
+    viewer = Path(__file__).parent / "static" / "viewer.html"
+
+    @app.get("/", include_in_schema=False)
+    async def _viewer() -> HTMLResponse:
+        return HTMLResponse(viewer.read_text(encoding="utf-8"))
 
     return app

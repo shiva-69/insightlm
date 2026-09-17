@@ -143,3 +143,84 @@ class ErrorResponse(BaseModel):
     message: str
     detail: dict[str, object] = Field(default_factory=dict)
     correlation_id: str | None = None
+
+
+# ---------------------------------------------------------------- documents
+class DocumentResponse(_FromDomain):
+    id: UUID
+    title: str
+    media_type: str
+    created_at: datetime
+
+
+class DocumentVersionResponse(_FromDomain):
+    id: UUID
+    document_id: UUID
+    version: int
+    status: str
+    byte_size: int
+    page_count: int | None = None
+    char_count: int | None = None
+    failure_reason: str | None = None
+
+
+class UploadResponse(BaseModel):
+    document: DocumentResponse
+    version: DocumentVersionResponse
+    was_duplicate: bool = Field(
+        description=(
+            "True when identical bytes already existed in this workspace. The existing "
+            "version is returned and no reprocessing is queued."
+        )
+    )
+
+
+# ---------------------------------------------------------------- answering
+class AskRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(min_length=1, max_length=2000)
+    top_k: int = Field(default=8, ge=1, le=50)
+    document_ids: list[UUID] | None = Field(
+        default=None, description="Restrict retrieval to these documents."
+    )
+
+
+class CitationResponse(BaseModel):
+    label: str
+    chunk_id: UUID
+    document_id: UUID
+    document_title: str
+    page: int = Field(description="Zero-based page index in the source document.")
+    char_start: int
+    char_end: int
+    quoted_text: str
+    rects: list[dict[str, float]] = Field(
+        default_factory=list,
+        description=(
+            "Highlight rectangles in PDF points, origin top-left. Empty for formats "
+            "without fixed layout, where the viewer falls back to the quoted text."
+        ),
+    )
+
+
+class ClaimResponse(BaseModel):
+    text: str
+    citations: list[str] = Field(description="Citation labels supporting this claim.")
+
+
+class AnswerResponse(BaseModel):
+    outcome: str = Field(description="answered | insufficient_evidence | validation_failed")
+    text: str
+    claims: list[ClaimResponse]
+    citations: list[CitationResponse]
+    refusal_reason: str | None = None
+
+    strategy: str
+    retrieval_config_hash: str
+    model_version: str
+    prompt_version: str
+    embedding_model: str
+    latency_ms: int
+    input_tokens: int
+    output_tokens: int

@@ -45,10 +45,12 @@
 - Parse (PyMuPDF + layout), chunk (structure-aware, with spans), embed, index into pgvector **and** tsvector
 - Dense retrieval + a first generation pass with structured citation output
 - Citation validator (reject unresolvable claims)
-- Next.js: upload, document list, chat with SSE streaming, **PDF.js viewer with span highlighting**
+- Evidence viewer: upload, document list, ask, **PDF.js viewer with span highlighting**
+  (delivered as a single page served by the API; the Next.js app is deferred to Phase 5
+  where collaboration UI makes it earn its keep)
 - ADR-0004 (chunking strategy), ADR-0006 (citation contract)
 
-**Exit:** the money demo works. Milestone **M1**.
+**Exit:** the money demo works. Milestone **M1**. ✅ *Complete (18 Sep 2026).*
 
 > If Week 4 ends without a working highlight, stop and fix it before proceeding. It is the project's spine.
 

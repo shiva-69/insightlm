@@ -132,7 +132,31 @@ async def container(settings: Settings) -> AsyncIterator[Container]:
                 )
             )
             await session.commit()
-        yield built
+        # No test wants real MinIO in the loop: object storage is not what any of
+        # them assert, and a container per run would cost seconds for nothing. The
+        # port exists so this substitution is legitimate rather than a mock.
+        from dataclasses import replace
+
+        from insightlm.documents.adapters.pymupdf_parser import PyMuPdfParser
+        from insightlm.documents.application.upload import UploadDocument
+        from insightlm.retrieval.adapters.chunker import StructureAwareChunker
+        from insightlm.worker.ingestion import IngestionPipeline
+        from tests.fakes import InMemoryObjectStore
+
+        store = InMemoryObjectStore()
+        yield replace(
+            built,
+            object_store=store,
+            upload_document=UploadDocument(built.documents_uow, store, built.clock),
+            ingestion=IngestionPipeline(
+                built.session_factory,
+                store=store,
+                parser=PyMuPdfParser(),
+                chunker=StructureAwareChunker(),
+                embedder=built.embedder,
+                clock=built.clock,
+            ),
+        )
     finally:
         await admin_engine.dispose()
         await built.dispose()

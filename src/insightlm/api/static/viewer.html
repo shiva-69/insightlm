@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InsightLM — Evidence Viewer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --line: #272b36; --ink: #e6e8ee;
+    --muted: #949cad; --accent: #7aa2f7; --hl: rgba(255, 214, 10, .38);
+    --hl-active: rgba(255, 138, 0, .55); --ok: #7ee787; --warn: #f0883e;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+         background:var(--bg); color:var(--ink); height:100vh; display:flex; flex-direction:column; }
+  header { padding:10px 16px; border-bottom:1px solid var(--line); display:flex; gap:12px;
+           align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0; font-weight:600; letter-spacing:.2px; }
+  header .tag { font-size:11px; color:var(--muted); border:1px solid var(--line);
+                padding:2px 7px; border-radius:99px; }
+  main { flex:1; display:grid; grid-template-columns:minmax(360px,42%) 1fr; min-height:0; }
+  @media (max-width: 900px) { main { grid-template-columns:1fr; } }
+  .pane { min-height:0; overflow:auto; padding:16px; }
+  .pane + .pane { border-left:1px solid var(--line); background:#0b0d11; }
+  input, textarea, button, select {
+    font:inherit; color:var(--ink); background:var(--panel);
+    border:1px solid var(--line); border-radius:8px; padding:8px 10px;
+  }
+  button { cursor:pointer; background:var(--accent); color:#0b0d11; border:none; font-weight:600; }
+  button.ghost { background:var(--panel); color:var(--ink); border:1px solid var(--line); font-weight:500; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .row > input, .row > textarea { flex:1; min-width:140px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+          padding:12px; margin-bottom:12px; }
+  .muted { color:var(--muted); font-size:12px; }
+  .claim { margin:0 0 10px; }
+  .cite { display:inline-block; margin-left:5px; padding:0 6px; border-radius:5px;
+          background:#243049; color:var(--accent); cursor:pointer; font-size:11px;
+          font-weight:700; border:1px solid #2f3d5c; vertical-align:baseline; }
+  .cite:hover { background:var(--accent); color:#0b0d11; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; border:1px solid var(--line);
+          color:var(--muted); }
+  .pill.ok { color:var(--ok); border-color:#1f4429; }
+  .pill.warn { color:var(--warn); border-color:#4a3320; }
+  .pagewrap { position:relative; margin:0 auto 14px; width:max-content; }
+  canvas { display:block; border-radius:6px; }
+  .hl { position:absolute; background:var(--hl); border-radius:2px; pointer-events:none;
+        transition:background .15s; }
+  .hl.active { background:var(--hl-active); box-shadow:0 0 0 2px rgba(255,138,0,.5); }
+  pre.meta { font-size:11px; color:var(--muted); white-space:pre-wrap; margin:6px 0 0; }
+  .err { color:#ff7b72; }
+</style>
+</head>
+<body>
+<header>
+  <h1>InsightLM</h1>
+  <span class="tag">Phase 1 — evidence viewer</span>
+  <span id="who" class="muted"></span>
+</header>
+
+<main>
+  <section class="pane">
+    <div class="card" id="authCard">
+      <div class="row">
+        <input id="email" placeholder="email" value="owner@acme.example.com">
+        <input id="password" type="password" placeholder="password" value="correct-horse-battery-staple">
+      </div>
+      <div class="row">
+        <input id="slug" placeholder="workspace slug (new account only)" value="acme">
+        <button id="register" class="ghost">Register</button>
+        <button id="login">Log in</button>
+      </div>
+      <div class="muted">Register creates a workspace and its owner. Log in reuses one.</div>
+    </div>
+
+    <div class="card" id="uploadCard" hidden>
+      <div class="row">
+        <input id="file" type="file" accept=".pdf,.docx,.txt,.md">
+        <button id="upload">Upload</button>
+      </div>
+      <div id="docs" class="muted"></div>
+    </div>
+
+    <div class="card" id="askCard" hidden>
+      <div class="row">
+        <textarea id="question" rows="2" placeholder="Ask something grounded in the documents…">What payment systems experience is there?</textarea>
+      </div>
+      <div class="row">
+        <button id="ask">Ask</button>
+        <span id="status" class="muted"></span>
+      </div>
+    </div>
+
+    <div id="answer"></div>
+  </section>
+
+  <section class="pane" id="pdfPane">
+    <div class="muted" id="pdfHint">Upload a PDF and ask a question. Click a citation to highlight the exact span it came from.</div>
+    <div id="pages"></div>
+  </section>
+</main>
+
+<script type="module">
+import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs";
+
+const $ = (id) => document.getElementById(id);
+const state = { token: null, docId: null, scale: 1.4, rendered: null };
+
+const api = async (path, opts = {}) => {
+  const headers = { ...(opts.headers || {}) };
+  if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  if (opts.json) { headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(opts.json); }
+  const res = await fetch(path, { ...opts, headers });
+  const body = res.headers.get("content-type")?.includes("json") ? await res.json() : await res.text();
+  if (!res.ok) throw new Error(body?.message || body?.detail || res.statusText);
+  return body;
+};
+
+const setStatus = (msg, cls = "muted") => { $("status").className = cls; $("status").textContent = msg; };
+
+$("register").onclick = async () => {
+  try {
+    await api("/auth/register", { method: "POST", json: {
+      tenant_name: $("slug").value, tenant_slug: $("slug").value,
+      email: $("email").value, display_name: "Owner", password: $("password").value }});
+    await login();
+  } catch (e) { setStatus(e.message, "err"); }
+};
+
+$("login").onclick = () => login().catch((e) => setStatus(e.message, "err"));
+
+async function login() {
+  const out = await api("/auth/login", { method: "POST", json: {
+    email: $("email").value, password: $("password").value }});
+  state.token = out.access_token;
+  $("authCard").hidden = true; $("uploadCard").hidden = false; $("askCard").hidden = false;
+  $("who").textContent = `signed in as ${$("email").value}`;
+  await refreshDocs();
+}
+
+async function refreshDocs() {
+  const docs = await api("/documents");
+  $("docs").innerHTML = docs.length
+    ? docs.map((d) => `<div>· ${d.title} <span class="muted">(${d.media_type})</span></div>`).join("")
+    : "No documents yet.";
+  if (docs.length && !state.docId) state.docId = docs[0].id;
+}
+
+$("upload").onclick = async () => {
+  const file = $("file").files[0];
+  if (!file) return setStatus("choose a file first", "err");
+  setStatus("uploading…");
+  const form = new FormData();
+  form.append("file", file);
+  try {
+    const out = await api("/documents", { method: "POST", body: form });
+    state.docId = out.document.id;
+    setStatus(out.was_duplicate ? "already uploaded (deduplicated)" : "uploaded — ingesting…");
+    await refreshDocs();
+    poll(out.document.id);
+  } catch (e) { setStatus(e.message, "err"); }
+};
+
+async function poll(docId) {
+  for (let i = 0; i < 60; i++) {
+    const v = await api(`/documents/${docId}/status`);
+    if (v.status === "ready") return setStatus(`ready — ${v.page_count} page(s), ${v.char_count} chars`);
+    if (v.status === "failed") return setStatus(`ingestion failed: ${v.failure_reason}`, "err");
+    setStatus(`ingesting… (${v.status})`);
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  setStatus("still processing — is the worker running?", "err");
+}
+
+$("ask").onclick = async () => {
+  setStatus("retrieving…");
+  $("answer").innerHTML = "";
+  try {
+    const out = await api("/ask", { method: "POST", json: {
+      question: $("question").value, top_k: 8 }});
+    renderAnswer(out);
+    if (state.docId) await renderPdf(state.docId, out.citations);
+    setStatus(`${out.latency_ms} ms`);
+  } catch (e) { setStatus(e.message, "err"); }
+};
+
+function renderAnswer(out) {
+  const byLabel = Object.fromEntries(out.citations.map((c) => [c.label, c]));
+  const pill = out.outcome === "answered"
+    ? '<span class="pill ok">answered</span>'
+    : `<span class="pill warn">${out.outcome.replace(/_/g, " ")}</span>`;
+
+  const claims = out.claims.map((c) => {
+    const cites = c.citations.map((l) => `<span class="cite" data-label="${l}">${l}</span>`).join("");
+    return `<p class="claim">${escapeHtml(c.text)}${cites}</p>`;
+  }).join("");
+
+  $("answer").innerHTML = `
+    <div class="card">
+      <div class="row">${pill}
+        <span class="pill">${out.claims.length} claim(s)</span>
+        <span class="pill">${out.citations.length} citation(s)</span>
+      </div>
+      ${claims || `<p class="muted">${escapeHtml(out.refusal_reason || "No answer.")}</p>`}
+      <pre class="meta">model      ${out.model_version}
+prompt     ${out.prompt_version}
+embedder   ${out.embedding_model}
+strategy   ${out.strategy}
+config     ${out.retrieval_config_hash.slice(0, 16)}…
+tokens     ${out.input_tokens} in / ${out.output_tokens} out</pre>
+    </div>`;
+
+  document.querySelectorAll(".cite").forEach((el) => {
+    el.onclick = () => focusCitation(byLabel[el.dataset.label]);
+  });
+}
+
+async function renderPdf(docId, citations) {
+  const buf = await (await fetch(`/documents/${docId}/raw`, {
+    headers: { Authorization: `Bearer ${state.token}` } })).arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+
+  $("pdfHint").hidden = true;
+  const host = $("pages");
+  host.innerHTML = "";
+
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const page = await pdf.getPage(n);
+    const viewport = page.getViewport({ scale: state.scale });
+    const wrap = document.createElement("div");
+    wrap.className = "pagewrap";
+    wrap.dataset.page = String(n - 1);
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    wrap.appendChild(canvas);
+    host.appendChild(wrap);
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+  }
+
+  // Rectangles arrive in PDF points with the origin top-left, which is the same
+  // convention PDF.js uses after applying the viewport scale -- so this is a
+  // multiply, not a coordinate-system conversion.
+  for (const c of citations) {
+    for (const r of c.rects) {
+      const wrap = host.querySelector(`.pagewrap[data-page="${r.page}"]`);
+      if (!wrap) continue;
+      const box = document.createElement("div");
+      box.className = "hl";
+      box.dataset.label = c.label;
+      box.style.left = `${r.x0 * state.scale}px`;
+      box.style.top = `${r.y0 * state.scale}px`;
+      box.style.width = `${(r.x1 - r.x0) * state.scale}px`;
+      box.style.height = `${(r.y1 - r.y0) * state.scale}px`;
+      wrap.appendChild(box);
+    }
+  }
+  state.rendered = true;
+}
+
+function focusCitation(citation) {
+  if (!citation || !state.rendered) return;
+  document.querySelectorAll(".hl").forEach((el) =>
+    el.classList.toggle("active", el.dataset.label === citation.label));
+  const target = document.querySelector(`.hl[data-label="${citation.label}"]`);
+  if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+</script>
+</body>
+</html>

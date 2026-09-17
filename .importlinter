@@ -99,17 +99,23 @@ forbidden_modules =
 # The contract that carries the thesis: `recruiting` may depend on `retrieval`'s
 # port and nothing else, so "recruiting is a vertical on the document engine" is a
 # property of the code rather than a claim in a report.
+#
+# `insightlm.governance.adapters` is deliberately absent from the forbidden list.
+# Governance is a shared dependency, not a peer feature -- every module audits, and
+# every module's unit of work is built by extending the governance one, which is what
+# makes "an identity or document change that is not audited" structurally impossible.
+# Its *application* layer stays private: use cases are still nobody else's business.
 [importlinter:contract:module-internals-are-private]
 name = Modules reach each other only through ports
 type = forbidden
 source_modules =
+    insightlm.identity
     insightlm.recruiting
     insightlm.retrieval
     insightlm.documents
     insightlm.evaluation
 forbidden_modules =
     insightlm.identity.adapters
-    insightlm.governance.adapters
     insightlm.documents.adapters
     insightlm.retrieval.adapters
     insightlm.recruiting.adapters

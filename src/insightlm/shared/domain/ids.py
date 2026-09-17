@@ -16,6 +16,12 @@ MembershipId = NewType("MembershipId", UUID)
 InvitationId = NewType("InvitationId", UUID)
 AuditEntryId = NewType("AuditEntryId", UUID)
 OutboxEventId = NewType("OutboxEventId", UUID)
+DocumentId = NewType("DocumentId", UUID)
+DocumentVersionId = NewType("DocumentVersionId", UUID)
+ChunkId = NewType("ChunkId", UUID)
+IngestionJobId = NewType("IngestionJobId", UUID)
+ConversationId = NewType("ConversationId", UUID)
+MessageId = NewType("MessageId", UUID)
 CorrelationId = NewType("CorrelationId", str)
 
 
@@ -41,3 +47,27 @@ def new_audit_entry_id() -> AuditEntryId:
 
 def new_outbox_event_id() -> OutboxEventId:
     return OutboxEventId(uuid4())
+
+
+def new_document_id() -> DocumentId:
+    return DocumentId(uuid4())
+
+
+def new_document_version_id() -> DocumentVersionId:
+    return DocumentVersionId(uuid4())
+
+
+def new_chunk_id() -> ChunkId:
+    return ChunkId(uuid4())
+
+
+def new_ingestion_job_id() -> IngestionJobId:
+    return IngestionJobId(uuid4())
+
+
+def new_conversation_id() -> ConversationId:
+    return ConversationId(uuid4())
+
+
+def new_message_id() -> MessageId:
+    return MessageId(uuid4())

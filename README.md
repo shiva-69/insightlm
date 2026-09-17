@@ -2,7 +2,7 @@
 
 > **Thesis in one sentence:** Recruiting is a document-intelligence problem, and the reason AI screening tools are distrusted and increasingly regulated is not that they are inaccurate — it is that they cannot show their work. InsightLM is a retrieval platform where **no AI claim exists without a citation to the exact span of the source document that supports it**, and hiring is its first vertical.
 
-**Status:** Phase 0 complete — platform foundation built and tested.
+**Status:** Phase 1 complete — document engine working end to end. Upload a PDF, ask a question, click a citation, see the exact span highlighted.
 **Type:** MCA Final Year Project (dissertation + working system).
 
 ---
@@ -79,7 +79,12 @@ make test        # everything (needs Docker for testcontainers)
 make test-fast   # unit + architecture only, no Docker
 ```
 
-### Try the Phase 0 exit criteria
+### The demo
+
+Open **http://localhost:8000** — register, upload a PDF, ask a question, click a
+citation. The span highlights in the rendered page.
+
+### Try it from the shell
 
 ```bash
 # create a workspace and its owner
@@ -98,7 +103,44 @@ curl -sX POST localhost:8000/members/invitations -H "authorization: Bearer $TOKE
 # read the audit chain, then verify it end to end
 curl -s localhost:8000/audit/entries -H "authorization: Bearer $TOKEN" | jq
 curl -sX POST localhost:8000/audit/verify -H "authorization: Bearer $TOKEN" | jq
+
+# upload a document, then watch it through the pipeline
+DOC=$(curl -sX POST localhost:8000/documents -H "authorization: Bearer $TOKEN" \
+  -F "file=@cv.pdf" | jq -r .document.id)
+curl -s localhost:8000/documents/$DOC/status -H "authorization: Bearer $TOKEN" | jq
+
+# ask -- every claim carries a citation that resolves to an exact span
+curl -sX POST localhost:8000/ask -H "authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{"question":"What payment systems experience is there?"}' | jq '.claims, .citations[0]'
 ```
+
+---
+
+## What Phase 1 built
+
+The vertical slice: **upload → parse → chunk → embed → index → retrieve → generate →
+validate → highlight.**
+
+| Capability | Where |
+| --- | --- |
+| Layout-aware parsing with per-character geometry, index-aligned by contract | [`pymupdf_parser.py`](src/insightlm/documents/adapters/pymupdf_parser.py) |
+| Structure-aware chunking; sections are hard boundaries | [`chunker.py`](src/insightlm/retrieval/adapters/chunker.py), [ADR-0004](docs/adr/0004-structure-aware-chunking.md) |
+| **The citation contract** — claims validated before display | [`answer.py`](src/insightlm/retrieval/domain/answer.py), [ADR-0006](docs/adr/0006-the-citation-contract.md) |
+| `EvidencePort` — the one seam Phase 4 will depend on | [`ports/evidence.py`](src/insightlm/retrieval/ports/evidence.py) |
+| Resumable pipeline; a failed embed does not re-parse | [`worker/ingestion.py`](src/insightlm/worker/ingestion.py) |
+| Dead-letter table — a document that fails is visible, never absent | [migration 0002](migrations/versions/0002_document_engine.py) |
+| pgvector HNSW + trigger-maintained tsvector, both indexed | [migration 0002](migrations/versions/0002_document_engine.py) |
+| Grounded generation via `claude-opus-5`, structured output | [`anthropic_generator.py`](src/insightlm/retrieval/adapters/anthropic_generator.py) |
+| Offline deterministic fallbacks — runs with no API key | [`embedding.py`](src/insightlm/retrieval/adapters/embedding.py), [`extractive_generator.py`](src/insightlm/retrieval/adapters/extractive_generator.py) |
+| Bundled evidence viewer — click a citation, highlight the span | [`viewer.html`](src/insightlm/api/static/viewer.html) |
+
+**It runs without an API key.** `HashingEmbedder` and `ExtractiveGenerator` are
+deterministic and offline, so CI, a clean checkout and a live demo all work with no
+account. Set `ANTHROPIC_API_KEY` (and optionally `VOYAGE_API_KEY`) to switch to the
+real models; the container picks them up automatically. The offline path's quality
+ceiling is real and documented — Phase 2's eval harness measures the gap rather than
+assuming it.
 
 ---
 

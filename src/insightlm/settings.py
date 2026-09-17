@@ -54,6 +54,15 @@ class Settings(BaseSettings):
     access_token_ttl_seconds: int = 900  # 15 minutes
     invitation_ttl_seconds: int = 604_800  # 7 days
 
+    # --- models -------------------------------------------------------------
+    # Absent keys are not an error. The system falls back to deterministic offline
+    # adapters so that `docker compose up`, CI and a demo all work without an
+    # account -- and so a dead key can never block a viva.
+    anthropic_api_key: SecretStr | None = None
+    voyage_api_key: SecretStr | None = None
+    generation_model: str = "claude-opus-5"
+    generation_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
+
     # --- observability ------------------------------------------------------
     otel_enabled: bool = False
     otel_endpoint: str = "http://localhost:4317"
