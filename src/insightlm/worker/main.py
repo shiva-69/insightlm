@@ -95,10 +95,14 @@ class WorkerSettings:
     """Retries are the pipeline's job, not the queue's: `IngestionJob` tracks attempts
     and records which step failed, which a queue-level retry counter cannot."""
 
-    @staticmethod
-    def redis_settings() -> RedisSettings:
-        return RedisSettings.from_dsn(str(get_settings().redis_url))
+    # A plain attribute, evaluated at import. ARQ reads this off the class directly,
+    # so a @staticmethod or @property hands it the descriptor object instead of the
+    # settings and the worker dies on startup with an unhelpful AttributeError.
+    # Importing this module therefore requires the environment to be configured --
+    # which is true of a worker entrypoint by definition.
+    redis_settings: ClassVar[RedisSettings] = RedisSettings.from_dsn(str(get_settings().redis_url))
 
 
 async def enqueue_pool() -> ArqRedis:
-    return await create_pool(WorkerSettings.redis_settings())
+    """A client pool for enqueuing from outside the worker."""
+    return await create_pool(WorkerSettings.redis_settings)

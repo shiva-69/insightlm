@@ -44,6 +44,9 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.container = container or build_container(resolved)
+        # Idempotent, and required here as well as in the worker: whichever process
+        # starts first creates the bucket, and either may run alone.
+        await app.state.container.object_store.ensure_bucket()
         _logger.info(
             "application_started",
             environment=resolved.environment,

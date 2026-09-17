@@ -178,16 +178,10 @@ async def test_the_correlation_id_is_echoed_back(client: AsyncClient, container:
 async def test_the_correlation_id_reaches_error_responses(
     client: AsyncClient, container: Container
 ) -> None:
-    """Regression test for a silent middleware bug.
+    """The id must reach the handler, not merely be echoed back.
 
-    The correlation middleware was originally written on Starlette's
-    `BaseHTTPMiddleware`, which runs the downstream application in a *separate task*.
-    `contextvars` bound before `call_next` therefore never reached the request --
-    every log line and every error body carried a null correlation id while the
-    middleware looked entirely correct.
-
-    Echoing the header back is not enough to catch it: that worked the whole time.
-    Only reading the id from inside a handler does.
+    Echoing the response header proves nothing -- that works even when the request
+    context is broken. Only reading the id from inside a handler does.
     """
     response = await client.get("/members", headers={"X-Correlation-ID": "trace-abc-123"})
 
@@ -204,3 +198,41 @@ async def test_a_generated_correlation_id_is_used_when_none_is_supplied(
     generated = response.headers["X-Correlation-ID"]
     assert generated
     assert response.json()["correlation_id"] == generated
+
+
+async def test_the_correlation_id_survives_an_unhandled_error(
+    container: Container, settings: object
+) -> None:
+    """The case that was actually broken.
+
+    Starlette handles unhandled exceptions in `ServerErrorMiddleware`, which wraps
+    every user middleware -- so the correlation *contextvar* has already been unwound
+    by the time the catch-all 500 handler runs. Ordinary handlers were never affected,
+    which is why the earlier tests all passed while the responses that matter most
+    carried a null id.
+
+    The middleware now also writes the id onto the ASGI scope, which survives.
+    """
+    from fastapi.responses import JSONResponse
+    from httpx import ASGITransport, AsyncClient
+
+    from insightlm.api.app import create_app
+
+    app = create_app(container.settings, container=container)
+
+    @app.get("/_boom", include_in_schema=False)
+    async def _boom() -> JSONResponse:
+        raise RuntimeError("deliberate failure")
+
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as http:
+        app.state.container = container
+        response = await http.get("/_boom", headers={"X-Correlation-ID": "trace-500"})
+
+    assert response.status_code == 500
+    body = response.json()
+    assert body["code"] == "internal_error"
+    assert body["correlation_id"] == "trace-500"
+    # And nothing about the underlying exception leaks to the caller.
+    assert "deliberate failure" not in response.text
+    assert "RuntimeError" not in response.text

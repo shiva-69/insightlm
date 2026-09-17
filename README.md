@@ -58,13 +58,23 @@ One language, because the dissertation's contribution — the evaluation harness
 
 ```bash
 make up          # postgres + pgvector, redis, minio, otel, grafana, api, worker
-open http://localhost:8000/docs
+open http://localhost:8000          # the evidence viewer
+open http://localhost:8000/docs     # the API
 ```
+
+> **MinIO comes from `quay.io`, not Docker Hub.** MinIO no longer publishes
+> `minio/minio` there, and the pull fails with *"repository does not exist or may
+> require 'docker login'"* — which reads like an auth problem and is not one. The
+> image is pinned by digest in [compose.yaml](compose.yaml); the comment there says
+> how to bump it.
 
 Migrations run as their own compose service before the app starts, and they create the
 restricted database role the application connects as. Nothing else needs doing.
 
 For local development against the compose infrastructure:
+
+Toolchain: **Python 3.12** (managed by `uv`) and, for the frontend, **Node LTS** via
+`nvm` (`nvm install --lts`). Nothing else is required — `uv` fetches its own Python.
 
 ```bash
 make install     # uv sync --all-groups

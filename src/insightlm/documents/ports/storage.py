@@ -6,6 +6,17 @@ from typing import Protocol
 
 
 class ObjectStore(Protocol):
+    async def ensure_bucket(self) -> None:
+        """Make the destination exist. Idempotent, and called on every process start.
+
+        On the port rather than only on the S3 adapter because *every* process that
+        writes needs it, not just the worker. Leaving it off meant the API could
+        accept an upload and fail at the last step against a bucket nobody had
+        created -- which is exactly what happened the first time the API was run
+        without the worker.
+        """
+        ...
+
     async def put(self, key: str, payload: bytes, *, content_type: str) -> None: ...
 
     async def get(self, key: str) -> bytes: ...
