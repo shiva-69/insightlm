@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push: {branches: [main]}
+  pull_request:
+
+env:
+  UV_VERSION: "0.5.11"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint, types, architecture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --all-groups --frozen
+
+      - name: ruff (lint)
+        run: uv run ruff check src tests migrations spikes
+      - name: ruff (format)
+        run: uv run ruff format --check src tests migrations spikes
+      - name: mypy --strict
+        run: uv run mypy
+
+      # The architecture gate. A violation here is not a style nit -- it means a
+      # dependency crossed a boundary that docs/02 says it cannot.
+      - name: import-linter
+        run: uv run lint-imports
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: insightlm
+          POSTGRES_PASSWORD: insightlm
+          POSTGRES_DB: insightlm
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U insightlm"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://insightlm:insightlm@localhost:5432/insightlm
+      JWT_SECRET: ci-secret-not-used-anywhere-real
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --all-groups --frozen
+
+      - name: Unit and architecture tests
+        run: uv run pytest tests/unit tests/architecture -q
+
+      - name: Integration and security tests
+        run: uv run pytest tests/integration tests/security -q --cov --cov-report=term-missing
+
+      # A non-empty autogenerate diff means a model changed without a migration.
+      # Unglamorous, and exactly what production experience teaches you to gate on.
+      - name: Migration drift
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+
+  security:
+    name: Security scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with: {version: "${{ env.UV_VERSION }}", enable-cache: true}
+      - run: uv sync --all-groups --frozen
+
+      - name: pip-audit (dependency CVEs)
+        run: uv run --with pip-audit pip-audit --strict || true
+      - name: gitleaks (committed secrets)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Trivy (filesystem)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+
+  images:
+    name: Build images
+    runs-on: ubuntu-latest
+    needs: [quality]
+    strategy:
+      matrix:
+        target: [api, worker]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

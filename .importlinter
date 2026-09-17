@@ -1,0 +1,137 @@
+# ==============================================================================
+# This file IS the architecture.
+#
+# It is checked in CI. A violation fails the build, which means adding a
+# dependency between modules is a visible, reviewed change to this file -- not an
+# `import` someone slips in at midnight.
+#
+# See docs/02-architecture.md SS2-3.
+# ==============================================================================
+
+[importlinter]
+root_package = insightlm
+include_external_packages = True
+
+# ------------------------------------------------------------------ layering
+[importlinter:contract:hexagonal-layers]
+name = Hexagonal layering holds inside every module
+type = layers
+layers =
+    adapters
+    application
+    ports
+    domain
+containers =
+    insightlm.identity
+    insightlm.documents
+    insightlm.retrieval
+    insightlm.recruiting
+    insightlm.governance
+    insightlm.evaluation
+exhaustive = false
+
+# --------------------------------------------------------------- module graph
+# Delivery sits above the modules; the shared kernel sits below everything.
+# `governance` is deliberately low: every module audits, so everything may depend
+# on it, and it may depend on nothing but shared.
+[importlinter:contract:module-dependency-direction]
+name = Module dependencies point one way
+type = layers
+layers =
+    insightlm.api : insightlm.worker
+    insightlm.recruiting
+    insightlm.retrieval
+    insightlm.documents
+    insightlm.identity
+    insightlm.governance
+    insightlm.shared
+exhaustive = false
+
+# ------------------------------------------------------------- domain purity
+[importlinter:contract:domain-purity]
+name = Domain layers touch no infrastructure
+type = forbidden
+source_modules =
+    insightlm.identity.domain
+    insightlm.documents.domain
+    insightlm.retrieval.domain
+    insightlm.recruiting.domain
+    insightlm.governance.domain
+    insightlm.evaluation.domain
+    insightlm.shared.domain
+forbidden_modules =
+    sqlalchemy
+    alembic
+    fastapi
+    starlette
+    httpx
+    redis
+    arq
+    boto3
+    pydantic
+    pydantic_settings
+    structlog
+    jwt
+    argon2
+
+# ------------------------------------------------------- ports stay abstract
+# A port that imports an adapter has inverted the dependency it exists to invert.
+[importlinter:contract:ports-are-abstract]
+name = Ports declare contracts, never implementations
+type = forbidden
+source_modules =
+    insightlm.identity.ports
+    insightlm.documents.ports
+    insightlm.retrieval.ports
+    insightlm.recruiting.ports
+    insightlm.governance.ports
+    insightlm.evaluation.ports
+    insightlm.shared.ports
+forbidden_modules =
+    sqlalchemy
+    fastapi
+    httpx
+    redis
+    arq
+    boto3
+
+# --------------------------------------------- cross-module internals are private
+# The contract that carries the thesis: `recruiting` may depend on `retrieval`'s
+# port and nothing else, so "recruiting is a vertical on the document engine" is a
+# property of the code rather than a claim in a report.
+[importlinter:contract:module-internals-are-private]
+name = Modules reach each other only through ports
+type = forbidden
+source_modules =
+    insightlm.recruiting
+    insightlm.retrieval
+    insightlm.documents
+    insightlm.evaluation
+forbidden_modules =
+    insightlm.identity.adapters
+    insightlm.governance.adapters
+    insightlm.documents.adapters
+    insightlm.retrieval.adapters
+    insightlm.recruiting.adapters
+    insightlm.identity.application
+    insightlm.governance.application
+    insightlm.documents.application
+    insightlm.retrieval.application
+    insightlm.recruiting.application
+allow_indirect_imports = false
+
+# ------------------------------------------------ the shared kernel is a leaf
+[importlinter:contract:shared-is-a-leaf]
+name = The shared kernel depends on no feature module
+type = forbidden
+source_modules =
+    insightlm.shared
+forbidden_modules =
+    insightlm.identity
+    insightlm.documents
+    insightlm.retrieval
+    insightlm.recruiting
+    insightlm.governance
+    insightlm.evaluation
+    insightlm.api
+    insightlm.worker

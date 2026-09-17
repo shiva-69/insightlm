@@ -1,0 +1,122 @@
+[project]
+name = "insightlm"
+version = "0.1.0"
+description = "Evidence-grounded document intelligence, applied to hiring"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic[email]>=2.9",
+    "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30",
+    # Alembic runs synchronously; asyncpg cannot serve it.
+    "psycopg[binary]>=3.2",
+    "greenlet>=3.1",
+    "alembic>=1.14",
+    "arq>=0.26",
+    "redis>=5.2",
+    "structlog>=24.4",
+    "pyjwt>=2.10",
+    "argon2-cffi>=23.1",
+    "python-multipart>=0.0.17",
+    "httpx>=0.28",
+    "tenacity>=9.0",
+    "opentelemetry-api>=1.28",
+    "opentelemetry-sdk>=1.28",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.28",
+    "opentelemetry-instrumentation-fastapi>=0.49b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.49b0",
+    "opentelemetry-instrumentation-asyncpg>=0.49b0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "mypy>=1.13",
+    "ruff>=0.8",
+    "import-linter>=2.1",
+    "testcontainers[postgres]>=4.8",
+    "hypothesis>=6.122",
+    "asgi-lifespan>=2.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/insightlm"]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",      # pycodestyle
+    "F",           # pyflakes
+    "I",           # isort
+    "N",           # pep8-naming
+    "UP",          # pyupgrade
+    "B",           # bugbear
+    "C4",          # comprehensions
+    "DTZ",         # naive datetimes -- we are strict about tz-aware
+    "T20",         # no print()
+    "SIM",         # simplify
+    "RUF",
+    "ASYNC",       # async antipatterns
+    "S",           # bandit
+]
+ignore = [
+    "E501",        # line length is handled by the formatter
+    "B008",        # FastAPI Depends() in defaults is idiomatic
+    # TC001-003 would push annotations into `if TYPE_CHECKING` blocks. Pydantic and
+    # FastAPI resolve annotations at runtime to build models and routes, so those
+    # rules break the framework rather than tidying it.
+    "TC001", "TC002", "TC003",
+    "N811",        # `UUID as PgUUID` is the conventional SQLAlchemy alias
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]   # asserts and test credentials are fine in tests
+# Spikes are throwaway scripts whose whole output is printed; they answer one question
+# and are kept for the record rather than imported.
+"spikes/*" = ["T201", "S101"]
+"migrations/*" = ["N999", "S608"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["insightlm"]
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_no_return = true
+disallow_any_explicit = false          # Pydantic/SQLAlchemy internals need some Any
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+packages = ["insightlm"]
+
+[[tool.mypy.overrides]]
+module = ["testcontainers.*", "arq.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config"
+markers = [
+    "integration: requires real infrastructure via testcontainers",
+]
+
+[tool.coverage.run]
+source = ["src/insightlm"]
+omit = ["*/migrations/*"]
