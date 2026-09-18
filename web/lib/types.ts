@@ -219,7 +219,8 @@ export interface Application {
   id: string;
   candidate_id: string;
   requisition_id: string;
-  stage: string;
+  stage: Stage;
+  stage_entered_at: string;
   created_at: string;
 }
 
@@ -263,4 +264,73 @@ export interface ShortlistEntry {
   application: Application;
   candidate: Candidate;
   assessment: Assessment | null;
+  overdue: boolean;
+}
+
+/* -- pipeline ------------------------------------------------------------------- */
+
+export type Stage = "applied" | "screened" | "interview" | "offer" | "hired" | "rejected";
+export type RejectionReason =
+  | "skills_gap"
+  | "experience_level"
+  | "interview_performance"
+  | "compensation"
+  | "location"
+  | "position_filled"
+  | "candidate_withdrew"
+  | "duplicate";
+export type Recommendation = "strong_no" | "no" | "yes" | "strong_yes";
+
+export interface Scorecard {
+  id: string;
+  application_id: string;
+  interviewer_id: string;
+  assigned_by: string;
+  assigned_at: string;
+  ratings: { criterion_id: string; rating: number; note: string }[];
+  recommendation: Recommendation | null;
+  summary: string;
+  submitted_at: string | null;
+  is_submitted: boolean;
+}
+
+export interface Transition {
+  from_stage: Stage;
+  to_stage: Stage;
+  by: string;
+  at: string;
+  reason: RejectionReason | null;
+  note: string;
+}
+
+export interface ApplicationDetail {
+  application: Application;
+  candidate: Candidate;
+  requisition: Requisition;
+  rubric: Rubric | null;
+  assessment: Assessment | null;
+  transitions: Transition[];
+  scorecards: { own: Scorecard | null; others: Scorecard[]; withheld: number; pending: number };
+  next_stage: Stage | null;
+  next_blockers: string[];
+  overdue: boolean;
+}
+
+export interface Interview {
+  scorecard: Scorecard;
+  application: Application;
+  candidate: Candidate;
+  requisition: Requisition;
+}
+
+export interface TalentMatch {
+  candidate: Candidate;
+  passages: {
+    label: string;
+    document_id: string;
+    document_title: string;
+    page: number;
+    text: string;
+    score: number;
+  }[];
 }

@@ -3,8 +3,8 @@
 import clsx from "clsx";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useSyncExternalStore } from "react";
-import { clearSession, getEmail, subscribe } from "@/lib/auth";
+import { useMemo, useSyncExternalStore } from "react";
+import { clearSession, currentClaims, getEmail, getToken, subscribe } from "@/lib/auth";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/primitives";
 
@@ -12,13 +12,20 @@ import { Button } from "./ui/primitives";
    side; every pixel the chrome takes is a pixel of reading width. Labels sit under
    the icons so nothing depends on a hover tooltip to be discoverable. */
 
-const NAV = [
+/* Who sees which destination. Mirrors the server's permissions so nobody is offered a
+   page that will only refuse them; the server still decides. */
+const SCORES = ["owner", "recruiter", "hiring_manager", "auditor"];
+const PANELS = ["owner", "recruiter", "hiring_manager", "interviewer"];
+
+const NAV: { href: string; label: string; icon: () => React.JSX.Element; roles?: string[] }[] = [
   { href: "/ask", label: "Ask", icon: AskIcon },
   { href: "/documents", label: "Library", icon: LibraryIcon },
-  { href: "/hiring", label: "Hiring", icon: HiringIcon },
+  { href: "/hiring", label: "Hiring", icon: HiringIcon, roles: SCORES },
+  { href: "/interviews", label: "Interviews", icon: InterviewsIcon, roles: PANELS },
+  { href: "/talent", label: "Talent", icon: TalentIcon, roles: SCORES },
   { href: "/team", label: "Team", icon: TeamIcon },
   { href: "/audit", label: "Audit", icon: AuditIcon },
-] as const;
+];
 
 export function Rail() {
   const pathname = usePathname();
@@ -26,6 +33,10 @@ export function Rail() {
   // The session is an external store; read it as one. The server snapshot is null,
   // so the first client render matches the HTML and the email fills in after.
   const email = useSyncExternalStore(subscribe, getEmail, () => null);
+  // The token string is the stable snapshot; the role is derived from it.
+  const token = useSyncExternalStore(subscribe, getToken, () => null);
+  const role = useMemo(() => (token ? currentClaims()?.role : undefined), [token]);
+  const visible = NAV.filter((item) => !item.roles || (role !== undefined && item.roles.includes(role)));
 
   function signOut() {
     clearSession();
@@ -43,7 +54,7 @@ export function Rail() {
       </Link>
 
       <ul className="flex w-full flex-1 flex-col items-center gap-0.5">
-        {NAV.map(({ href, label, icon: Icon }) => {
+        {visible.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href);
           return (
             <li key={href} className="w-full px-2">
@@ -117,6 +128,24 @@ function HiringIcon() {
     <svg viewBox="0 0 18 18" className="size-[18px]" aria-hidden {...stroke}>
       <rect x="2.5" y="5" width="13" height="9.5" rx="1.5" />
       <path d="M6.5 5V3.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V5M2.5 9.5h13" />
+    </svg>
+  );
+}
+
+function InterviewsIcon() {
+  return (
+    <svg viewBox="0 0 18 18" className="size-[18px]" aria-hidden {...stroke}>
+      <rect x="3" y="2.5" width="12" height="13" rx="1.5" />
+      <path d="M6 6.5h6M6 9h6M6 11.5h3.5" />
+    </svg>
+  );
+}
+
+function TalentIcon() {
+  return (
+    <svg viewBox="0 0 18 18" className="size-[18px]" aria-hidden {...stroke}>
+      <circle cx="8" cy="8" r="4.5" />
+      <path d="m11.5 11.5 3.5 3.5" />
     </svg>
   );
 }

@@ -19,6 +19,13 @@ import type {
   RequisitionDetail,
   Rubric,
   ShortlistEntry,
+  ApplicationDetail,
+  Interview,
+  RejectionReason,
+  Recommendation,
+  Scorecard,
+  Stage,
+  TalentMatch,
 } from "./types";
 import { getToken, clearSession } from "./auth";
 
@@ -156,6 +163,33 @@ export const api = {
 
   shortlist: (requisitionId: string) =>
     request<ShortlistEntry[]>(`/requisitions/${requisitionId}/shortlist`),
+
+  application: (id: string) => request<ApplicationDetail>(`/applications/${id}`),
+
+  moveApplication: (
+    id: string,
+    input: { to: Stage; reason?: RejectionReason; note?: string },
+  ) => request<Application>(`/applications/${id}/stage`, { method: "POST", json: input }),
+
+  assignInterviewer: (applicationId: string, userId: string) =>
+    request<Scorecard>(`/applications/${applicationId}/panel`, {
+      method: "POST",
+      json: { user_id: userId },
+    }),
+
+  submitScorecard: (
+    id: string,
+    input: {
+      ratings: { criterion_id: string; rating: number; note: string }[];
+      recommendation: Recommendation;
+      summary: string;
+    },
+  ) => request<Scorecard>(`/scorecards/${id}/submit`, { method: "POST", json: input }),
+
+  myInterviews: () => request<Interview[]>("/me/interviews"),
+
+  searchTalent: (q: string) =>
+    request<TalentMatch[]>(`/talent/search?q=${encodeURIComponent(q)}`),
 
   /** The raw file, for the viewer. Returns bytes, not JSON. */
   documentBytes: async (documentId: string): Promise<ArrayBuffer> => {

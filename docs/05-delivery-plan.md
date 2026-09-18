@@ -123,7 +123,22 @@
 - Talent-pool semantic search
 - Reason codes on rejection
 
-**Exit:** two browsers, two roles, correct and different views. Milestone **M5**.
+**Exit:** two browsers, two roles, correct and different views. Milestone **M5**. ◐ *Core complete (18 Sep 2026).*
+
+> **Delivered:** stages with forward-only transitions and two domain gates (screening
+> needs an assessment; an offer needs two submitted scorecards); reason codes on every
+> rejection; append-only stage history the app role can't update; per-stage SLAs and an
+> overdue marker; interview panels; scorecards with anchoring protection (withheld until
+> you submit, drafts never shown, submissions final); per-requisition scoping for
+> interviewers, returning 404 rather than 403; score-free interviewer views; talent-pool
+> search returning people with their matching passages. Exit check passes: an
+> integration test and a browser walkthrough with an owner and an interviewer.
+>
+> **Carried forward:** interview-kit generation and notes → scorecard draft (both need a
+> model; they wait for a deliberate paid run); configurable per-requisition stages and
+> scorecard thresholds; a relevance cutoff for talent search, which today returns every
+> candidate ranked, however weak the match. That cutoff should be set from measurements,
+> not guessed.
 
 ---
 

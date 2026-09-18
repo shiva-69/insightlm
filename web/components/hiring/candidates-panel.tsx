@@ -2,10 +2,12 @@
 
 import clsx from "clsx";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 import { useToast } from "@/components/toast";
 import { Button, Empty, Field, Input, Panel, Spinner, Tag } from "@/components/ui/primitives";
 import { api, ApiError } from "@/lib/api";
+import { STAGE_LABEL } from "@/lib/labels";
 import type { AssessmentFlag, ShortlistEntry } from "@/lib/types";
 
 export const FLAG_LABEL: Record<AssessmentFlag, string> = {
@@ -137,14 +139,15 @@ function CandidateRow({
       <span className="data text-right">{rank ?? "—"}</span>
 
       <span className="min-w-0">
-        <button
-          onClick={onOpen}
-          disabled={!assessment}
-          className="block truncate text-left text-[14px] font-medium enabled:hover:underline disabled:cursor-default"
+        <Link
+          href={`/applications/${entry.application.id}`}
+          className="block truncate text-[14px] font-medium hover:underline"
         >
           {candidate.name}
-        </button>
-        <span className="mt-1 flex flex-wrap gap-1">
+        </Link>
+        <span className="mt-1 flex flex-wrap items-center gap-1">
+          <Tag>{STAGE_LABEL[entry.application.stage]}</Tag>
+          {entry.overdue && <Tag tone="caution">Overdue</Tag>}
           {assessment ? (
             assessment.flags.length > 0 ? (
               assessment.flags.map((flag) => (
