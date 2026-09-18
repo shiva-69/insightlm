@@ -409,7 +409,7 @@ gemini-2.5-pro        100%   100%   100%     100%    100%     100%    100%     1
 *23 paid calls, cached in `eval/.cache/judgments.json`; reruns are free until a case,
 the prompt or the model changes. 19 Sep 2026.*
 
-### Finding 12 — the baseline fails exactly where it was expected to; the model doesn't
+## Finding 12 — the baseline fails exactly where it was expected to; the model doesn't
 
 The term-overlap baseline is perfect when a CV uses the criterion's own words and blind
 otherwise. It says **strong** to "Has never used Kubernetes" (0% on negation) and
@@ -424,7 +424,7 @@ set has also hit its ceiling: it can no longer tell two prompts or two models ap
 **judge-v2** needs harder cases: long passages, mixed signals ("led the migration, then
 handed it over"), and seniority judgments.
 
-### Finding 13 — the first live call found a contract bug the offline tests couldn't
+## Finding 13 — the first live call found a contract bug the offline tests couldn't
 
 The first Gemini run crashed on `confidence: 5`. The prompt never said what scale
 confidence was on, and the response schema didn't bound it. Reading the adapter turned up
