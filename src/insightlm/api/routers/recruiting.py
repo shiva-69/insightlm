@@ -52,6 +52,9 @@ class _In(BaseModel):
 class CreateRequisitionRequest(_In):
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=20_000)
+    blind_screening: bool = Field(
+        default=True, description="Judges never see name, contact, institution or demographics."
+    )
 
 
 class CriterionRequest(_In):
@@ -80,6 +83,7 @@ class RequisitionResponse(_Out):
     title: str
     description: str
     status: RequisitionStatus
+    blind_screening: bool
     created_by: UUID
     created_at: datetime
 
@@ -167,6 +171,7 @@ class AssessmentResponse(_Out):
     model_version: str
     prompt_version: str
     retrieval_config_hash: str
+    redaction_profile: str
     assessed_by: UUID
     created_at: datetime
 
@@ -196,7 +201,7 @@ async def create_requisition(
     body: CreateRequisitionRequest, actor: ActorDep, container: ContainerDep
 ) -> RequisitionResponse:
     requisition = await container.create_requisition.execute(
-        actor, title=body.title, description=body.description
+        actor, title=body.title, description=body.description, blind_screening=body.blind_screening
     )
     return RequisitionResponse.model_validate(requisition)
 

@@ -145,6 +145,7 @@ class SqlAlchemyRequisitionRepository:
                 title=r.title,
                 description=r.description,
                 status=r.status.value,
+                blind_screening=r.blind_screening,
                 created_by=r.created_by,
                 created_at=r.created_at,
             )
@@ -162,6 +163,7 @@ class SqlAlchemyRequisitionRepository:
             created_by=UserId(row.created_by),
             created_at=row.created_at,
             status=RequisitionStatus(row.status),
+            blind_screening=row.blind_screening,
         )
 
     async def list_for_tenant(self, tenant_id: TenantId) -> list[Requisition]:
@@ -181,6 +183,7 @@ class SqlAlchemyRequisitionRepository:
                 created_by=UserId(r.created_by),
                 created_at=r.created_at,
                 status=RequisitionStatus(r.status),
+                blind_screening=r.blind_screening,
             )
             for r in rows
         ]
@@ -368,6 +371,7 @@ class SqlAlchemyAssessmentRepository:
                 model_version=a.model_version,
                 prompt_version=a.prompt_version,
                 retrieval_config_hash=a.retrieval_config_hash,
+                redaction_profile=a.redaction_profile,
                 created_at=a.created_at,
             )
         )
@@ -397,6 +401,7 @@ class SqlAlchemyAssessmentRepository:
             model_version=row.model_version,
             prompt_version=row.prompt_version,
             retrieval_config_hash=row.retrieval_config_hash,
+            redaction_profile=row.redaction_profile,
         )
 
 

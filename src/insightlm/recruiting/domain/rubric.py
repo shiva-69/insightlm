@@ -44,6 +44,9 @@ class Requisition:
     created_by: UserId
     created_at: datetime
     status: RequisitionStatus = RequisitionStatus.OPEN
+    # Judges see a redacted copy of the evidence: no name, contact details,
+    # institutions, demographic lines or gendered pronouns. On by default.
+    blind_screening: bool = True
 
     def __post_init__(self) -> None:
         if not self.title.strip():

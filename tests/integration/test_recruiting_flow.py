@@ -161,7 +161,7 @@ async def add_candidate(
         f"/requisitions/{requisition_id}/candidates",
         json={
             "name": name,
-            "email": f"{name.lower()}@mail.example.com",
+            "email": f"{name.lower().replace(' ', '.')}@mail.example.com",
             "document_ids": [document_id],
         },
         headers=auth(token),

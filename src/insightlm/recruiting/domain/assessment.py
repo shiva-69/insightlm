@@ -152,6 +152,8 @@ class Assessment:
     model_version: str
     prompt_version: str
     retrieval_config_hash: str
+    # What the judge was not shown -- part of reproducing and contesting a score.
+    redaction_profile: str = "none"
 
     @property
     def needs_human_review(self) -> bool:

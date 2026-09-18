@@ -20,9 +20,10 @@ simultaneous calls to a rate-limited provider.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from insightlm.governance.domain.audit import AuditAction
+from insightlm.governance.domain.redaction import BLIND, NO_REDACTION, RedactionProfile, redact
 from insightlm.recruiting.domain.assessment import (
     Application,
     Assessment,
@@ -162,6 +163,36 @@ def _resolve(
     )
 
 
+def _as_seen_by_judge(
+    bundle: EvidenceBundle, profile: RedactionProfile, candidate: Candidate
+) -> EvidenceBundle:
+    """Redact every field of a passage the model sees -- not just its text.
+
+    The title is often the person's name ("Asha Rao CV"), and so is the first
+    "section": the chunker reads the name at the top of a CV as a heading. Redacting
+    only the text leaked the name through the section attribute; the integration test
+    caught it.
+    """
+    if profile is NO_REDACTION:
+        return bundle
+
+    def clean(value: str) -> str:
+        return redact(value, profile, person_names=[candidate.name]).text
+
+    return replace(
+        bundle,
+        spans=tuple(
+            replace(
+                span,
+                text=clean(span.text),
+                document_title=clean(span.document_title),
+                section_label=clean(span.section_label),
+            )
+            for span in bundle.spans
+        ),
+    )
+
+
 class RunAssessment:
     def __init__(
         self,
@@ -186,6 +217,7 @@ class RunAssessment:
             if candidate is None:
                 raise NotFoundError("candidate not found")
             rubric = await uow.rubrics.approved_for(application.requisition_id)
+            requisition = await uow.requisitions.get(application.requisition_id)
 
         if rubric is None:
             # The rule the project turns on. There is no path around this.
@@ -206,11 +238,15 @@ class RunAssessment:
                     )
                 )
 
+        profile = BLIND if requisition is None or requisition.blind_screening else NO_REDACTION
         gate = asyncio.Semaphore(MAX_CONCURRENT_JUDGEMENTS)
 
         async def judged(criterion: Criterion) -> JudgeResult:
+            # The judge reads the redacted copy; `_resolve` below quotes the original.
+            # Labels are shared, so a citation made blind still points at real text.
+            shown = _as_seen_by_judge(bundles[criterion.id], profile, candidate)
             async with gate:
-                return await self._judge.judge(criterion, bundles[criterion.id])
+                return await self._judge.judge(criterion, shown)
 
         results = await asyncio.gather(*(judged(c) for c in rubric.criteria))
         judgments = [
@@ -234,6 +270,7 @@ class RunAssessment:
             model_version=first.model_version,
             prompt_version=first.prompt_version,
             retrieval_config_hash=next(iter(bundles.values())).config_hash,
+            redaction_profile=profile.id,
         )
 
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:

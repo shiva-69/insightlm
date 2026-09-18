@@ -41,13 +41,16 @@ class CreateRequisition:
         self._uow_factory = uow_factory
         self._clock = clock
 
-    async def execute(self, actor: Actor, *, title: str, description: str) -> Requisition:
+    async def execute(
+        self, actor: Actor, *, title: str, description: str, blind_screening: bool = True
+    ) -> Requisition:
         require(actor, Permission.REQUISITION_MANAGE)
         requisition = Requisition(
             id=new_requisition_id(),
             tenant_id=actor.tenant_id,
             title=title.strip(),
             description=description.strip(),
+            blind_screening=blind_screening,
             created_by=actor.user_id,
             created_at=self._clock.now(),
         )
@@ -59,7 +62,7 @@ class CreateRequisition:
                 action=AuditAction.REQUISITION_CREATED,
                 subject_type="requisition",
                 subject_id=str(requisition.id),
-                payload={"title": requisition.title},
+                payload={"title": requisition.title, "blind_screening": blind_screening},
             )
             await uow.commit()
         return requisition
