@@ -48,7 +48,7 @@ eval-fairness: ## Counterfactual fairness (offline free; JUDGE=gemini for the mo
 	uv run insightlm-eval-fairness $(if $(JUDGE),--judge $(JUDGE))
 
 samples: ## Write sample CVs (strong, weak, paraphrase, attacked) into ./samples
-	uv run insightlm-samples
+	uv run insightlm-samples --cohort 50
 
 test-fast: ## Unit and architecture tests only (no Docker needed)
 	uv run pytest tests/unit tests/architecture -q
@@ -69,4 +69,4 @@ types: ## mypy --strict
 arch: ## Verify the architecture contracts
 	uv run lint-imports
 
-.PHONY: help install up down logs migrate revision dev worker test test-fast eval eval-gate check lint types format arch
+.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch

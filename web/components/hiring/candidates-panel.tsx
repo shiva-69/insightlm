@@ -8,6 +8,7 @@ import { useToast } from "@/components/toast";
 import { Button, Empty, Field, Input, Panel, Spinner, Tag } from "@/components/ui/primitives";
 import { api, ApiError } from "@/lib/api";
 import { STAGE_LABEL } from "@/lib/labels";
+import { BulkIntake } from "./bulk-intake";
 import type { AssessmentFlag, ShortlistEntry } from "@/lib/types";
 
 export const FLAG_LABEL: Record<AssessmentFlag, string> = {
@@ -28,6 +29,7 @@ export function CandidatesPanel({
   const { notify } = useToast();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const [bulk, setBulk] = useState(false);
 
   const shortlist = useQuery({
     queryKey: ["shortlist", requisitionId],
@@ -61,12 +63,19 @@ export function CandidatesPanel({
         <h2 className="text-[11.5px] font-medium uppercase tracking-[0.07em] text-[var(--ink-3)]">
           Candidates{entries.length > 0 && ` · ${entries.length}`}
         </h2>
-        {!adding && (
-          <Button variant="quiet" size="sm" onClick={() => setAdding(true)}>
-            + Add candidate
-          </Button>
+        {!adding && !bulk && (
+          <div className="flex gap-1">
+            <Button variant="quiet" size="sm" onClick={() => setBulk(true)}>
+              Upload CVs
+            </Button>
+            <Button variant="quiet" size="sm" onClick={() => setAdding(true)}>
+              + Add candidate
+            </Button>
+          </div>
         )}
       </div>
+
+      {bulk && <BulkIntake requisitionId={requisitionId} onClose={() => setBulk(false)} />}
 
       {adding && (
         <AddCandidate
@@ -80,7 +89,8 @@ export function CandidatesPanel({
           <Spinner />
         </div>
       ) : entries.length === 0 ? (
-        !adding && (
+        !adding &&
+        !bulk && (
           <Panel>
             <Empty
               title="No candidates yet"

@@ -6,6 +6,7 @@ rules. What differs is only what it is asked to do.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any, ClassVar
 from uuid import UUID
 
@@ -53,11 +54,26 @@ async def ingest_document_version(
         tenant_id=TenantId(UUID(tenant_id)),
         version_id=DocumentVersionId(UUID(document_version_id)),
     )
+    if outcome.retry_in is not None:
+        # The pipeline decided this failure is worth another attempt; the queue only
+        # schedules it. Without this, a failed step was recorded and never retried,
+        # and the document sat at "processing" forever.
+        redis: ArqRedis = ctx["redis"]
+        await redis.enqueue_job(
+            "ingest_document_version",
+            tenant_id,
+            document_version_id,
+            _defer_by=timedelta(seconds=outcome.retry_in),
+        )
+        _logger.warning(
+            "ingestion_retry_scheduled", version_id=document_version_id, in_s=outcome.retry_in
+        )
     return {
         "completed": outcome.completed,
         "steps_run": [step.value for step in outcome.steps_run],
         "dead_lettered": outcome.dead_lettered,
         "error": outcome.error,
+        "retry_in": outcome.retry_in,
     }
 
 

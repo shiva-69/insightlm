@@ -140,6 +140,7 @@ module = [
     "insightlm.evaluation.adapters.generator",
     "insightlm.evaluation.adapters.redteam",
     "insightlm.cli.samples",
+    "insightlm.evaluation.adapters.cohort",
 ]
 disallow_untyped_calls = false
 

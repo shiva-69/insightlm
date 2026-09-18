@@ -37,7 +37,7 @@ from insightlm.documents.ports.parsing import DocumentParser
 from insightlm.documents.ports.storage import ObjectStore
 from insightlm.retrieval.adapters.index import PostgresChunkIndex
 from insightlm.retrieval.ports.indexing import Chunker, Embedder
-from insightlm.shared.domain.errors import NotFoundError
+from insightlm.shared.domain.errors import DomainError, NotFoundError, ValidationError
 from insightlm.shared.domain.ids import DocumentVersionId, TenantId
 from insightlm.shared.observability.logging import get_logger
 from insightlm.shared.ports.clock import Clock
@@ -45,6 +45,7 @@ from insightlm.shared.ports.clock import Clock
 _logger = get_logger(__name__)
 
 MAX_ATTEMPTS = 3
+RETRY_BASE_SECONDS = 5.0
 EMBED_BATCH_SIZE = 64
 
 
@@ -67,6 +68,9 @@ class IngestionOutcome:
     completed: bool
     steps_run: tuple[IngestionStep, ...]
     dead_lettered: bool = False
+    # Seconds until the next attempt, when one should happen. None when finished or
+    # dead-lettered. The worker schedules it; nothing else retries a failed step.
+    retry_in: float | None = None
     error: str | None = None
 
 
@@ -191,7 +195,7 @@ class IngestionPipeline:
         async with self._uow(tenant_id) as uow:
             extracted = await uow.versions.load_text(version_id)
             if extracted is None or not extracted.text.strip():
-                raise ValueError(
+                raise ValidationError(
                     "no text could be extracted -- the document is empty, scanned, or unreadable"
                 )
 
@@ -304,7 +308,11 @@ class IngestionPipeline:
             # than restart.
             await uow.jobs.update(failed)
 
-            exhausted = failed.attempts >= MAX_ATTEMPTS
+            # A file that can't be opened, or holds no text, fails the same way every
+            # time: retrying only delays telling the user. Anything else may be
+            # transient (storage, database, embedding provider) and gets retried.
+            permanent = isinstance(exc, DomainError)
+            exhausted = permanent or failed.attempts >= MAX_ATTEMPTS
             if exhausted:
                 version = await uow.versions.get(version_id)
                 if version is not None:
@@ -332,4 +340,5 @@ class IngestionPipeline:
             steps_run=steps_run,
             dead_lettered=exhausted,
             error=message,
+            retry_in=None if exhausted else RETRY_BASE_SECONDS * 2 ** (failed.attempts - 1),
         )

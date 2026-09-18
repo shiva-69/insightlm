@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pymupdf
 
+from insightlm.evaluation.adapters.cohort import build_cohort
 from insightlm.evaluation.adapters.redteam import build_redteam_v1
 
 _CVS: dict[str, list[str]] = {
@@ -85,6 +86,9 @@ def _cv(lines: list[str]) -> bytes:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="insightlm-samples", description=__doc__)
     parser.add_argument("--out", type=Path, default=Path("samples"))
+    parser.add_argument(
+        "--cohort", type=int, default=0, help="Also write N synthetic CVs to <out>/cohort."
+    )
     args = parser.parse_args(argv)
     args.out.mkdir(parents=True, exist_ok=True)
 
@@ -93,6 +97,13 @@ def main(argv: list[str] | None = None) -> int:
     for doc in build_redteam_v1():
         if doc.id in _ATTACKS:
             (args.out / _ATTACKS[doc.id]).write_bytes(doc.pdf)
+
+    if args.cohort:
+        cohort = args.out / "cohort"
+        cohort.mkdir(exist_ok=True)
+        for applicant in build_cohort(args.cohort):
+            (cohort / applicant.filename).write_bytes(applicant.pdf)
+        print(f"{args.cohort} cohort CVs in {cohort}")
 
     for path in sorted(args.out.glob("*.pdf")):
         print(path)
