@@ -337,9 +337,38 @@ Real CVs do not share boilerplate verbatim. This is a flaw in the evaluation, no
 the pipeline, and it would be easy to misreport as a retrieval limitation. The fix is
 in the generator: vary the phrasing per candidate.
 
+## Finding 11 — with realistic paraphrase, fusion hurts
+
+The generator now renders each fact from one of four phrasings, so no sentence is
+shared verbatim across CVs. Retrieval-only, Gemini embeddings, 87 texts embedded,
+zero generation calls:
+
+| | R@8 | nDCG | MRR |
+| --- | --- | --- | --- |
+| **C — dense + context** | **1.000** | **1.000** | **1.000** |
+| D — hybrid RRF | 0.955 | 0.811 | 0.763 |
+| L — lexical only | 0.773 | 0.457 | 0.364 |
+
+The benchmark discriminates again, and the answer is the opposite of the plan's
+assumption. Once questions and passages stop sharing wording -- "cut p99 latency"
+against "brought tail latency down" -- lexical search degrades exactly as expected,
+and unweighted RRF hands that degraded arm an equal vote. Fusion then pulls a
+perfect dense ranking down to 0.811 nDCG.
+
+Finding 9 showed the same mechanism with the arms reversed. Together they say one
+thing: **unweighted RRF is only as good as its weaker arm allows.** It is not a
+free improvement, and the plan's premise that hybrid retrieval would help was wrong
+for this corpus.
+
+Two caveats. C at a perfect score means the benchmark has saturated *for C*; harder
+items are needed before C can be compared with anything that might beat it. And the
+lexical arm's case -- exact terms like `PCI-DSS` -- is under-represented here; a
+query set weighted toward exact identifiers could still favour fusion, and weighted
+RRF is the obvious thing to try if it does.
+
 ## Recommended configuration
 
-**C — dense + contextual enrichment**, unchanged from before. D matches it at the cost
+**C — dense + contextual enrichment**, now with evidence rather than by default. D matches it at the cost
 of a second query, and L matches it only because this benchmark cannot tell them
 apart. Revisit once the benchmark can discriminate.
 

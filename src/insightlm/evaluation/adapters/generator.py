@@ -145,44 +145,60 @@ _CERTS = (
 )
 
 
+# Several phrasings per fact, chosen per candidate. The first generator rendered each
+# fact from a single template, so "by removing a synchronous call from the write path"
+# appeared verbatim in all forty CVs and every candidate's latency passage competed
+# with thirty-nine near-duplicates differing only in a number. Every retrieval arm
+# then missed the same items for the same artificial reason, and the benchmark
+# saturated on an artefact of the data rather than a limit of the pipeline.
+_THROUGHPUT = (
+    "Owned the {topic} service, which sustained {n} requests per second during the festive peak.",
+    "Ran {topic} in production at a peak of {n} requests per second across the sale season.",
+    "Scaled the {topic} tier until it absorbed {n} requests per second without shedding load.",
+    "Took the {topic} platform to {n} requests per second at peak with no dropped traffic.",
+)
+_LATENCY = (
+    "Cut p99 latency by {n} percent by removing a synchronous call from the write path.",
+    "Brought tail latency down {n} percent after moving fan-out work onto a queue.",
+    "Shaved {n} percent off p99 response time by caching the hottest lookups in memory.",
+    "Lowered ninety-ninth percentile latency by {n} percent through connection pooling.",
+)
+_COST = (
+    "Reduced monthly infrastructure spend by {n} thousand rupees by right-sizing the worker fleet.",
+    "Saved {n} thousand rupees a month by moving batch jobs onto spot capacity.",
+    "Trimmed the cloud bill by {n} thousand rupees monthly by retiring idle replicas.",
+    "Lowered hosting costs by {n} thousand rupees per month through storage tiering.",
+)
+
+
 def _achievements(
     rng: random.Random, name: str, domain: str, used: set[int]
 ) -> tuple[Achievement, ...]:
     throughput = _unique_number(rng, used)
     latency = _unique_number(rng, used) % 80 + 11
     saving = _unique_number(rng, used) % 90 + 9
-
     topic = rng.choice(_DOMAINS[domain])
-    built: list[Achievement] = [
+
+    return (
         Achievement(
-            sentence=(
-                f"Owned the {topic} service, which sustained {throughput} requests "
-                f"per second during the festive peak."
-            ),
+            sentence=rng.choice(_THROUGHPUT).format(topic=topic, n=throughput),
             question=f"What peak throughput did the {topic} service owned by {name} sustain?",
             answer=f"{throughput} requests per second.",
             topic=topic,
         ),
         Achievement(
-            sentence=(
-                f"Cut p99 latency by {latency} percent by removing a synchronous "
-                f"call from the write path."
-            ),
+            sentence=rng.choice(_LATENCY).format(n=latency),
             question=f"By how much did {name} cut p99 latency?",
             answer=f"By {latency} percent.",
             topic="latency",
         ),
         Achievement(
-            sentence=(
-                f"Reduced monthly infrastructure spend by {saving} thousand rupees "
-                f"by right-sizing the worker fleet."
-            ),
+            sentence=rng.choice(_COST).format(n=saving),
             question=f"How much monthly infrastructure spend did {name} save?",
             answer=f"{saving} thousand rupees per month.",
             topic="cost",
         ),
-    ]
-    return tuple(built)
+    )
 
 
 def build_candidates(*, count: int = 40, seed: int = 20260918) -> list[Candidate]:
