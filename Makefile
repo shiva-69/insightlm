@@ -62,11 +62,11 @@ check: lint types arch ## Everything CI checks, locally
 
 lint: ## ruff
 	uv run ruff check src tests migrations spikes scripts
-	uv run ruff format --check src tests migrations spikes
+	uv run ruff format --check src tests migrations spikes scripts
 
 format: ## Apply formatting
 	uv run ruff check src tests migrations spikes scripts --fix
-	uv run ruff format src tests migrations spikes
+	uv run ruff format src tests migrations spikes scripts
 
 types: ## mypy --strict
 	uv run mypy

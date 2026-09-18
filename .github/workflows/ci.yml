@@ -26,7 +26,7 @@ jobs:
       - name: ruff (lint)
         run: uv run ruff check src tests migrations spikes scripts
       - name: ruff (format)
-        run: uv run ruff format --check src tests migrations spikes
+        run: uv run ruff format --check src tests migrations spikes scripts
       - name: mypy --strict
         run: uv run mypy
 
