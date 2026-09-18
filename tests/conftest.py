@@ -97,6 +97,9 @@ def settings(migrated_database: str) -> Settings:
         jwt_secret="test-secret-not-used-anywhere-real",  # type: ignore[arg-type]
         log_json=False,
         log_level="WARNING",
+        # Suites make hundreds of requests a minute as one user; the limits have their
+        # own tests, which turn them on.
+        rate_limits_enabled=False,
     )
 
 
@@ -144,9 +147,13 @@ async def container(settings: Settings) -> AsyncIterator[Container]:
         from tests.fakes import InMemoryObjectStore
 
         store = InMemoryObjectStore()
+        from insightlm.shared.adapters.limits import MemoryIdempotencyStore, MemoryRateLimiter
+
         yield replace(
             built,
             object_store=store,
+            rate_limiter=MemoryRateLimiter(),
+            idempotency=MemoryIdempotencyStore(),
             upload_document=UploadDocument(built.documents_uow, store, built.clock),
             ingestion=IngestionPipeline(
                 built.session_factory,

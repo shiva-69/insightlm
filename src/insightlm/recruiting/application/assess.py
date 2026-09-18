@@ -39,6 +39,7 @@ from insightlm.recruiting.ports.evidence import EvidenceProvider
 from insightlm.recruiting.ports.judge import CriterionJudge, JudgeResult
 from insightlm.recruiting.ports.repositories import RecruitingUnitOfWorkFactory
 from insightlm.retrieval.domain.evidence import EvidenceBundle, EvidenceQuery, RetrievalStrategy
+from insightlm.shared.adapters.limits import UnmeteredBudget
 from insightlm.shared.domain.errors import ConflictError, NotFoundError
 from insightlm.shared.domain.ids import (
     ApplicationId,
@@ -52,6 +53,7 @@ from insightlm.shared.domain.policy import Actor, require
 from insightlm.shared.domain.roles import Permission
 from insightlm.shared.observability.logging import get_logger
 from insightlm.shared.ports.clock import Clock
+from insightlm.shared.ports.limits import ModelBudget
 
 _logger = get_logger(__name__)
 
@@ -200,11 +202,13 @@ class RunAssessment:
         evidence: EvidenceProvider,
         judge: CriterionJudge,
         clock: Clock,
+        budget: ModelBudget | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._evidence = evidence
         self._judge = judge
         self._clock = clock
+        self._budget = budget or UnmeteredBudget()
 
     async def execute(self, actor: Actor, application_id: ApplicationId) -> Assessment:
         require(actor, Permission.ASSESSMENT_RUN)
@@ -237,6 +241,12 @@ class RunAssessment:
                         strategy=RetrievalStrategy.DENSE,
                     )
                 )
+
+        # One paid call per criterion that has evidence; judges skip the rest for free.
+        # Reserved before any is made, so a workspace over budget spends nothing.
+        await self._budget.charge(
+            actor.tenant_id, sum(1 for b in bundles.values() if not b.is_empty)
+        )
 
         profile = BLIND if requisition is None or requisition.blind_screening else NO_REDACTION
         gate = asyncio.Semaphore(MAX_CONCURRENT_JUDGEMENTS)

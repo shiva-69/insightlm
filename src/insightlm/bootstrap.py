@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from insightlm.ask_service import AskService, EvidenceProviderAdapter
@@ -73,10 +74,18 @@ from insightlm.retrieval.ports.indexing import Embedder
 from insightlm.settings import Settings
 from insightlm.shared.adapters.clock import SystemClock
 from insightlm.shared.adapters.db.base import create_engine, create_session_factory
+from insightlm.shared.adapters.limits import (
+    MeteredBudget,
+    RedisIdempotencyStore,
+    RedisRateLimiter,
+    RedisSpendMeter,
+    UnmeteredBudget,
+)
 from insightlm.shared.domain.errors import InvariantViolationError
 from insightlm.shared.domain.ids import TenantId, UserId
 from insightlm.shared.observability.logging import get_logger
 from insightlm.shared.ports.clock import Clock
+from insightlm.shared.ports.limits import IdempotencyStore, ModelBudget, RateLimiter
 from insightlm.shared.ports.password import PasswordHasher
 from insightlm.shared.ports.tokens import TokenIssuer
 from insightlm.worker.ingestion import IngestionPipeline
@@ -126,6 +135,9 @@ class Container:
     my_interviews: MyInterviews
     search_talent_pool: SearchTalentPool
     erase_candidate: EraseCandidate
+    rate_limiter: RateLimiter
+    idempotency: IdempotencyStore
+    budget: ModelBudget
     record_self_identification: RecordSelfIdentification
     selection_rates: SelectionRates
     candidate_record: GetCandidateRecord
@@ -190,7 +202,22 @@ def build_container(settings: Settings) -> Container:
             session_factory, clock, tenant_id=tenant_id, user_id=user_id
         )
 
-    ask = AskService(session_factory, embedder=embedder, generator=generator, rrf_k=settings.rrf_k)
+    judge = _build_judge(settings)
+    # Shared by every short-lived counter. Connects lazily, so building a container
+    # (as the tests do) opens no connection until a limit is actually checked.
+    redis = Redis.from_url(str(settings.redis_url))
+    budget: ModelBudget = (
+        UnmeteredBudget()
+        if isinstance(judge, OfflineCriterionJudge)
+        else MeteredBudget(RedisSpendMeter(redis), calls_per_day=settings.model_calls_per_day)
+    )
+    ask = AskService(
+        session_factory,
+        embedder=embedder,
+        generator=generator,
+        rrf_k=settings.rrf_k,
+        budget=budget,
+    )
 
     return Container(
         settings=settings,
@@ -228,8 +255,11 @@ def build_container(settings: Settings) -> Container:
         approve_rubric=ApproveRubric(recruiting_uow, clock),
         add_candidate=AddCandidate(recruiting_uow, clock),
         run_assessment=RunAssessment(
-            recruiting_uow, EvidenceProviderAdapter(ask), _build_judge(settings), clock
+            recruiting_uow, EvidenceProviderAdapter(ask), judge, clock, budget
         ),
+        rate_limiter=RedisRateLimiter(redis),
+        idempotency=RedisIdempotencyStore(redis),
+        budget=budget,
         shortlist=Shortlist(recruiting_uow),
         move_application=MoveApplication(recruiting_uow, clock),
         get_application=GetApplication(recruiting_uow, clock),

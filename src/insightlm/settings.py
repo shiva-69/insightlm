@@ -103,6 +103,14 @@ class Settings(BaseSettings):
     # real embedding models only; see Finding 20 for the calibration.
     talent_min_relative_score: float = 0.9
 
+    # --- limits ---------------------------------------------------------------
+    rate_limits_enabled: bool = True
+    # Trust X-InsightLM-Client-IP, which only the web proxy sets. Leave off unless the
+    # API is reachable solely through that proxy.
+    trust_proxy_client_ip: bool = False
+    # Paid model calls (generation, judging) per workspace per UTC day.
+    model_calls_per_day: int = 2_000
+
     embedding_cache_path: str | None = None
     """When set, embeddings are cached on disk by content. The evaluation harness sets
     it; the API does not -- see retrieval/adapters/embedding_cache.py for why a

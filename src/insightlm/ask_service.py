@@ -34,7 +34,9 @@ from insightlm.retrieval.ports.evidence import EvidencePort
 from insightlm.retrieval.ports.generation import GroundedGenerator
 from insightlm.retrieval.ports.indexing import Embedder
 from insightlm.shared.adapters.db.base import set_actor_context, set_tenant_context
+from insightlm.shared.adapters.limits import UnmeteredBudget
 from insightlm.shared.domain.policy import Actor
+from insightlm.shared.ports.limits import ModelBudget
 
 _INPUT_RATE = 5.00
 _OUTPUT_RATE = 25.00
@@ -49,11 +51,13 @@ class AskService:
         embedder: Embedder,
         generator: GroundedGenerator,
         rrf_k: int = 60,
+        budget: ModelBudget | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._embedder = embedder
         self._generator = generator
         self._rrf_k = rrf_k
+        self._budget = budget or UnmeteredBudget()
 
     async def retrieve(self, actor: Actor, request: AnswerRequest) -> EvidenceBundle:
         """Retrieval alone, with no generation call.
@@ -102,6 +106,8 @@ class AskService:
         )
 
     async def ask(self, actor: Actor, request: AnswerRequest) -> AnswerOutput:
+        # Charged up front, before anything is spent: a refused request costs nothing.
+        await self._budget.charge(actor.tenant_id, 1)
         async with self._session_factory() as session:
             await session.begin()
             await set_tenant_context(session, actor.tenant_id)

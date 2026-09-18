@@ -70,3 +70,19 @@ class UpstreamError(DomainError):
 
     code = "upstream_invalid"
     http_status = 502
+
+
+class RateLimitedError(DomainError):
+    code = "rate_limited"
+    http_status = 429
+
+
+class BudgetExceededError(DomainError):
+    """The workspace has used its model-call budget for the period.
+
+    429 rather than 402: nothing is for sale here, the workspace is simply over quota,
+    and clients already know to back off on 429.
+    """
+
+    code = "budget_exceeded"
+    http_status = 429

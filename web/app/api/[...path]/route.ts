@@ -30,6 +30,8 @@ const STRIP = new Set([
   "transfer-encoding",
   "upgrade",
   "content-length",
+  // Set below from what this server saw; a client-supplied copy must never pass.
+  "x-insightlm-client-ip",
 ]);
 
 async function proxy(request: NextRequest, path: string[]): Promise<Response> {
@@ -40,6 +42,14 @@ async function proxy(request: NextRequest, path: string[]): Promise<Response> {
   request.headers.forEach((value, key) => {
     if (!STRIP.has(key.toLowerCase())) headers.set(key, value);
   });
+
+  // The API rate-limits sign-in attempts per client IP. Every request reaches it from
+  // this proxy, so without this all users would share one limit. The last
+  // X-Forwarded-For entry is the one this server's own HTTP layer appended; earlier
+  // entries are whatever the client claimed.
+  const forwarded = request.headers.get("x-forwarded-for");
+  const clientIp = forwarded?.split(",").at(-1)?.trim();
+  if (clientIp) headers.set("x-insightlm-client-ip", clientIp);
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
 

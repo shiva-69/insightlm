@@ -18,6 +18,10 @@ x-app-env: &app-env
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
   GENERATION_PROVIDER: ${GENERATION_PROVIDER:-auto}
+  # The API trusts the client IP the web proxy forwards. Correct only while every
+  # request comes through that proxy: here the API port is also published for local
+  # development, so this is a development convenience. In production the API is private.
+  TRUST_PROXY_CLIENT_IP: ${TRUST_PROXY_CLIENT_IP:-true}
   GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-pro}
   GENERATION_MODEL: ${GENERATION_MODEL:-claude-opus-5}
   GENERATION_EFFORT: ${GENERATION_EFFORT:-medium}

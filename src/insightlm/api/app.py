@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 
 from insightlm import __version__
 from insightlm.api.errors import register_exception_handlers
+from insightlm.api.limits import LimitsMiddleware
 from insightlm.api.middleware import CorrelationMiddleware
 from insightlm.api.routers import (
     ask,
@@ -78,6 +79,8 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
         openapi_url="/openapi.json",
     )
 
+    # Added first so it runs inside correlation: a 429 still carries a correlation id.
+    app.add_middleware(LimitsMiddleware)
     app.add_middleware(CorrelationMiddleware)
     register_exception_handlers(app)
 
