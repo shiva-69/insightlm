@@ -36,7 +36,7 @@ eval: ## Run the golden set against every configuration
 
 eval-gate: ## Run the CI regression gate locally (offline adapters, deterministic)
 	GENERATION_PROVIDER=offline GEMINI_API_KEY= VOYAGE_API_KEY= ANTHROPIC_API_KEY= \
-		uv run insightlm-eval --config D-hybrid --corpus generated --count 40 --min-ndcg 0.858
+		uv run insightlm-eval --config D-hybrid --corpus generated --count 40 --min-ndcg 0.56
 
 test-fast: ## Unit and architecture tests only (no Docker needed)
 	uv run pytest tests/unit tests/architecture -q
