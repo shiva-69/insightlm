@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from insightlm.governance.domain.audit import AuditAction
+from insightlm.recruiting.application.pipeline import is_assignment_scoped
 from insightlm.recruiting.domain.rubric import (
     Criterion,
     CriterionKind,
@@ -168,7 +169,11 @@ class ListRequisitions:
     async def execute(self, actor: Actor) -> list[Requisition]:
         require(actor, Permission.CANDIDATE_VIEW)
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
-            return await uow.requisitions.list_for_tenant(actor.tenant_id)
+            requisitions = await uow.requisitions.list_for_tenant(actor.tenant_id)
+            if is_assignment_scoped(actor):
+                assigned = await uow.scorecards.requisitions_for_interviewer(actor.user_id)
+                requisitions = [r for r in requisitions if r.id in assigned]
+            return requisitions
 
 
 class GetRequisition:
@@ -180,6 +185,10 @@ class GetRequisition:
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             requisition = await uow.requisitions.get(requisition_id)
             if requisition is None:
+                raise NotFoundError("requisition not found")
+            if is_assignment_scoped(actor) and requisition_id not in (
+                await uow.scorecards.requisitions_for_interviewer(actor.user_id)
+            ):
                 raise NotFoundError("requisition not found")
             return RequisitionDetail(
                 requisition=requisition,

@@ -69,6 +69,8 @@ class Application:
     requisition_id: RequisitionId
     stage: Stage
     created_at: datetime
+    # When the application entered its current stage -- what ageing and SLAs run from.
+    stage_entered_at: datetime
 
 
 class Verdict(StrEnum):

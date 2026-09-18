@@ -92,6 +92,7 @@ class AddCandidate:
                 requisition_id=requisition_id,
                 stage=Stage.APPLIED,
                 created_at=now,
+                stage_entered_at=now,
             )
             await uow.candidates.add(candidate)
             await uow.applications.add(application)

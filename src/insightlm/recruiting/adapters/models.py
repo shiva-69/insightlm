@@ -89,6 +89,9 @@ class ApplicationRow(Base):
         PgUUID(as_uuid=True), ForeignKey("requisitions.id", ondelete="CASCADE"), nullable=False
     )
     stage: Mapped[str] = mapped_column(String(32), nullable=False)
+    stage_entered_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -133,3 +136,57 @@ class AssessmentRow(Base):
     rubric: Mapped[RubricRow] = relationship(lazy="raise")
 
     __table_args__ = (Index("ix_assessments_application_created", "application_id", "created_at"),)
+
+
+class StageTransitionRow(Base):
+    """Append-only history of every move, with who made it and why."""
+
+    __tablename__ = "stage_transitions"
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    application_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False
+    )
+    from_stage: Mapped[str] = mapped_column(String(32), nullable=False)
+    to_stage: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    by: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    application: Mapped[ApplicationRow] = relationship(lazy="raise")
+
+    __table_args__ = (Index("ix_stage_transitions_application_at", "application_id", "at"),)
+
+
+class ScorecardRow(Base):
+    __tablename__ = "scorecards"
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    application_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False
+    )
+    # Denormalised from the application so "which requisitions is this interviewer
+    # on?" -- the per-requisition scoping query -- needs no join.
+    requisition_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("requisitions.id", ondelete="CASCADE"), nullable=False
+    )
+    interviewer_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    assigned_by: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ratings: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
+    recommendation: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    application: Mapped[ApplicationRow] = relationship(lazy="raise")
+    requisition: Mapped[RequisitionRow] = relationship(lazy="raise")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "application_id", "interviewer_id", name="uq_scorecards_application_interviewer"
+        ),
+        Index("ix_scorecards_interviewer", "tenant_id", "interviewer_id"),
+    )

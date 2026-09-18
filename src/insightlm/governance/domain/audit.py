@@ -47,6 +47,8 @@ class AuditAction(StrEnum):
     CANDIDATE_ADDED = "candidate.added"
     ASSESSMENT_CREATED = "assessment.created"
     STAGE_TRANSITIONED = "application.stage_transitioned"
+    INTERVIEWER_ASSIGNED = "application.interviewer_assigned"
+    SCORECARD_SUBMITTED = "scorecard.submitted"
     CANDIDATE_DATA_ACCESSED = "candidate.data_accessed"
     ERASURE_REQUESTED = "erasure.requested"
     ERASURE_COMPLETED = "erasure.completed"

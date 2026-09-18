@@ -39,6 +39,13 @@ from insightlm.recruiting.adapters.judges import (
 )
 from insightlm.recruiting.adapters.uow import SqlAlchemyRecruitingUnitOfWork
 from insightlm.recruiting.application.assess import AddCandidate, RunAssessment, Shortlist
+from insightlm.recruiting.application.pipeline import (
+    AssignInterviewer,
+    GetApplication,
+    MoveApplication,
+    MyInterviews,
+    SubmitScorecard,
+)
 from insightlm.recruiting.application.requisitions import (
     ApproveRubric,
     CreateRequisition,
@@ -46,6 +53,7 @@ from insightlm.recruiting.application.requisitions import (
     ListRequisitions,
     ProposeRubric,
 )
+from insightlm.recruiting.application.talent import SearchTalentPool
 from insightlm.recruiting.ports.judge import CriterionJudge
 from insightlm.recruiting.ports.repositories import RecruitingUnitOfWork
 from insightlm.retrieval.adapters.anthropic_generator import AnthropicGroundedGenerator
@@ -107,6 +115,12 @@ class Container:
     add_candidate: AddCandidate
     run_assessment: RunAssessment
     shortlist: Shortlist
+    move_application: MoveApplication
+    get_application: GetApplication
+    assign_interviewer: AssignInterviewer
+    submit_scorecard: SubmitScorecard
+    my_interviews: MyInterviews
+    search_talent_pool: SearchTalentPool
 
     async def dispose(self) -> None:
         await self.engine.dispose()
@@ -208,6 +222,12 @@ def build_container(settings: Settings) -> Container:
             recruiting_uow, EvidenceProviderAdapter(ask), _build_judge(settings), clock
         ),
         shortlist=Shortlist(recruiting_uow),
+        move_application=MoveApplication(recruiting_uow, clock),
+        get_application=GetApplication(recruiting_uow, clock),
+        assign_interviewer=AssignInterviewer(recruiting_uow, clock),
+        submit_scorecard=SubmitScorecard(recruiting_uow, clock),
+        my_interviews=MyInterviews(recruiting_uow),
+        search_talent_pool=SearchTalentPool(recruiting_uow, EvidenceProviderAdapter(ask)),
         ingestion=IngestionPipeline(
             session_factory,
             store=store,

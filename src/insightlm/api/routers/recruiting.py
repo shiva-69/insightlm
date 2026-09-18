@@ -21,6 +21,7 @@ from insightlm.recruiting.domain.assessment import (
     Stage,
     Verdict,
 )
+from insightlm.recruiting.domain.pipeline import is_overdue
 from insightlm.recruiting.domain.rubric import (
     CriterionKind,
     RequisitionStatus,
@@ -122,6 +123,7 @@ class ApplicationResponse(_Out):
     candidate_id: UUID
     requisition_id: UUID
     stage: Stage
+    stage_entered_at: datetime
     created_at: datetime
 
 
@@ -178,6 +180,7 @@ class ShortlistEntryResponse(BaseModel):
     application: ApplicationResponse
     candidate: CandidateResponse
     assessment: AssessmentResponse | None
+    overdue: bool = Field(description="In the current stage longer than its SLA allows.")
 
 
 # -- routes --------------------------------------------------------------------------
@@ -312,11 +315,13 @@ async def shortlist(
     requisition_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> list[ShortlistEntryResponse]:
     entries = await container.shortlist.execute(actor, RequisitionId(requisition_id))
+    now = container.clock.now()
     return [
         ShortlistEntryResponse(
             application=ApplicationResponse.model_validate(e.application),
             candidate=CandidateResponse.model_validate(e.candidate),
             assessment=(AssessmentResponse.model_validate(e.assessment) if e.assessment else None),
+            overdue=is_overdue(e.application, now),
         )
         for e in entries
     ]

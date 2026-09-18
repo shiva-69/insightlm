@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse
 from insightlm import __version__
 from insightlm.api.errors import register_exception_handlers
 from insightlm.api.middleware import CorrelationMiddleware
-from insightlm.api.routers import ask, audit, auth, documents, health, members, recruiting
+from insightlm.api.routers import ask, audit, auth, documents, health, members, pipeline, recruiting
 from insightlm.bootstrap import Container, build_container
 from insightlm.settings import Settings, get_settings
 from insightlm.shared.observability.logging import configure_logging, get_logger
@@ -78,6 +78,7 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
     app.include_router(documents.router)
     app.include_router(ask.router)
     app.include_router(recruiting.router)
+    app.include_router(pipeline.router)
 
     # The bundled evidence viewer. A single page, served by the API, so the citation
     # contract can be demonstrated end to end without a Node toolchain. The production

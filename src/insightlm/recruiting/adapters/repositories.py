@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import ARRAY, Text, cast, func, select
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from insightlm.documents.domain.spans import PageRect
@@ -15,6 +16,8 @@ from insightlm.recruiting.adapters.models import (
     CandidateRow,
     RequisitionRow,
     RubricRow,
+    ScorecardRow,
+    StageTransitionRow,
 )
 from insightlm.recruiting.domain.assessment import (
     Application,
@@ -26,6 +29,7 @@ from insightlm.recruiting.domain.assessment import (
     Stage,
     Verdict,
 )
+from insightlm.recruiting.domain.pipeline import RejectionReason, StageTransition
 from insightlm.recruiting.domain.rubric import (
     Criterion,
     CriterionKind,
@@ -34,6 +38,7 @@ from insightlm.recruiting.domain.rubric import (
     Rubric,
     RubricStatus,
 )
+from insightlm.recruiting.domain.scorecard import CriterionRating, Recommendation, Scorecard
 from insightlm.shared.domain.errors import NotFoundError
 from insightlm.shared.domain.ids import (
     ApplicationId,
@@ -43,6 +48,7 @@ from insightlm.shared.domain.ids import (
     DocumentId,
     RequisitionId,
     RubricId,
+    ScorecardId,
     TenantId,
     UserId,
 )
@@ -261,10 +267,8 @@ class SqlAlchemyCandidateRepository:
             )
         )
 
-    async def get(self, candidate_id: CandidateId) -> Candidate | None:
-        row = await self._session.get(CandidateRow, candidate_id)
-        if row is None:
-            return None
+    @staticmethod
+    def _to_domain(row: CandidateRow) -> Candidate:
         return Candidate(
             id=CandidateId(row.id),
             tenant_id=TenantId(row.tenant_id),
@@ -273,6 +277,25 @@ class SqlAlchemyCandidateRepository:
             document_ids=tuple(DocumentId(UUID(d)) for d in row.document_ids),
             created_at=row.created_at,
         )
+
+    async def get(self, candidate_id: CandidateId) -> Candidate | None:
+        row = await self._session.get(CandidateRow, candidate_id)
+        return self._to_domain(row) if row else None
+
+    async def with_any_document(self, document_ids: list[DocumentId]) -> list[Candidate]:
+        """Candidates whose documents include any of these -- JSONB `?|`, one query."""
+        if not document_ids:
+            return []
+        rows = (
+            await self._session.execute(
+                select(CandidateRow).where(
+                    CandidateRow.document_ids.has_any(
+                        cast(array([str(d) for d in document_ids]), ARRAY(Text))
+                    )
+                )
+            )
+        ).scalars()
+        return [self._to_domain(r) for r in rows]
 
 
 class SqlAlchemyApplicationRepository:
@@ -288,6 +311,7 @@ class SqlAlchemyApplicationRepository:
             requisition_id=RequisitionId(row.requisition_id),
             stage=Stage(row.stage),
             created_at=row.created_at,
+            stage_entered_at=row.stage_entered_at,
         )
 
     async def add(self, a: Application) -> None:
@@ -299,8 +323,16 @@ class SqlAlchemyApplicationRepository:
                 requisition_id=a.requisition_id,
                 stage=a.stage.value,
                 created_at=a.created_at,
+                stage_entered_at=a.stage_entered_at,
             )
         )
+
+    async def update(self, a: Application) -> None:
+        row = await self._session.get(ApplicationRow, a.id)
+        if row is None:
+            raise NotFoundError("application not found")
+        row.stage = a.stage.value
+        row.stage_entered_at = a.stage_entered_at
 
     async def get(self, application_id: ApplicationId) -> Application | None:
         row = await self._session.get(ApplicationRow, application_id)
@@ -366,3 +398,131 @@ class SqlAlchemyAssessmentRepository:
             prompt_version=row.prompt_version,
             retrieval_config_hash=row.retrieval_config_hash,
         )
+
+
+class SqlAlchemyStageTransitionRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, t: StageTransition) -> None:
+        self._session.add(
+            StageTransitionRow(
+                id=uuid4(),
+                tenant_id=t.tenant_id,
+                application_id=t.application_id,
+                from_stage=t.from_stage.value,
+                to_stage=t.to_stage.value,
+                reason=t.reason.value if t.reason else None,
+                note=t.note,
+                by=t.by,
+                at=t.at,
+            )
+        )
+
+    async def list_for_application(self, application_id: ApplicationId) -> list[StageTransition]:
+        rows = (
+            await self._session.execute(
+                select(StageTransitionRow)
+                .where(StageTransitionRow.application_id == application_id)
+                .order_by(StageTransitionRow.at)
+            )
+        ).scalars()
+        return [
+            StageTransition(
+                tenant_id=TenantId(r.tenant_id),
+                application_id=ApplicationId(r.application_id),
+                from_stage=Stage(r.from_stage),
+                to_stage=Stage(r.to_stage),
+                by=UserId(r.by),
+                at=r.at,
+                reason=RejectionReason(r.reason) if r.reason else None,
+                note=r.note,
+            )
+            for r in rows
+        ]
+
+
+class SqlAlchemyScorecardRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    @staticmethod
+    def _to_domain(row: ScorecardRow) -> Scorecard:
+        return Scorecard(
+            id=ScorecardId(row.id),
+            tenant_id=TenantId(row.tenant_id),
+            application_id=ApplicationId(row.application_id),
+            interviewer_id=UserId(row.interviewer_id),
+            assigned_by=UserId(row.assigned_by),
+            assigned_at=row.assigned_at,
+            ratings=tuple(
+                CriterionRating(
+                    criterion_id=CriterionId(UUID(r["criterion_id"])),
+                    rating=int(r["rating"]),
+                    note=r.get("note", ""),
+                )
+                for r in row.ratings
+            ),
+            recommendation=Recommendation(row.recommendation) if row.recommendation else None,
+            summary=row.summary,
+            submitted_at=row.submitted_at,
+        )
+
+    async def add(self, card: Scorecard, *, requisition_id: RequisitionId) -> None:
+        self._session.add(
+            ScorecardRow(
+                id=card.id,
+                tenant_id=card.tenant_id,
+                application_id=card.application_id,
+                requisition_id=requisition_id,
+                interviewer_id=card.interviewer_id,
+                assigned_by=card.assigned_by,
+                assigned_at=card.assigned_at,
+                ratings=[],
+                summary="",
+            )
+        )
+
+    async def get(self, scorecard_id: ScorecardId) -> Scorecard | None:
+        row = await self._session.get(ScorecardRow, scorecard_id)
+        return self._to_domain(row) if row else None
+
+    async def update(self, card: Scorecard) -> None:
+        row = await self._session.get(ScorecardRow, card.id)
+        if row is None:
+            raise NotFoundError("scorecard not found")
+        row.ratings = [
+            {"criterion_id": str(r.criterion_id), "rating": r.rating, "note": r.note}
+            for r in card.ratings
+        ]
+        row.recommendation = card.recommendation.value if card.recommendation else None
+        row.summary = card.summary
+        row.submitted_at = card.submitted_at
+
+    async def list_for_application(self, application_id: ApplicationId) -> list[Scorecard]:
+        rows = (
+            await self._session.execute(
+                select(ScorecardRow)
+                .where(ScorecardRow.application_id == application_id)
+                .order_by(ScorecardRow.assigned_at)
+            )
+        ).scalars()
+        return [self._to_domain(r) for r in rows]
+
+    async def list_for_interviewer(self, interviewer_id: UserId) -> list[Scorecard]:
+        rows = (
+            await self._session.execute(
+                select(ScorecardRow)
+                .where(ScorecardRow.interviewer_id == interviewer_id)
+                .order_by(ScorecardRow.assigned_at.desc())
+            )
+        ).scalars()
+        return [self._to_domain(r) for r in rows]
+
+    async def requisitions_for_interviewer(self, interviewer_id: UserId) -> set[RequisitionId]:
+        rows = await self._session.execute(
+            select(ScorecardRow.requisition_id)
+            .where(ScorecardRow.interviewer_id == interviewer_id)
+            .distinct()
+        )
+        return {RequisitionId(r) for r in rows.scalars()}

@@ -28,6 +28,12 @@ PROTECTED_ENDPOINTS = [
     ("GET", "/requisitions/00000000-0000-0000-0000-000000000000/shortlist"),
     ("POST", "/rubrics/00000000-0000-0000-0000-000000000000/approve"),
     ("POST", "/applications/00000000-0000-0000-0000-000000000000/assessments"),
+    ("GET", "/applications/00000000-0000-0000-0000-000000000000"),
+    ("POST", "/applications/00000000-0000-0000-0000-000000000000/stage"),
+    ("POST", "/applications/00000000-0000-0000-0000-000000000000/panel"),
+    ("POST", "/scorecards/00000000-0000-0000-0000-000000000000/submit"),
+    ("GET", "/me/interviews"),
+    ("GET", "/talent/search?q=python"),
 ]
 
 
