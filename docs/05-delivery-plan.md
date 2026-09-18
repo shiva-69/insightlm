@@ -98,7 +98,20 @@
 - Assessment reproducibility: re-run + diff view
 - ADR-0010 (per-criterion isolation over whole-résumé scoring), ADR-0011 (deterministic aggregation)
 
-**Exit:** 50 résumés in, evidence-linked ranked shortlist out. Milestone **M4**.
+**Exit:** 50 résumés in, evidence-linked ranked shortlist out. Milestone **M4**. ◐ *Core complete (18 Sep 2026).*
+
+> **Delivered:** requisitions; versioned rubrics with the approval gate and the test
+> that proves refusal; separation of duties on approval (owner excepted, see ADR-0011);
+> per-criterion assessment scoped to the candidate's own documents, with judging fanned
+> out under a semaphore and no DB session held; deterministic aggregation; `absent` vs
+> `weak`; confidence flag; evidence-first assessment view with in-document highlights;
+> ranked shortlist; ADR-0010, ADR-0011.
+>
+> **Carried forward, not dropped:** JD → rubric drafting (a model *proposing* criteria
+> that a human still approves); bulk intake with per-file status; typed profile
+> extraction and date arithmetic; identity resolution; the re-run diff view. None of
+> these changes the domain rules above. They're additional inputs to them. The
+> 50-résumé exit check waits for bulk intake.
 
 ---
 
