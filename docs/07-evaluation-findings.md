@@ -509,3 +509,53 @@ will find edge cases this one doesn't.
 *Cost of this phase's measurements: about 140 Gemini calls in total, including two runs
 cut short by the bug above. Everything is cached; reruns are free until a case, the
 prompt, the rendering or the model changes.*
+
+---
+
+# Phase 6: fairness and erasure
+
+## Finding 17 — no measured identity effect, and a single sample would have invented one
+
+`insightlm-eval-fairness` scores one-attribute counterfactuals of three CVs (8 names
+varying perceived gender and region, 4 institutions from IIT to a distance programme,
+4 cities) against a fixed rubric, with blind screening off and on.
+
+The strong and weak CVs didn't move at all under any change. Everything happened on the
+**ambiguous** CV, so that's where the samples went: 5 per variant, with a seeded
+permutation test of the spread between variant means against random relabelling.
+
+| ambiguous CV, gemini-2.5-pro | blind off | blind on |
+| --- | ---: | ---: |
+| same CV, 5 samples (noise sd) | 10.9 (50–83) | 2.4 |
+| name: spread of means, p | 10.0, p = 0.65 | 0 (not visible) |
+| institution | 10.0, p = 0.29 | 4.4, p = 0.67 |
+| city | 6.7, p = 0.59 | 11.4, p = 0.32 |
+| men minus women | +1.4, p = 0.64 | 0 |
+
+No attribute effect is distinguishable from the judge's own noise. The first run used
+one sample per variant, and in it the reference name scored 83 and every other name
+lower: it looked like bias. The reference's own re-scores were 66, 50, 61, 61. **One
+sample per variant would have reported a bias that isn't there.**
+
+**What this does and doesn't show.** With noise this large and n = 5, only effects of
+roughly 19 points or more could be detected unblinded; smaller biases can't be ruled
+out. Blind screening cut the noise on this CV about fourfold, which is an observation,
+not a claim about why. The harness also found two redaction leaks: "a distance-learning
+programme at IGNOU" isn't recognised as an institution, and "Government Engineering
+College, Thrissur" leaves the town behind.
+
+*About 300 Gemini calls in total, including one run cut short by an event-loop bug in
+the harness. Cached.*
+
+## Finding 18 — the tests that watch the model's view and the residue both found real leaks
+
+1. **Blind screening leaked the name through a label.** A spy judge that records what the
+   model receives found "Asha Rao" in the `section` attribute: the chunker reads the name
+   at the top of a CV as a heading, and only passage text was being redacted. All rendered
+   fields are redacted now.
+2. **The audit log held candidate names.** Upload entries recorded the document title,
+   which is usually the person's name, in an append-only log that erasure can never
+   touch. Titles and checksums are no longer written; the erasure verifier searches the
+   audit log for names, emails and CV text on every run.
+3. **Verification is itself tested.** A negative control plants the name in a
+   recruiter's free-text note; erasure must report it as residue, and does.

@@ -150,7 +150,18 @@
 - **W13:** PII detection; redaction profiles; blind-screening mode at context-assembly time; counterfactual fairness harness (name/institution/location perturbation → score drift); selection-rate + four-fifths view; erasure saga with **automated residue verification**; candidate transparency view; consent and retention
 - ADR-0012 (injection defence layers), ADR-0013 (read-time redaction), ADR-0015 (erasure saga)
 
-**Exit:** the attack demo works both ways; the erasure test passes. Milestone **M6**.
+**Exit:** the attack demo works both ways; the erasure test passes. Milestone **M6**. ✅ *Complete (19 Sep 2026).*
+
+> **Delivered:** the layered injection defence measured on `redteam-v1` (ADR-0012);
+> read-time blind screening (ADR-0013); a counterfactual fairness harness with repeated
+> samples and a permutation test; voluntary self-identification with a four-fifths
+> selection-rate report; verified erasure with a negative-control test (ADR-0015); a
+> subject-access record; retention through the same erasure. Findings 14–18 in docs/07.
+>
+> **Not done:** PII *detection* in free text beyond the known name (we redact what we
+> know, not what we'd have to guess); consent capture from the candidate directly (the
+> owner records self-identification on their behalf); OCR, so scanned CVs skip the
+> hidden-text defence.
 
 ---
 
