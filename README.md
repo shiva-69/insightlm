@@ -57,8 +57,8 @@ One language, because the dissertation's contribution — the evaluation harness
 ## Running it
 
 ```bash
-make up          # postgres + pgvector, redis, minio, otel, grafana, api, worker
-open http://localhost:8000          # the evidence viewer
+make up          # postgres + pgvector, redis, minio, otel, grafana, api, worker, web
+open http://localhost:3000          # the app
 open http://localhost:8000/docs     # the API
 ```
 
@@ -73,8 +73,15 @@ restricted database role the application connects as. Nothing else needs doing.
 
 For local development against the compose infrastructure:
 
-Toolchain: **Python 3.12** (managed by `uv`) and, for the frontend, **Node LTS** via
-`nvm` (`nvm install --lts`). Nothing else is required — `uv` fetches its own Python.
+Toolchain: **Python 3.12** (managed by `uv`) and **Node LTS** via `nvm`
+(`nvm install --lts`). Nothing else is required — `uv` fetches its own Python.
+
+```bash
+cd web && npm install && npm run dev    # http://localhost:3000
+```
+
+Next proxies `/api/*` to the API, so the browser only ever talks to its own origin —
+no CORS configuration, and the bearer token never goes to a third-party origin.
 
 ```bash
 make install     # uv sync --all-groups
@@ -143,7 +150,7 @@ validate → highlight.**
 | pgvector HNSW + trigger-maintained tsvector, both indexed | [migration 0002](migrations/versions/0002_document_engine.py) |
 | Grounded generation via `claude-opus-5`, structured output | [`anthropic_generator.py`](src/insightlm/retrieval/adapters/anthropic_generator.py) |
 | Offline deterministic fallbacks — runs with no API key | [`embedding.py`](src/insightlm/retrieval/adapters/embedding.py), [`extractive_generator.py`](src/insightlm/retrieval/adapters/extractive_generator.py) |
-| Bundled evidence viewer — click a citation, highlight the span | [`viewer.html`](src/insightlm/api/static/viewer.html) |
+| Evidence viewer — click a citation, highlight the span | [`web/`](web/), plus a no-toolchain fallback at [`viewer.html`](src/insightlm/api/static/viewer.html) |
 
 **It runs without an API key.** `HashingEmbedder` and `ExtractiveGenerator` are
 deterministic and offline, so CI, a clean checkout and a live demo all work with no
@@ -174,6 +181,31 @@ Six ADRs written: [0001](docs/adr/0001-single-python-service-hexagonal.md),
 [0005](docs/adr/0005-unit-of-work-contract.md),
 [0014](docs/adr/0014-arq-and-transactional-outbox.md),
 [0016](docs/adr/0016-row-level-security-for-tenancy.md).
+
+---
+
+## The interface
+
+Next.js 15 App Router, TypeScript, Tailwind v4, TanStack Query, PDF.js.
+
+One design rule carries the whole thing: **the only saturated colour in the interface
+is evidence.** Chrome, text, borders and states all live on a single warm neutral ink
+scale; amber appears exclusively where a highlight marks a cited passage. Colour in
+this product therefore always means *this is the evidence* — which is a constraint
+rather than a palette, and it is what keeps the UI from drifting into the
+gradient-and-glass look that afflicts tools in this category.
+
+Three type families, each with a job: **Inter** for chrome you scan, **Newsreader**
+for prose you read, **JetBrains Mono** for data you parse — model versions, hashes,
+character offsets. Hairline rules instead of drop shadows; 4–8px radii; 120–180ms
+transitions with no spring.
+
+The citation link is bidirectional: hovering a chip in the answer lights its highlight
+in the document, and clicking a highlight activates the claim that cited it.
+
+`npm run walkthrough` drives a browser through the whole product and screenshots each
+step. It caught two defects nothing else would have: fonts silently falling back to
+the system stack, and claims arriving as mid-sentence fragments.
 
 ---
 

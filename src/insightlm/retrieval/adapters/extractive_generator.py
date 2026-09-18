@@ -26,7 +26,8 @@ from insightlm.retrieval.domain.answer import ProposedClaim
 from insightlm.retrieval.domain.evidence import EvidenceBundle
 from insightlm.retrieval.ports.generation import GenerationResult
 
-_SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
+_SENTENCE = re.compile(r"(?<=[.!?])\s+")
+_LEADING_HEADING = re.compile(r"^[A-Z][A-Z \-/&]{2,40}(?=[A-Z][a-z])")
 _WORD = re.compile(r"[a-z0-9]+")
 _STOPWORDS = frozenset(
     [
@@ -67,7 +68,7 @@ _STOPWORDS = frozenset(
     ]
 )
 
-MODEL_ID = "extractive-overlap-v1"
+MODEL_ID = "extractive-overlap-v2"
 PROMPT_ID = "extractive@none"
 
 
@@ -141,6 +142,30 @@ class ExtractiveGenerator:
         }
 
     def _sentences(self, text: str) -> list[str]:
+        """Split into sentences, not into lines.
+
+        PDF text carries a hard line break wherever the original wrapped, and that
+        falls mid-sentence far more often than not. Splitting on newlines therefore
+        produces fragments -- "and idempotent retries across three payment service
+        providers, sustaining" -- which are perfectly grounded and entirely
+        unreadable, and make a correct system look broken.
+
+        So the line breaks are collapsed first and the split happens on sentence
+        punctuation alone.
+        """
+        flattened = " ".join(text.split())
         return [
-            cleaned for raw in _SENTENCE.split(text) if len(cleaned := " ".join(raw.split())) > 15
+            cleaned
+            for raw in _SENTENCE.split(flattened)
+            if len(cleaned := _strip_leading_heading(raw.strip())) > 15
         ]
+
+
+def _strip_leading_heading(sentence: str) -> str:
+    """Drop an ALL-CAPS section heading glued to the front of a sentence.
+
+    A chunk begins at its heading, so its first sentence reads "EXPERIENCE Led the
+    settlement platform...". The heading is real document text, but quoting it inside
+    a claim is noise: it belongs to the section, not to the statement.
+    """
+    return _LEADING_HEADING.sub("", sentence).strip()

@@ -89,6 +89,15 @@ services:
       migrate: {condition: service_completed_successfully}
       redis: {condition: service_healthy}
 
+  web:
+    build: {context: ./web}
+    environment:
+      # The browser only ever talks to the Next origin; Next proxies /api/* here,
+      # so there is no CORS configuration and no cross-origin token handling.
+      API_ORIGIN: http://api:8000
+    ports: ["3000:3000"]
+    depends_on: [api]
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     command: ["--config=/etc/otel/config.yaml"]
