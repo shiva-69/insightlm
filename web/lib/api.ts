@@ -27,6 +27,9 @@ import type {
   Stage,
   TalentMatch,
   ContentFinding,
+  ErasureReport,
+  RetentionRun,
+  SelectionReport,
 } from "./types";
 import { getToken, clearSession } from "./auth";
 
@@ -136,7 +139,7 @@ export const api = {
 
   requisitions: () => request<Requisition[]>("/requisitions"),
 
-  createRequisition: (input: { title: string; description: string }) =>
+  createRequisition: (input: { title: string; description: string; blind_screening: boolean }) =>
     request<Requisition>("/requisitions", { method: "POST", json: input }),
 
   requisition: (id: string) => request<RequisitionDetail>(`/requisitions/${id}`),
@@ -188,6 +191,20 @@ export const api = {
   ) => request<Scorecard>(`/scorecards/${id}/submit`, { method: "POST", json: input }),
 
   myInterviews: () => request<Interview[]>("/me/interviews"),
+
+  candidateRecord: (candidateId: string) =>
+    request<Record<string, unknown>>(`/candidates/${candidateId}/record`),
+
+  eraseCandidate: (candidateId: string) =>
+    request<ErasureReport>(`/candidates/${candidateId}/erasure`, { method: "POST" }),
+
+  selectionRates: (requisitionId?: string) =>
+    request<SelectionReport>(
+      `/governance/selection-rates${requisitionId ? `?requisition_id=${requisitionId}` : ""}`,
+    ),
+
+  retention: (dryRun: boolean) =>
+    request<RetentionRun>(`/governance/retention/run?dry_run=${dryRun}`, { method: "POST" }),
 
   findings: (documentId: string) =>
     request<ContentFinding[]>(`/documents/${documentId}/findings`),

@@ -15,11 +15,17 @@ export default function HiringPage() {
   const [opening, setOpening] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [blind, setBlind] = useState(true);
 
   const requisitions = useQuery({ queryKey: ["requisitions"], queryFn: api.requisitions });
 
   const create = useMutation({
-    mutationFn: () => api.createRequisition({ title: title.trim(), description: description.trim() }),
+    mutationFn: () =>
+      api.createRequisition({
+        title: title.trim(),
+        description: description.trim(),
+        blind_screening: blind,
+      }),
     onSuccess: (requisition) => {
       queryClient.invalidateQueries({ queryKey: ["requisitions"] });
       router.push(`/hiring/${requisition.id}`);
@@ -74,6 +80,22 @@ export default function HiringPage() {
                   placeholder="Owns settlement and reconciliation for card payments."
                 />
               </Field>
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--radius-sm)] border border-[var(--rule)] p-3">
+                <input
+                  type="checkbox"
+                  checked={blind}
+                  onChange={(e) => setBlind(e.target.checked)}
+                  className="mt-0.5 accent-[var(--ink)]"
+                />
+                <span>
+                  <span className="block text-[13px] font-medium">Blind screening</span>
+                  <span className="mt-0.5 block text-[12px] leading-relaxed text-[var(--ink-3)]">
+                    The model judging each criterion never sees the candidate&rsquo;s name,
+                    contact details, institutions, or demographic details. You still see
+                    the full CV.
+                  </span>
+                </span>
+              </label>
               <div className="flex gap-2 pt-1">
                 <Button
                   variant="solid"

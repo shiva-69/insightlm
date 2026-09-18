@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import { CandidateData } from "@/components/candidate-data";
 import { ContentWarning } from "@/components/content-warning";
 import { useToast } from "@/components/toast";
 import { Button, Empty, Panel, Spinner, Tag } from "@/components/ui/primitives";
@@ -117,6 +118,16 @@ function Application({ detail }: { detail: ApplicationDetail }) {
           <Scorecards detail={detail} mayAssign={mayMove} names={names} />
           <History detail={detail} names={names} />
         </div>
+
+        {claims?.role === "owner" && (
+          <div className="mt-10 rule-t pt-6">
+            <CandidateData
+              candidateId={candidate.id}
+              name={candidate.name}
+              returnTo={`/hiring/${requisition.id}`}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

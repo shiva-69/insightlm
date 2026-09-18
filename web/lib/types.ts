@@ -169,6 +169,7 @@ export interface Requisition {
   title: string;
   description: string;
   status: "open" | "closed";
+  blind_screening: boolean;
   created_by: string;
   created_at: string;
 }
@@ -256,6 +257,7 @@ export interface Assessment {
   model_version: string;
   prompt_version: string;
   retrieval_config_hash: string;
+  redaction_profile: string;
   assessed_by: string;
   created_at: string;
 }
@@ -352,4 +354,44 @@ export interface ContentFinding {
   excluded: boolean;
   instruction_like: boolean;
   rect: Rect | null;
+}
+
+/* -- governance ------------------------------------------------------------------ */
+
+export interface ErasureReport {
+  candidate_id: string;
+  documents_erased: number;
+  documents_kept_shared: number;
+  files_deleted: number;
+  answers_deleted: number;
+  events_deleted: number;
+  verified: boolean;
+  residue: { table: string; column: string; fingerprint: string }[];
+}
+
+export interface GroupRate {
+  group: string;
+  decided: number;
+  advanced: number;
+  rate: number | null;
+  impact_ratio: number | null;
+  adverse: boolean;
+  too_few: boolean;
+}
+
+export interface SelectionReport {
+  dimension: string;
+  stage: string;
+  groups: GroupRate[];
+  pending: number;
+  rejection_reasons: Record<string, Record<string, number>>;
+  four_fifths: number;
+  min_group_size: number;
+}
+
+export interface RetentionRun {
+  retention_days: number;
+  dry_run: boolean;
+  expired: { candidate_id: string; last_activity: string }[];
+  erased: ErasureReport[];
 }

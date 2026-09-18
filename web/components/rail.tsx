@@ -25,6 +25,7 @@ const NAV: { href: string; label: string; icon: () => React.JSX.Element; roles?:
   { href: "/talent", label: "Talent", icon: TalentIcon, roles: SCORES },
   { href: "/team", label: "Team", icon: TeamIcon },
   { href: "/audit", label: "Audit", icon: AuditIcon },
+  { href: "/governance", label: "Fairness", icon: GovernanceIcon, roles: ["owner", "auditor"] },
 ];
 
 export function Rail() {
@@ -146,6 +147,15 @@ function TalentIcon() {
     <svg viewBox="0 0 18 18" className="size-[18px]" aria-hidden {...stroke}>
       <circle cx="8" cy="8" r="4.5" />
       <path d="m11.5 11.5 3.5 3.5" />
+    </svg>
+  );
+}
+
+function GovernanceIcon() {
+  return (
+    <svg viewBox="0 0 18 18" className="size-[18px]" aria-hidden {...stroke}>
+      <path d="M9 2.5v13M4 15.5h10" />
+      <path d="M3 6h12M5.5 6 3 11a2.5 2.5 0 0 0 5 0L5.5 6ZM12.5 6 10 11a2.5 2.5 0 0 0 5 0l-2.5-5Z" />
     </svg>
   );
 }

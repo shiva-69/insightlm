@@ -200,6 +200,11 @@ export function AssessmentView({
           <footer className="rule-t mt-8 space-y-0.5 pt-3.5">
             <p className="data">judge {assessment.model_version} · prompt {assessment.prompt_version}</p>
             <p className="data">retrieval {assessment.retrieval_config_hash.slice(0, 12)}</p>
+            <p className="data">
+              {assessment.redaction_profile === "none"
+                ? "judge saw identifying details"
+                : `judged blind (${assessment.redaction_profile}): no name, contact, institution or demographics`}
+            </p>
           </footer>
         </div>
       </section>

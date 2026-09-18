@@ -7,7 +7,7 @@ import { Suspense } from "react";
 import { AssessmentView } from "@/components/hiring/assessment-view";
 import { CandidatesPanel } from "@/components/hiring/candidates-panel";
 import { RubricPanel } from "@/components/hiring/rubric-panel";
-import { Empty, Spinner } from "@/components/ui/primitives";
+import { Empty, Spinner, Tag } from "@/components/ui/primitives";
 import { api, ApiError } from "@/lib/api";
 
 export default function RequisitionPage() {
@@ -72,7 +72,10 @@ function Requisition() {
           / <span className="text-[var(--ink-2)]">{requisition.title}</span>
         </nav>
         <header className="mb-7">
-          <h1 className="font-serif text-[25px] leading-tight tracking-[-0.012em]">{requisition.title}</h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="font-serif text-[25px] leading-tight tracking-[-0.012em]">{requisition.title}</h1>
+            <Tag>{requisition.blind_screening ? "Blind screening" : "Names visible to the judge"}</Tag>
+          </div>
           {requisition.description && (
             <p className="mt-1 max-w-[40rem] text-[13px] text-[var(--ink-3)]">{requisition.description}</p>
           )}
