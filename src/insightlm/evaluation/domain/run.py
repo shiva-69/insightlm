@@ -37,10 +37,14 @@ class EvalConfig:
     generator: str
     embedder: str
     chunker: str = "structure-aware"
+    enrich_with_title: bool = True
+    """Whether each chunk carries its document's title into the embedding. An arm,
+    not a setting: the harness has to measure what it buys."""
     notes: str = ""
 
     def fingerprint(self) -> str:
-        return f"{self.strategy}/k={self.top_k}/{self.embedder}/{self.generator}"
+        enrichment = "+ctx" if self.enrich_with_title else "-ctx"
+        return f"{self.strategy}{enrichment}/k={self.top_k}/{self.embedder}/{self.generator}"
 
 
 @dataclass(frozen=True, slots=True)

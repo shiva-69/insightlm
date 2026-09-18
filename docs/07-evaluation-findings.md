@@ -142,6 +142,101 @@ at 0.67 and fails at 0.95.
 A violated citation contract fails the gate regardless of any threshold. It is an
 invariant, not a quality target.
 
+---
+
+# Phase 3 — the ablation
+
+Corpus grown to 40 generated documents; 30 golden items derived from the facts they
+were rendered from. Gemini for both halves. One run per arm.
+
+| Config | R@8 | nDCG | MRR | cite-P | correct refusal | over-refusal | p50 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| B — dense | 0.773 | 0.469 | 0.373 | 0.944 | 0.875 | 0.227 | 7.8 s |
+| **C — dense + context** | **0.955** | **0.965** | **1.000** | 0.846 | 0.500 | 0.000 | 8.8 s |
+| D — hybrid RRF | 0.955 | 0.965 | 1.000 | 0.846 | 0.500 | 0.000 | 7.6 s |
+| L — lexical only | 0.000 | 0.000 | 0.000 | 0.000 | 0.500 | 1.000 | 1 ms |
+
+Citation contract held in every arm: 0 violations.
+
+## Finding 4 — contextual enrichment is the whole story
+
+| Item kind | B (no context) | C (with context) |
+| --- | --- | --- |
+| factual nDCG | 0.501 | **1.000** |
+| multi-hop R@8 | 0.167 | **0.833** |
+| multi-hop nDCG | 0.053 | **0.871** |
+| multi-hop abstentions | 5 of 6 | 0 of 6 |
+
+nDCG roughly doubles and MRR goes to 1.000 — the right passage is now ranked first for
+every answerable item. Multi-hop goes from near-total failure to working.
+
+The diagnosis held. A passage describing an achievement never named the person who
+achieved it, because the name sat in the header chunk. Prepending the document title
+before embedding — while leaving the *cited* span as the passage itself — fixes the
+class of failure rather than the symptom. This is the clearest result in the project
+so far, and it came from a measurement rather than from intuition.
+
+## Finding 5 — hybrid RRF earns nothing here, and I can say why
+
+C and D are **identical on every retrieval metric**. Fusion added exactly zero.
+
+Not a bug: the lexical arm returns nothing (row L is 0.000 across the board), so RRF
+fuses dense against an empty list and returns dense. Fusion cannot contribute what an
+arm does not find.
+
+The cause is the arm's query formulation, not the idea. `websearch_to_tsquery` applies
+AND semantics over stemmed terms, so *"For Kavya Pillai, what peak throughput was
+sustained and by how much was p99 latency cut?"* requires every stem to be present and
+matches nothing. The fix is to stop handing the lexical arm a conversational sentence:
+extract the distinctive terms first, or rank with `plainto_tsquery` instead of
+filtering. Until then the arm is dead weight, and the honest report is that **the
+hybrid configuration does not justify its complexity on this query distribution.**
+
+Keeping D in the table with a null result is the point. An ablation that only reports
+the arms that helped is a sales deck.
+
+## Finding 6 — better retrieval made abstention *worse*
+
+The trade-off C pays for its gains:
+
+| | B | C |
+| --- | --- | --- |
+| over-refusal | 0.227 | **0.000** |
+| correct abstention | **0.875** | 0.500 |
+| citation precision | **0.944** | 0.846 |
+
+Enrichment stopped the system refusing answerable questions — and started it answering
+unanswerable ones. Retrieval now surfaces a plausible-looking passage for almost any
+query, including the denial near-misses, and the generator answers rather than reading
+the negation.
+
+This is the same failure as Finding 1, amplified: improving retrieval increased the
+*opportunity* to be wrong. It is a genuine tension rather than a regression to patch
+away — a system that retrieves nothing never hallucinates and is useless. The candidate
+fixes are the ones Finding 1 already named: an entailment check between claim and cited
+span, or explicit handling of negation in the prompt. Both are now measurable against
+two arms rather than one.
+
+## Finding 7 — lexical-only fails in the worst possible direction
+
+Row L refuses **every** answerable question (over-refusal 1.000) while answering half
+the unanswerable ones. The four it answers are the denial near-misses — the passages
+where "settlement" and "reconciliation" appear most strongly. Exactly backwards, and a
+compact illustration of why exact-term matching alone is not retrieval.
+
+## Where this leaves the table
+
+Recommended configuration: **C — dense + contextual enrichment.** D costs an extra
+query for no measurable gain; B is materially worse on every retrieval metric.
+
+Caveats stated plainly:
+
+* **One run per arm.** `gemini-2.5-pro` is non-deterministic and `--runs` now exists;
+  these numbers have no spread and should not be quoted as though they do.
+* **Recall is approaching saturation again** at 0.955. The corpus needs to grow past
+  40 before recall is informative once more.
+* **No reranker arm yet**, and no query-transformation arm. Both remain in the plan.
+
 ## What Phase 3 inherits
 
 The ablation table now has two arms and a control. Phase 3 adds hybrid + RRF, the

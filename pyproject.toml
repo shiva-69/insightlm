@@ -133,6 +133,7 @@ ignore_missing_imports = true
 module = [
     "insightlm.documents.adapters.pymupdf_parser",
     "insightlm.evaluation.adapters.corpus",
+    "insightlm.evaluation.adapters.generator",
 ]
 disallow_untyped_calls = false
 

@@ -44,10 +44,12 @@ class AskService:
         *,
         embedder: Embedder,
         generator: GroundedGenerator,
+        rrf_k: int = 60,
     ) -> None:
         self._session_factory = session_factory
         self._embedder = embedder
         self._generator = generator
+        self._rrf_k = rrf_k
 
     async def ask(self, actor: Actor, request: AnswerRequest) -> AnswerOutput:
         async with self._session_factory() as session:
@@ -61,6 +63,7 @@ class AskService:
                 lexical_search=PostgresLexicalSearch(session),
                 hydrate=ChunkHydrator(session),
                 tenant_id=actor.tenant_id,
+                rrf_k=self._rrf_k,
             )
             use_case = AnswerQuestion(
                 evidence, self._generator, embedding_model=self._embedder.model_id

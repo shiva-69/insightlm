@@ -90,6 +90,15 @@ class Settings(BaseSettings):
     gemini_embedding_model: str = "gemini-embedding-001"
     generation_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
 
+    # --- retrieval knobs ----------------------------------------------------
+    # Exposed as configuration so the ablation is a config sweep rather than a
+    # rewrite, which is the whole reason the pipeline sits behind ports.
+    chunk_enrich_with_title: bool = True
+    rrf_k: int = 60
+    """The rank-fusion constant. 60 is the value from the original RRF paper and is
+    what nearly everyone uses; it damps the influence of top ranks enough that one
+    arm cannot dominate the fusion."""
+
     # --- observability ------------------------------------------------------
     otel_enabled: bool = False
     otel_endpoint: str = "http://localhost:4317"

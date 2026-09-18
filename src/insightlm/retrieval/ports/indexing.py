@@ -16,6 +16,7 @@ class Chunker(Protocol):
         *,
         tenant_id: TenantId,
         document_version_id: DocumentVersionId,
+        document_title: str = "",
     ) -> list[Chunk]:
         """Split parsed text into retrievable units, carrying geometry through.
 

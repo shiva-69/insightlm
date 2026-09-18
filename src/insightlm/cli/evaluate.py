@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import statistics
 import sys
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -30,9 +31,13 @@ from sqlalchemy import text
 
 from insightlm.bootstrap import Container, build_container
 from insightlm.documents.application.upload import UploadDocument
-from insightlm.evaluation.adapters.corpus import build_corpus
+from insightlm.evaluation.adapters.corpus import SyntheticDocument, build_corpus
+from insightlm.evaluation.adapters.generator import (
+    build_generated_corpus,
+    build_generated_dataset,
+)
 from insightlm.evaluation.adapters.golden import SEED_DATASET
-from insightlm.evaluation.domain.dataset import GoldenDataset
+from insightlm.evaluation.domain.dataset import GoldenDataset, ItemKind
 from insightlm.evaluation.domain.grounding import score_citations
 from insightlm.evaluation.domain.metrics import score_retrieval
 from insightlm.evaluation.domain.run import (
@@ -70,7 +75,9 @@ async def _provision(container: Container, slug: str) -> Actor:
     return Actor(user_id=result.user.id, tenant_id=result.tenant.id, role=Role.OWNER)
 
 
-async def _ingest_corpus(container: Container, actor: Actor) -> dict[str, str]:
+async def _ingest_corpus(
+    container: Container, actor: Actor, documents: list[SyntheticDocument]
+) -> dict[str, str]:
     """Ingest every synthetic document; return slug -> document id for the ones that
     succeeded.
 
@@ -82,7 +89,7 @@ async def _ingest_corpus(container: Container, actor: Actor) -> dict[str, str]:
     pipeline: IngestionPipeline = container.ingestion
 
     ingested: dict[str, str] = {}
-    for document in build_corpus():
+    for document in documents:
         result = await upload.execute(
             actor,
             filename=f"{document.slug}.pdf",
@@ -108,15 +115,27 @@ async def _load_chunks(container: Container, actor: Actor) -> list[tuple[str, st
 
 
 async def run_config(
-    settings: Settings, dataset: GoldenDataset, config: EvalConfig, *, slug: str
+    base_settings: Settings,
+    dataset: GoldenDataset,
+    config: EvalConfig,
+    documents: list[SyntheticDocument],
+    *,
+    slug: str,
 ) -> EvalRun:
+    # Chunking is part of the configuration, so the corpus is re-ingested per arm.
+    # Sharing one index across arms that chunk differently would compare them against
+    # different ground truth, which is the failure quote-based labelling exists to
+    # avoid -- and it would silently invalidate the comparison rather than error.
+    settings = base_settings.model_copy(
+        update={"chunk_enrich_with_title": config.enrich_with_title}
+    )
     container = build_container(settings)
     started = datetime.now(UTC)
 
     try:
         await container.object_store.ensure_bucket()
         actor = await _provision(container, slug)
-        ingested = await _ingest_corpus(container, actor)
+        ingested = await _ingest_corpus(container, actor, documents)
         _logger.info("corpus_ingested", documents=len(ingested))
 
         chunks = await _load_chunks(container, actor)
@@ -186,57 +205,104 @@ def _fmt(value: float | None, places: int = 3) -> str:
     return "  -  " if value is None else f"{value:.{places}f}"
 
 
+def _spread(values: list[float | None]) -> str:
+    """Mean and half-range across repeats.
+
+    Reported rather than a bare mean because generation is non-deterministic. Without
+    a spread there is no way to tell a real improvement from one run getting lucky,
+    and a table of bare means is the commonest way a project like this overclaims.
+    """
+    present = [value for value in values if value is not None]
+    if not present:
+        return "-"
+    mean = statistics.fmean(present)
+    if len(present) == 1:
+        return f"{mean:.3f}"
+    return f"{mean:.3f}+-{(max(present) - min(present)) / 2:.3f}"
+
+
 def render_report(runs: list[EvalRun]) -> str:
     """The ablation table, as text.
 
-    Deliberately plain: a table you can paste into a dissertation, read in a terminal,
-    and diff between runs.
+    Deliberately plain: paste it into a dissertation, read it in a terminal, diff it
+    between runs. Repeats of one configuration collapse into a single row.
     """
-    lines: list[str] = []
-    lines.append("")
-    lines.append(
-        "  config                  items  R@k    nDCG   MRR    MAP    cite-P  refuse  over-ref  p50 ms"
+    grouped: dict[str, list[EvalRun]] = {}
+    for run in runs:
+        grouped.setdefault(run.config.name, []).append(run)
+
+    width = 15 if any(len(group) > 1 for group in grouped.values()) else 8
+
+    lines = ["", "  ablation"]
+    header = (
+        f"  {'config':<22} {'n':>3}  {'R@k':<{width}} {'nDCG':<{width}} "
+        f"{'MRR':<{width}} {'cite-P':<{width}} {'refuse':<7} {'over-ref':<8} {'p50 ms':>7}"
     )
-    lines.append("  " + "-" * 92)
+    lines.append(header)
+    lines.append("  " + "-" * (len(header) - 2))
 
-    for run in runs:
-        s = run.summary()
+    for name, group in grouped.items():
+        summaries = [run.summary() for run in group]
+        latencies = [s.median_latency_ms for s in summaries if s.median_latency_ms]
+        latency = f"{statistics.fmean(latencies):.0f}" if latencies else "-"
         lines.append(
-            f"  {run.config.name:<22}  {s.items:>5}  "
-            f"{_fmt(s.recall_at_k)}  {_fmt(s.ndcg_at_k)}  {_fmt(s.mrr)}  "
-            f"{_fmt(s.map_score)}  {_fmt(s.citation_precision)}   "
-            f"{_fmt(s.abstention.correct_abstention_rate, 2)}   "
-            f"{_fmt(s.abstention.over_refusal_rate, 2)}     "
-            f"{'  -  ' if s.median_latency_ms is None else f'{s.median_latency_ms:.0f}'}"
+            f"  {name:<22} {summaries[0].items:>3}  "
+            f"{_spread([s.recall_at_k for s in summaries]):<{width}} "
+            f"{_spread([s.ndcg_at_k for s in summaries]):<{width}} "
+            f"{_spread([s.mrr for s in summaries]):<{width}} "
+            f"{_spread([s.citation_precision for s in summaries]):<{width}} "
+            f"{_spread([s.abstention.correct_abstention_rate for s in summaries])[:5]:<7} "
+            f"{_spread([s.abstention.over_refusal_rate for s in summaries])[:5]:<8} "
+            f"{latency:>7}"
         )
 
-    for run in runs:
+    for name, group in grouped.items():
         lines.append("")
-        lines.append(f"  {run.config.name} — {run.config.fingerprint()}")
-        s = run.summary()
+        lines.append(f"  {name} -- {group[0].config.fingerprint()}")
+        summaries = [run.summary() for run in group]
+        head = summaries[0]
+        violations = sum(s.unresolvable_citations + s.uncited_claims for s in summaries)
         lines.append(
-            f"    citation contract held: {'yes' if s.contract_held else 'NO'}"
-            f"   (unresolvable {s.unresolvable_citations}, uncited {s.uncited_claims})"
+            f"    citation contract held: {'yes' if violations == 0 else 'NO'}"
+            f"   ({violations} violation(s) across {len(group)} run(s))"
         )
-        if s.unmatched_quotes:
+        unmatched = max(s.unmatched_quotes for s in summaries)
+        if unmatched:
             lines.append(
-                f"    WARNING: {s.unmatched_quotes} golden quote(s) matched no chunk — "
-                "recall is understated for those items"
+                f"    WARNING: {unmatched} golden quote(s) matched no chunk -- recall "
+                "is understated for those items"
             )
-        if s.errors:
-            lines.append(f"    errors: {s.errors}")
-        lines.append(f"    tokens: {s.total_input_tokens} in / {s.total_output_tokens} out")
+        if any(s.errors for s in summaries):
+            lines.append(f"    errors: {sum(s.errors for s in summaries)}")
+        lines.append(
+            f"    tokens: {sum(s.total_input_tokens for s in summaries)} in / "
+            f"{sum(s.total_output_tokens for s in summaries)} out"
+        )
         lines.append("    by kind:")
-        for kind, summary in run.breakdown().items():
-            lines.append(
-                f"      {kind.value:<14} n={summary.items:<3} "
-                f"R@k={_fmt(summary.recall_at_k)}  "
-                f"nDCG={_fmt(summary.ndcg_at_k)}  "
-                f"abstained={sum(1 for o in run.outcomes if o.kind is kind and o.abstained)}"
+        for kind in run_kinds(group):
+            per_kind = [run.summary(kind=kind) for run in group]
+            abstained = statistics.fmean(
+                [sum(1 for o in run.outcomes if o.kind is kind and o.abstained) for run in group]
             )
+            lines.append(
+                f"      {kind.value:<14} n={per_kind[0].items:<3} "
+                f"R@k={_spread([s.recall_at_k for s in per_kind]):<{width}} "
+                f"nDCG={_spread([s.ndcg_at_k for s in per_kind]):<{width}} "
+                f"abstained={abstained:.1f}"
+            )
+        _ = head
 
     lines.append("")
     return "\n".join(lines)
+
+
+def run_kinds(group: list[EvalRun]) -> list[ItemKind]:
+    seen: list[ItemKind] = []
+    for run in group:
+        for outcome in run.outcomes:
+            if outcome.kind not in seen:
+                seen.append(outcome.kind)
+    return seen
 
 
 def _summary_payload(summary: RunSummary) -> dict[str, object]:
@@ -257,7 +323,28 @@ async def _main(argv: list[str]) -> int:
         choices=sorted(CONFIGS),
         help="Configuration to run; repeatable. Defaults to all.",
     )
-    parser.add_argument("--dataset", type=Path, help="Golden set JSON. Defaults to the seed set.")
+    parser.add_argument("--dataset", type=Path, help="Golden set JSON. Overrides --corpus.")
+    parser.add_argument(
+        "--corpus",
+        choices=("seed", "generated"),
+        default="generated",
+        help=(
+            "seed: five hand-written documents, fast but recall-saturated. "
+            "generated: a larger corpus of distractors where retrieval has to "
+            "discriminate. Default generated."
+        ),
+    )
+    parser.add_argument("--count", type=int, default=40, help="Documents in the generated corpus.")
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=1,
+        help=(
+            "Repeat each configuration this many times and report the spread. "
+            "Generation is non-deterministic, so a single run cannot separate a real "
+            "effect from variance -- docs/03 section 5 calls for at least three."
+        ),
+    )
     parser.add_argument("--out", type=Path, help="Write the run as JSON here.")
     parser.add_argument(
         "--min-recall",
@@ -281,21 +368,37 @@ async def _main(argv: list[str]) -> int:
     settings = get_settings()
     configure_logging(level="WARNING", json_output=False)
 
-    dataset = GoldenDataset.load(args.dataset) if args.dataset else SEED_DATASET
+    if args.dataset:
+        dataset = GoldenDataset.load(args.dataset)
+        documents = build_generated_corpus(count=args.count)
+    elif args.corpus == "seed":
+        dataset, documents = SEED_DATASET, build_corpus()
+    else:
+        dataset = build_generated_dataset(count=args.count)
+        documents = build_generated_corpus(count=args.count)
     dataset.validate()
+
+    print(
+        f"corpus: {len(documents)} documents   dataset: {dataset.name} "
+        f"({len(dataset.items)} items)   runs: {args.runs}",
+        file=sys.stderr,
+    )
 
     selected = args.config or sorted(CONFIGS)
     runs: list[EvalRun] = []
     for index, name in enumerate(selected):
-        print(f"running {name} ...", file=sys.stderr)
-        runs.append(
-            await run_config(
-                settings,
-                dataset,
-                CONFIGS[name],
-                slug=f"eval-{datetime.now(UTC):%H%M%S}-{index}",
+        for repeat in range(args.runs):
+            label = f"{name} ({repeat + 1}/{args.runs})" if args.runs > 1 else name
+            print(f"running {label} ...", file=sys.stderr)
+            runs.append(
+                await run_config(
+                    settings,
+                    dataset,
+                    CONFIGS[name],
+                    documents,
+                    slug=f"eval-{datetime.now(UTC):%H%M%S}-{index}-{repeat}",
+                )
             )
-        )
 
     report = render_report(runs)
     print(report)
@@ -367,23 +470,46 @@ async def _main(argv: list[str]) -> int:
 
 CONFIGS: dict[str, EvalConfig] = {
     "B-dense": EvalConfig(
-        name="B — naive dense",
+        name="B - dense",
         strategy=RetrievalStrategy.DENSE.value,
         top_k=8,
         generator="configured",
         embedder="configured",
-        notes="The Phase 1 baseline. Everything Phase 3 adds is measured against this.",
+        enrich_with_title=False,
+        notes="The Phase 1 baseline. Everything after is measured against this.",
+    ),
+    "C-dense-enriched": EvalConfig(
+        name="C - dense + context",
+        strategy=RetrievalStrategy.DENSE.value,
+        top_k=8,
+        generator="configured",
+        embedder="configured",
+        enrich_with_title=True,
+        notes=(
+            "Adds the document title to each chunk before embedding. Isolates the fix "
+            "for the measured multi-hop failure: a passage describing an achievement "
+            "says nothing about whose it is."
+        ),
+    ),
+    "D-hybrid": EvalConfig(
+        name="D - hybrid RRF",
+        strategy=RetrievalStrategy.HYBRID_RRF.value,
+        top_k=8,
+        generator="configured",
+        embedder="configured",
+        enrich_with_title=True,
+        notes="Adds the lexical arm, fused by rank. Isolates what fusion contributes.",
     ),
     "L-lexical": EvalConfig(
-        name="L — lexical only",
+        name="L - lexical only",
         strategy=RetrievalStrategy.LEXICAL.value,
         top_k=8,
         generator="configured",
         embedder="configured",
+        enrich_with_title=True,
         notes=(
-            "Full-text search alone. Not an ablation arm in its own right -- it is the "
-            "control that shows what dense retrieval is actually buying, and which "
-            "items it loses."
+            "A control rather than an arm: it shows what dense retrieval is buying, "
+            "and which items it alone loses."
         ),
     ),
 }

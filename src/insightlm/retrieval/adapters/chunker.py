@@ -45,10 +45,14 @@ class StructureAwareChunker:
         target_tokens: int = 320,
         overlap_tokens: int = 48,
         min_tokens: int = 24,
+        enrich_with_title: bool = True,
     ) -> None:
         self._target = target_tokens * CHARS_PER_TOKEN
         self._overlap = overlap_tokens * CHARS_PER_TOKEN
         self._min = min_tokens * CHARS_PER_TOKEN
+        # An ablation arm, not a fixed behaviour: the harness has to be able to
+        # measure what it buys rather than take the claim on trust.
+        self._enrich_with_title = enrich_with_title
 
     def chunk(
         self,
@@ -56,6 +60,7 @@ class StructureAwareChunker:
         *,
         tenant_id: TenantId,
         document_version_id: DocumentVersionId,
+        document_title: str = "",
     ) -> list[Chunk]:
         chunks: list[Chunk] = []
         ordinal = 0
@@ -80,6 +85,7 @@ class StructureAwareChunker:
 
                 rects = merge_rects_by_line(parsed.rects_for(span_start, span_end))
                 section_path = (heading,) if heading else ()
+                header = self._context_header(document_title, heading)
 
                 chunks.append(
                     Chunk(
@@ -90,12 +96,31 @@ class StructureAwareChunker:
                         text=text,
                         span=TextSpan(char_start=span_start, char_end=span_end, rects=rects),
                         section_path=section_path,
-                        context_header=heading or "",
+                        context_header=header,
                     )
                 )
                 ordinal += 1
 
         return chunks
+
+    def _context_header(self, document_title: str, heading: str | None) -> str:
+        """What gets prepended before embedding, and why the title belongs in it.
+
+        A chunk is embedded out of context by default: the passage describing an
+        achievement contains the achievement and nothing identifying *whose* it is,
+        because the name sits in the document's header chunk. A question naming a
+        person therefore has no lexical or semantic purchase on the passage that
+        answers it -- measured on a 40-CV corpus, multi-hop recall was 0.000 for both
+        a hashing embedder and a real semantic one, which is what ruled out the
+        embedder as the cause.
+
+        Prepending the document title fixes the class of failure rather than the
+        symptom. It is not part of the cited span: the citation still points at the
+        passage the reader needs to see, not at a header we synthesised.
+        """
+        title = document_title.strip() if self._enrich_with_title else ""
+        parts = [part for part in (title, (heading or "").strip()) if part]
+        return " / ".join(parts)
 
     def _sections(self, parsed: ParsedDocument) -> list[tuple[int, int, str | None]]:
         """Section ranges as ``(start, end, heading)``, covering the whole document."""

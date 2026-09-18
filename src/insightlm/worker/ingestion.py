@@ -198,11 +198,21 @@ class IngestionPipeline:
             document = await uow.documents.get(version.document_id) if version else None
             if version is None or document is None:
                 raise NotFoundError("document version not found")
-            storage_key, media_type = version.storage_key, document.media_type
+            storage_key = version.storage_key
+            media_type = document.media_type
+            title = document.title
 
         payload = await self._store.get(storage_key)
         parsed = await self._parser.parse(payload, media_type=MediaType(media_type))
-        chunks = self._chunker.chunk(parsed, tenant_id=tenant_id, document_version_id=version_id)
+        # The title is passed so each chunk carries its document's identity into the
+        # embedding. Without it a passage about an achievement says nothing about
+        # whose it is, and a question naming a person cannot reach it.
+        chunks = self._chunker.chunk(
+            parsed,
+            tenant_id=tenant_id,
+            document_version_id=version_id,
+            document_title=title,
+        )
         if not chunks:
             raise ValueError("chunking produced nothing retrievable")
 

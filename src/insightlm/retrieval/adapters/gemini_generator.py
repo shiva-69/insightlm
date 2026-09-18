@@ -34,8 +34,32 @@ _logger = get_logger(__name__)
 PROMPT_NAME = "grounded_answer.v1"
 DEFAULT_MODEL = "gemini-2.5-pro"
 
+
 # The response schema, in the shape Gemini expects. It mirrors the Pydantic model the
 # Anthropic adapter constrains against -- both exist to produce the same domain type.
+class _TransientProviderError(Exception):
+    """A provider failure worth retrying.
+
+    The SDK raises `ServerError` for 5xx and `ClientError` for 4xx, and only some of
+    those are worth another attempt. A 503 "model is overloaded" or a 429 rate limit
+    will likely succeed shortly; a 400 malformed request never will. Retrying
+    everything burns an evaluation run's budget on requests that cannot succeed;
+    retrying nothing loses items to transient load -- five of thirty in one run,
+    which is how this was found.
+    """
+
+
+def _classify(error: Exception) -> Exception:
+    """Re-raise transient provider failures as something tenacity will retry."""
+    from google.genai import errors as genai_errors
+
+    if isinstance(error, genai_errors.ServerError):
+        return _TransientProviderError(str(error))
+    if isinstance(error, genai_errors.ClientError) and getattr(error, "code", None) == 429:
+        return _TransientProviderError(str(error))
+    return error
+
+
 _RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -77,9 +101,9 @@ class GeminiGroundedGenerator:
         self._prompt = load_prompt(PROMPT_NAME)
 
     @retry(
-        retry=retry_if_exception_type((TimeoutError, ConnectionError)),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential_jitter(initial=1.0, max=20.0),
+        retry=retry_if_exception_type((TimeoutError, ConnectionError, _TransientProviderError)),
+        stop=stop_after_attempt(4),
+        wait=wait_exponential_jitter(initial=1.0, max=30.0),
         reraise=True,
     )
     async def generate(
@@ -106,22 +130,25 @@ class GeminiGroundedGenerator:
 
         from google.genai import types
 
-        response = await self._client.aio.models.generate_content(
-            model=self._model,
-            contents=content,
-            config=types.GenerateContentConfig(
-                system_instruction=(
-                    "You are a retrieval-grounded analyst. You answer only from "
-                    "supplied sources and you cite every claim."
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=self._model,
+                contents=content,
+                config=types.GenerateContentConfig(
+                    system_instruction=(
+                        "You are a retrieval-grounded analyst. You answer only from "
+                        "supplied sources and you cite every claim."
+                    ),
+                    response_mime_type="application/json",
+                    response_schema=_RESPONSE_SCHEMA,
+                    max_output_tokens=self._max_output_tokens,
+                    # This adapter declares no tools, so the SDK's automatic function
+                    # calling has nothing to do but warn about itself on every call.
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
                 ),
-                response_mime_type="application/json",
-                response_schema=_RESPONSE_SCHEMA,
-                max_output_tokens=self._max_output_tokens,
-                # This adapter declares no tools, so the SDK's automatic function
-                # calling has nothing to do but warn about itself on every call.
-                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-            ),
-        )
+            )
+        except Exception as error:
+            raise _classify(error) from error
 
         usage = response.usage_metadata
         input_tokens = getattr(usage, "prompt_token_count", 0) or 0

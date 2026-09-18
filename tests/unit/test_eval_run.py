@@ -153,4 +153,16 @@ def test_an_empty_run_summarises_without_raising() -> None:
 
 
 def test_the_config_fingerprint_captures_what_changes_the_numbers() -> None:
-    assert CONFIG.fingerprint() == "dense/k=5/fake/fake"
+    """Everything that moves the result has to appear in the fingerprint.
+
+    Contextual enrichment changes what gets embedded, so two runs that differ only in
+    it are not comparable -- and a fingerprint that hid the difference would let them
+    be filed as the same configuration.
+    """
+    assert CONFIG.fingerprint() == "dense+ctx/k=5/fake/fake"
+
+    from dataclasses import replace
+
+    without = replace(CONFIG, enrich_with_title=False)
+    assert without.fingerprint() == "dense-ctx/k=5/fake/fake"
+    assert without.fingerprint() != CONFIG.fingerprint()
