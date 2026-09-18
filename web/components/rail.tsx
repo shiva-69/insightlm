@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { clearSession, getEmail, subscribe } from "@/lib/auth";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/primitives";
@@ -15,6 +15,7 @@ import { Button } from "./ui/primitives";
 const NAV = [
   { href: "/ask", label: "Ask", icon: AskIcon },
   { href: "/documents", label: "Library", icon: LibraryIcon },
+  { href: "/hiring", label: "Hiring", icon: HiringIcon },
   { href: "/team", label: "Team", icon: TeamIcon },
   { href: "/audit", label: "Audit", icon: AuditIcon },
 ] as const;
@@ -22,12 +23,9 @@ const NAV = [
 export function Rail() {
   const pathname = usePathname();
   const router = useRouter();
-  const [email, setEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    setEmail(getEmail());
-    return subscribe(() => setEmail(getEmail()));
-  }, []);
+  // The session is an external store; read it as one. The server snapshot is null,
+  // so the first client render matches the HTML and the email fills in after.
+  const email = useSyncExternalStore(subscribe, getEmail, () => null);
 
   function signOut() {
     clearSession();
@@ -110,6 +108,15 @@ function LibraryIcon() {
     <svg viewBox="0 0 18 18" className="size-[18px]" aria-hidden {...stroke}>
       <path d="M3 3.5h3.5v11H3zM8 3.5h3v11H8z" />
       <path d="m12.7 4.2 2.6.7-2.4 9.6-2.6-.7z" />
+    </svg>
+  );
+}
+
+function HiringIcon() {
+  return (
+    <svg viewBox="0 0 18 18" className="size-[18px]" aria-hidden {...stroke}>
+      <rect x="2.5" y="5" width="13" height="9.5" rx="1.5" />
+      <path d="M6.5 5V3.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V5M2.5 9.5h13" />
     </svg>
   );
 }

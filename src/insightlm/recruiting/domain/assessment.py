@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from insightlm.documents.domain.spans import PageRect
 from insightlm.recruiting.domain.rubric import CriterionKind, Rubric
 from insightlm.shared.domain.errors import InvariantViolationError, ValidationError
 from insightlm.shared.domain.ids import (
@@ -85,7 +86,12 @@ class Verdict(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class EvidenceRef:
-    """A citation into the candidate's documents. Enough to draw a highlight."""
+    """A citation into the candidate's documents. Enough to draw a highlight.
+
+    A snapshot, not a pointer: the quote, title and geometry are copied at assessment
+    time, so an assessment still shows exactly what it rested on after the document is
+    re-ingested or re-chunked.
+    """
 
     label: str
     chunk_id: str
@@ -94,6 +100,8 @@ class EvidenceRef:
     char_start: int
     char_end: int
     quoted_text: str
+    document_title: str = ""
+    rects: tuple[PageRect, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

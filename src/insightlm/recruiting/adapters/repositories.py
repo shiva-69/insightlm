@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from insightlm.documents.domain.spans import PageRect
 from insightlm.recruiting.adapters.models import (
     ApplicationRow,
     AssessmentRow,
@@ -99,6 +100,8 @@ def _judgment_to_json(j: CriterionJudgment) -> dict[str, Any]:
                 "char_start": e.char_start,
                 "char_end": e.char_end,
                 "quoted_text": e.quoted_text,
+                "document_title": e.document_title,
+                "rects": [[r.page, r.x0, r.y0, r.x1, r.y1] for r in e.rects],
             }
             for e in j.evidence
         ],
@@ -111,8 +114,17 @@ def _judgment_from_json(raw: dict[str, Any]) -> CriterionJudgment:
         verdict=Verdict(raw["verdict"]),
         confidence=float(raw["confidence"]),
         rationale=raw.get("rationale", ""),
-        evidence=tuple(EvidenceRef(**e) for e in raw.get("evidence", [])),
+        evidence=tuple(_evidence_from_json(e) for e in raw.get("evidence", [])),
     )
+
+
+def _evidence_from_json(raw: dict[str, Any]) -> EvidenceRef:
+    fields = {k: v for k, v in raw.items() if k != "rects"}
+    rects = tuple(
+        PageRect(page=int(page), x0=x0, y0=y0, x1=x1, y1=y1)
+        for page, x0, y0, x1, y1 in raw.get("rects", [])
+    )
+    return EvidenceRef(**fields, rects=rects)
 
 
 class SqlAlchemyRequisitionRepository:

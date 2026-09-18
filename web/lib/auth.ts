@@ -59,3 +59,21 @@ export function clearSession(): void {
   }
   notify();
 }
+
+/** Who the token says we are -- for shaping the UI only.
+ *
+ *  Decoded, not verified: the browser has no key to verify with, and does not need
+ *  one. Hiding a button someone cannot use is a courtesy; the server refusing the
+ *  request is the control.
+ */
+export function currentClaims(): { userId: string; role: string } | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1] ?? "";
+    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return { userId: String(json.sub), role: String(json.role) };
+  } catch {
+    return null;
+  }
+}

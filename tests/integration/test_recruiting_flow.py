@@ -234,6 +234,8 @@ async def test_every_verdict_cites_the_candidates_own_documents(
                 continue
             assert judgment["evidence"], "a positive verdict with no citation"
             assert {e["document_id"] for e in judgment["evidence"]} == {own_doc}
+            # Enough to highlight the passage in the viewer, and it survives a reload.
+            assert all(e["rects"] and e["document_title"] for e in judgment["evidence"])
 
     assert results["asha"]["score"] > results["ben"]["score"]
 
@@ -250,6 +252,9 @@ async def test_every_verdict_cites_the_candidates_own_documents(
     shortlist = await client.get(f"/requisitions/{requisition_id}/shortlist", headers=auth(manager))
     assert shortlist.status_code == 200, shortlist.text
     assert [e["candidate"]["name"] for e in shortlist.json()] == ["Asha", "Ben"]
+    # Read back from the database, the evidence still carries its geometry.
+    reloaded = shortlist.json()[0]["assessment"]
+    assert reloaded["judgments"] == results["asha"]["judgments"]
 
     # And every step of it is on the tamper-evident record.
     verified = await client.post("/audit/verify", headers=auth(tokens["owner"]))

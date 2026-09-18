@@ -1,27 +1,46 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Button } from "./ui/primitives";
 
 type Theme = "light" | "dark";
 
-export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme | null>(null);
+const KEY = "insightlm.theme";
+const listeners = new Set<() => void>();
 
-  useEffect(() => {
-    const stored = localStorage.getItem("insightlm.theme");
-    if (stored === "light" || stored === "dark") {
-      setTheme(stored);
-      return;
-    }
-    setTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-  }, []);
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  media.addEventListener("change", listener);
+  return () => {
+    listeners.delete(listener);
+    media.removeEventListener("change", listener);
+  };
+}
+
+function readTheme(): Theme {
+  try {
+    const stored = localStorage.getItem(KEY);
+    if (stored === "light" || stored === "dark") return stored;
+  } catch {
+    /* storage blocked: fall through to the system preference */
+  }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+export function ThemeToggle() {
+  // null on the server, so the icon renders only once the real theme is known.
+  const theme = useSyncExternalStore<Theme | null>(subscribe, readTheme, () => null);
 
   function toggle() {
     const next: Theme = theme === "dark" ? "light" : "dark";
-    setTheme(next);
     document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem("insightlm.theme", next);
+    try {
+      localStorage.setItem(KEY, next);
+    } catch {
+      /* the choice lasts for this page view only */
+    }
+    for (const listener of listeners) listener();
   }
 
   return (

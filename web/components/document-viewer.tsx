@@ -34,10 +34,14 @@ export function DocumentViewer({ documentId, citations, activeLabel, onActivate 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pagesRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<RenderedPage[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Which render last finished, and how. Loading is derived -- "the render we want is
+  // not the one that settled" -- so no effect has to flip a flag before it starts.
+  const [settled, setSettled] = useState<{ key: string; error: string | null } | null>(null);
   const [scale, setScale] = useState(1);
   const [containerWidth, setContainerWidth] = useState(0);
+  const renderKey = documentId && containerWidth > 0 ? `${documentId}@${containerWidth}` : null;
+  const loading = renderKey !== null && settled?.key !== renderKey;
+  const error = renderKey !== null && settled?.key === renderKey ? settled.error : null;
 
   // Track available width so pages fit without a horizontal scrollbar.
   useEffect(() => {
@@ -52,10 +56,9 @@ export function DocumentViewer({ documentId, citations, activeLabel, onActivate 
 
   useEffect(() => {
     if (!documentId || containerWidth === 0) return;
+    const key = `${documentId}@${containerWidth}`;
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
 
     (async () => {
       try {
@@ -111,10 +114,11 @@ export function DocumentViewer({ documentId, citations, activeLabel, onActivate 
         if (cancelled) return;
         setScale(nextScale);
         setPages(rendered);
+        setSettled({ key, error: null });
       } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not render");
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setSettled({ key, error: cause instanceof Error ? cause.message : "Could not render" });
+        }
       }
     })();
 

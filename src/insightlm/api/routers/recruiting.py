@@ -125,6 +125,14 @@ class ApplicationResponse(_Out):
     created_at: datetime
 
 
+class RectResponse(_Out):
+    page: int
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+
 class EvidenceRefResponse(_Out):
     label: str
     chunk_id: str
@@ -133,6 +141,8 @@ class EvidenceRefResponse(_Out):
     char_start: int
     char_end: int
     quoted_text: str
+    document_title: str
+    rects: list[RectResponse]
 
 
 class JudgmentResponse(_Out):

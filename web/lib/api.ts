@@ -11,6 +11,14 @@ import type {
   TokenResponse,
   UploadResult,
   ApiErrorBody,
+  Application,
+  Assessment,
+  Candidate,
+  CriterionInput,
+  Requisition,
+  RequisitionDetail,
+  Rubric,
+  ShortlistEntry,
 } from "./types";
 import { getToken, clearSession } from "./auth";
 
@@ -117,6 +125,37 @@ export const api = {
   auditEntries: (limit = 100) => request<AuditEntry[]>(`/audit/entries?limit=${limit}`),
 
   verifyChain: () => request<ChainVerification>("/audit/verify", { method: "POST" }),
+
+  requisitions: () => request<Requisition[]>("/requisitions"),
+
+  createRequisition: (input: { title: string; description: string }) =>
+    request<Requisition>("/requisitions", { method: "POST", json: input }),
+
+  requisition: (id: string) => request<RequisitionDetail>(`/requisitions/${id}`),
+
+  proposeRubric: (requisitionId: string, criteria: CriterionInput[]) =>
+    request<Rubric>(`/requisitions/${requisitionId}/rubrics`, {
+      method: "POST",
+      json: { criteria },
+    }),
+
+  approveRubric: (rubricId: string) =>
+    request<Rubric>(`/rubrics/${rubricId}/approve`, { method: "POST" }),
+
+  addCandidate: (
+    requisitionId: string,
+    input: { name: string; email?: string; document_ids: string[] },
+  ) =>
+    request<{ candidate: Candidate; application: Application }>(
+      `/requisitions/${requisitionId}/candidates`,
+      { method: "POST", json: input },
+    ),
+
+  assess: (applicationId: string) =>
+    request<Assessment>(`/applications/${applicationId}/assessments`, { method: "POST" }),
+
+  shortlist: (requisitionId: string) =>
+    request<ShortlistEntry[]>(`/requisitions/${requisitionId}/shortlist`),
 
   /** The raw file, for the viewer. Returns bytes, not JSON. */
   documentBytes: async (documentId: string): Promise<ArrayBuffer> => {

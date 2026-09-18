@@ -156,3 +156,111 @@ export interface ApiErrorBody {
   detail: Record<string, unknown>;
   correlation_id: string | null;
 }
+
+/* -- recruiting ----------------------------------------------------------------- */
+
+export type CriterionKind = "must_have" | "strong_preference" | "nice_to_have";
+export type RubricStatus = "draft" | "approved" | "superseded";
+export type Verdict = "strong" | "adequate" | "weak" | "absent";
+export type AssessmentFlag = "missing_must_have" | "disqualifying_absent" | "low_confidence";
+
+export interface Requisition {
+  id: string;
+  title: string;
+  description: string;
+  status: "open" | "closed";
+  created_by: string;
+  created_at: string;
+}
+
+export interface Criterion {
+  id: string;
+  label: string;
+  kind: CriterionKind;
+  weight: number;
+  evidence_hint: string;
+  disqualifying: boolean;
+}
+
+export interface CriterionInput {
+  label: string;
+  kind: CriterionKind;
+  weight: number;
+  evidence_hint: string;
+  disqualifying: boolean;
+}
+
+export interface Rubric {
+  id: string;
+  requisition_id: string;
+  version: number;
+  status: RubricStatus;
+  criteria: Criterion[];
+  proposed_by: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+}
+
+export interface RequisitionDetail {
+  requisition: Requisition;
+  rubrics: Rubric[];
+}
+
+export interface Candidate {
+  id: string;
+  name: string;
+  email: string | null;
+  document_ids: string[];
+  created_at: string;
+}
+
+export interface Application {
+  id: string;
+  candidate_id: string;
+  requisition_id: string;
+  stage: string;
+  created_at: string;
+}
+
+export interface EvidenceRef {
+  label: string;
+  chunk_id: string;
+  document_id: string;
+  document_title: string;
+  page: number;
+  char_start: number;
+  char_end: number;
+  quoted_text: string;
+  rects: Rect[];
+}
+
+export interface Judgment {
+  criterion_id: string;
+  verdict: Verdict;
+  confidence: number;
+  rationale: string;
+  evidence: EvidenceRef[];
+}
+
+export interface Assessment {
+  id: string;
+  application_id: string;
+  rubric_id: string;
+  rubric_version: number;
+  score: number;
+  flags: AssessmentFlag[];
+  judgments: Judgment[];
+  needs_human_review: boolean;
+  model_version: string;
+  prompt_version: string;
+  retrieval_config_hash: string;
+  assessed_by: string;
+  created_at: string;
+}
+
+export interface ShortlistEntry {
+  application: Application;
+  candidate: Candidate;
+  assessment: Assessment | null;
+}

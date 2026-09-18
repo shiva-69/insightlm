@@ -130,6 +130,8 @@ def _resolve(
             char_start=span.span.char_start,
             char_end=span.span.char_end,
             quoted_text=span.text,
+            document_title=span.document_title,
+            rects=span.span.rects,
         )
         for label in dict.fromkeys(label.strip().upper() for label in result.citation_labels)
         if (span := spans.get(label)) is not None
