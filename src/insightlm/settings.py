@@ -87,6 +87,7 @@ class Settings(BaseSettings):
     # Per provider, because the identifiers are not interchangeable.
     generation_model: str = "claude-opus-5"
     gemini_model: str = "gemini-2.5-pro"
+    gemini_embedding_model: str = "gemini-embedding-001"
     generation_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
 
     # --- observability ------------------------------------------------------

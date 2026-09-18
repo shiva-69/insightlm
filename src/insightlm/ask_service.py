@@ -57,7 +57,7 @@ class AskService:
 
             evidence = HybridEvidenceService(
                 embedder=self._embedder,
-                vector_search=PgVectorSearch(session),
+                vector_search=PgVectorSearch(session, embedding_model=self._embedder.model_id),
                 lexical_search=PostgresLexicalSearch(session),
                 hydrate=ChunkHydrator(session),
                 tenant_id=actor.tenant_id,

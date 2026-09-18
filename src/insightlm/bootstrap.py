@@ -34,7 +34,11 @@ from insightlm.identity.application.register import RegisterOwner
 from insightlm.identity.ports.uow import IdentityUnitOfWork
 from insightlm.retrieval.adapters.anthropic_generator import AnthropicGroundedGenerator
 from insightlm.retrieval.adapters.chunker import StructureAwareChunker
-from insightlm.retrieval.adapters.embedding import HashingEmbedder, VoyageEmbedder
+from insightlm.retrieval.adapters.embedding import (
+    GeminiEmbedder,
+    HashingEmbedder,
+    VoyageEmbedder,
+)
 from insightlm.retrieval.adapters.extractive_generator import ExtractiveGenerator
 from insightlm.retrieval.ports.generation import GroundedGenerator
 from insightlm.retrieval.ports.indexing import Embedder
@@ -167,14 +171,26 @@ def build_container(settings: Settings) -> Container:
 def _build_embedder(settings: Settings) -> Embedder:
     """Real embeddings when a key is configured, deterministic offline ones otherwise.
 
+    Voyage first when both are present, only because it is the purpose-built option;
+    either is a real semantic embedder and the eval harness is what should decide.
+
     The fallback is not a stub. It makes CI, a clean checkout and a live demo all work
     with no account and no network -- and because it is deterministic, retrieval tests
     assert exact rankings. Its quality ceiling is real and documented; Phase 2's eval
     harness measures the gap rather than assuming it.
     """
     if settings.voyage_api_key is not None:
+        _logger.info("using_embedder", provider="voyage")
         return VoyageEmbedder(settings.voyage_api_key.get_secret_value())
-    _logger.info("using_offline_embedder", reason="no VOYAGE_API_KEY configured")
+
+    if settings.gemini_api_key is not None:
+        _logger.info("using_embedder", provider="gemini", model=settings.gemini_embedding_model)
+        return GeminiEmbedder(
+            settings.gemini_api_key.get_secret_value(),
+            model=settings.gemini_embedding_model,
+        )
+
+    _logger.info("using_offline_embedder", reason="no VOYAGE_API_KEY or GEMINI_API_KEY configured")
     return HashingEmbedder()
 
 

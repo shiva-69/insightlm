@@ -163,3 +163,91 @@ class VoyageEmbedder:
         # rather than trusting position, or chunk N gets chunk M's vector.
         ordered = sorted(payload["data"], key=lambda item: item["index"])
         return [item["embedding"] for item in ordered]
+
+
+class GeminiEmbedder:
+    """Gemini embeddings.
+
+    Asymmetric, like Voyage: documents and queries are embedded under different task
+    types, and using the wrong side costs recall quietly. The port separates the two
+    methods precisely so that cannot happen by accident.
+
+    `gemini-embedding-001` is trained with Matryoshka representation learning, so its
+    3072-dimension output can be truncated to a shorter one and remain useful. We ask
+    for 1024 to match the column the HNSW index is built on. Truncation breaks the
+    unit norm the model produces, so the vector is re-normalised here -- without it,
+    cosine distance is computed against vectors of varying magnitude and the ranking
+    quietly degrades in a way no error surfaces.
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        model: str = "gemini-embedding-001",
+        dimensions: int = EMBEDDING_DIMENSIONS,
+    ) -> None:
+        if not api_key:
+            raise ValidationError("GeminiEmbedder needs an API key")
+        from google import genai
+
+        self._client = genai.Client(api_key=api_key)
+        self._model = model
+        self._dimensions = dimensions
+
+    @property
+    def dimensions(self) -> int:
+        return self._dimensions
+
+    @property
+    def model_id(self) -> str:
+        return self._model
+
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        return await self._embed(texts, task_type="RETRIEVAL_DOCUMENT")
+
+    async def embed_query(self, text: str) -> list[float]:
+        vectors = await self._embed([text], task_type="RETRIEVAL_QUERY")
+        return vectors[0]
+
+    @retry(
+        retry=retry_if_exception_type((TimeoutError, ConnectionError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential_jitter(initial=0.5, max=8.0),
+        reraise=True,
+    )
+    async def _embed(self, texts: list[str], *, task_type: str) -> list[list[float]]:
+        from google.genai import types
+
+        response = await self._client.aio.models.embed_content(
+            model=self._model,
+            contents=texts,
+            config=types.EmbedContentConfig(
+                task_type=task_type,
+                output_dimensionality=self._dimensions,
+            ),
+        )
+
+        embeddings = response.embeddings or []
+        if len(embeddings) != len(texts):
+            raise ValidationError(
+                "embedding count does not match input count -- a chunk would be "
+                "indexed with another chunk's vector",
+                detail={"inputs": len(texts), "embeddings": len(embeddings)},
+            )
+        return [_l2_normalise(list(item.values or [])) for item in embeddings]
+
+
+def _l2_normalise(vector: list[float]) -> list[float]:
+    """Restore unit length after Matryoshka truncation.
+
+    A model that emits normalised 3072-d vectors does not emit normalised 1024-d ones
+    once the tail is cut off. Cosine distance over unnormalised vectors still returns
+    a number, which is what makes this worth doing explicitly rather than assuming.
+    """
+    norm = math.sqrt(sum(value * value for value in vector))
+    if norm == 0.0:
+        return vector
+    return [value / norm for value in vector]

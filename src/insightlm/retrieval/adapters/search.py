@@ -70,10 +70,23 @@ def _row_to_span(row: object, *, index: int, score: float) -> RetrievedSpan:
 
 
 class PgVectorSearch:
-    """Dense retrieval via HNSW cosine distance."""
+    """Dense retrieval via HNSW cosine distance.
 
-    def __init__(self, session: AsyncSession) -> None:
+    **Only chunks embedded by the current model are considered.** Vectors from
+    different embedders share a column but not a space: comparing a Gemini query
+    vector against a hashing document vector returns a perfectly well-formed cosine
+    distance that means nothing at all. Without this filter, switching embedders --
+    or adding a key to a corpus ingested without one -- degrades retrieval to noise
+    while every component reports success.
+
+    Filtering makes the failure honest: a corpus indexed under a different model
+    returns nothing until it is re-ingested, which is a visible empty result rather
+    than a silently wrong ranking.
+    """
+
+    def __init__(self, session: AsyncSession, *, embedding_model: str) -> None:
         self._session = session
+        self._embedding_model = embedding_model
 
     async def search(
         self,
@@ -90,6 +103,7 @@ class PgVectorSearch:
                 {_JOIN}
                 WHERE c.tenant_id = CAST(:tenant AS uuid)
                   AND c.embedding IS NOT NULL
+                  AND c.embedding_model = :embedding_model
                   AND (:doc_filter = FALSE OR dv.document_id = ANY(CAST(:docs AS uuid[])))
                 ORDER BY c.embedding <=> CAST(:query AS vector)
                 LIMIT :limit
@@ -97,6 +111,7 @@ class PgVectorSearch:
             ),
             {
                 "query": _as_vector_literal(embedding),
+                "embedding_model": self._embedding_model,
                 "tenant": str(tenant_id),
                 "doc_filter": document_ids is not None,
                 "docs": [str(d) for d in (document_ids or ())],
