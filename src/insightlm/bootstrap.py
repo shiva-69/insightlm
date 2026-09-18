@@ -236,7 +236,17 @@ def build_container(settings: Settings) -> Container:
         assign_interviewer=AssignInterviewer(recruiting_uow, clock),
         submit_scorecard=SubmitScorecard(recruiting_uow, clock),
         my_interviews=MyInterviews(recruiting_uow),
-        search_talent_pool=SearchTalentPool(recruiting_uow, EvidenceProviderAdapter(ask)),
+        search_talent_pool=SearchTalentPool(
+            recruiting_uow,
+            EvidenceProviderAdapter(ask),
+            # Calibrated for real embeddings; the offline embedder's scores are on a
+            # different scale, and the same cutoff would hide nearly everyone.
+            min_relative_score=(
+                0.0
+                if isinstance(_unwrap(embedder), HashingEmbedder)
+                else settings.talent_min_relative_score
+            ),
+        ),
         erase_candidate=EraseCandidate(session_factory, recruiting_uow, store),
         record_self_identification=RecordSelfIdentification(recruiting_uow, clock),
         selection_rates=SelectionRates(recruiting_uow),
@@ -353,3 +363,9 @@ def _build_judge(settings: Settings) -> CriterionJudge:
             settings.gemini_api_key.get_secret_value(), model=settings.gemini_model
         )
     return OfflineCriterionJudge()
+
+
+def _unwrap(embedder: Embedder) -> Embedder:
+    """The provider behind any caching wrapper."""
+    inner = getattr(embedder, "_inner", None)
+    return _unwrap(inner) if inner is not None else embedder

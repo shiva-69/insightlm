@@ -290,3 +290,66 @@ async def test_the_offline_judge_cannot_read_negation() -> None:
         c, bundle(span("C1", "Has never used Kubernetes."))
     )
     assert result.verdict is not Verdict.ABSENT
+
+
+async def test_talent_search_drops_people_far_below_the_best_match() -> None:
+    from contextlib import asynccontextmanager
+    from datetime import UTC, datetime
+    from typing import Any
+
+    from insightlm.recruiting.application.talent import SearchTalentPool
+    from insightlm.recruiting.domain.assessment import Candidate
+    from insightlm.shared.domain.policy import Actor
+    from insightlm.shared.domain.roles import Role
+    from tests.unit.test_citation_contract import bundle, span
+
+    strong, close, far = (
+        span("C1", "a", score=0.70),
+        span("C2", "b", score=0.66),
+        span("C3", "c", score=0.55),
+    )
+    people = [
+        Candidate(
+            new_criterion_id(),
+            new_tenant_id(),
+            name,
+            None,
+            (s.document_id,),  # type: ignore[arg-type]
+            datetime(2026, 9, 19, tzinfo=UTC),
+        )
+        for name, s in (("A", strong), ("B", close), ("C", far))
+    ]
+
+    class Port:
+        async def find(self, query: Any) -> Any:
+            return bundle(strong, close, far)
+
+    class Provider:
+        @asynccontextmanager
+        async def for_actor(self, actor: Any):  # type: ignore[no-untyped-def]
+            yield Port()
+
+    class Candidates:
+        async def with_any_document(self, ids: Any) -> list[Candidate]:
+            return people
+
+    class Uow:
+        candidates = Candidates()
+
+        async def __aenter__(self) -> Uow:
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+    actor = Actor(user_id=new_user_id(), tenant_id=new_tenant_id(), role=Role.OWNER)
+    search = SearchTalentPool(lambda **_: Uow(), Provider(), min_relative_score=0.9)  # type: ignore[arg-type]
+    names = [m.candidate.name for m in await search.execute(actor, "payments")]
+    assert names == ["A", "B"]  # 0.55 < 0.9 * 0.70
+
+    unfiltered = SearchTalentPool(lambda **_: Uow(), Provider())  # type: ignore[arg-type]
+    assert [m.candidate.name for m in await unfiltered.execute(actor, "payments")] == [
+        "A",
+        "B",
+        "C",
+    ]

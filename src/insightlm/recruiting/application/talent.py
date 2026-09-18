@@ -35,10 +35,19 @@ class TalentMatch:
 
 class SearchTalentPool:
     def __init__(
-        self, uow_factory: RecruitingUnitOfWorkFactory, evidence: EvidenceProvider
+        self,
+        uow_factory: RecruitingUnitOfWorkFactory,
+        evidence: EvidenceProvider,
+        *,
+        min_relative_score: float = 0.0,
     ) -> None:
+        """``min_relative_score`` drops people whose best passage scores below this
+        fraction of the top match. It is calibrated per embedder (docs/07, Finding 20):
+        0.9 with gemini-embedding-001 lifts F1 from 0.74 to 0.92, while the same value on
+        the offline embedder would cut recall to almost nothing, so there it is 0."""
         self._uow_factory = uow_factory
         self._evidence = evidence
+        self._min_relative_score = min_relative_score
 
     async def execute(self, actor: Actor, query: str, *, limit: int = 10) -> list[TalentMatch]:
         # Search crosses requisitions, so it's for people who may see across them.
@@ -71,4 +80,7 @@ class SearchTalentPool:
             if passages:
                 matches.append(TalentMatch(candidate, passages[:PASSAGES_PER_CANDIDATE]))
         matches.sort(key=lambda m: -m.best_score)
+        if matches and self._min_relative_score > 0:
+            floor = matches[0].best_score * self._min_relative_score
+            matches = [m for m in matches if m.best_score >= floor]
         return matches[:limit]

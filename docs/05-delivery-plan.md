@@ -107,6 +107,11 @@
 > `weak`; confidence flag; evidence-first assessment view with in-document highlights;
 > ranked shortlist; ADR-0010, ADR-0011.
 >
+> **Since delivered (19 Sep):** bulk intake with per-file status, and the exit check
+> itself: 50 synthetic CVs of known strength through the full pipeline, shortlist
+> Spearman ρ = 0.86 against the truth with the offline judge, and the must-have flag
+> correct for all 50.
+>
 > **Carried forward, not dropped:** JD → rubric drafting (a model *proposing* criteria
 > that a human still approves); bulk intake with per-file status; typed profile
 > extraction and date arithmetic; identity resolution; the re-run diff view. None of
@@ -133,6 +138,8 @@
 > interviewers, returning 404 rather than 403; score-free interviewer views; talent-pool
 > search returning people with their matching passages. Exit check passes: an
 > integration test and a browser walkthrough with an owner and an interviewer.
+>
+> **Since delivered (19 Sep):** the talent-search cutoff, measured (Finding 20).
 >
 > **Carried forward:** interview-kit generation and notes → scorecard draft (both need a
 > model; they wait for a deliberate paid run); configurable per-requisition stages and

@@ -99,6 +99,9 @@ class Settings(BaseSettings):
     exclude_concealed_text: bool = True
     # Rejected candidates are erased (with verification) after this long without activity.
     candidate_retention_days: int = 365
+    # Talent search returns people within this fraction of the best match. Applies to
+    # real embedding models only; see Finding 20 for the calibration.
+    talent_min_relative_score: float = 0.9
 
     embedding_cache_path: str | None = None
     """When set, embeddings are cached on disk by content. The evaluation harness sets

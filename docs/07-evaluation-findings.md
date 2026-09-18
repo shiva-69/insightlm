@@ -590,3 +590,24 @@ next change to `insightlm-eval-judge`.
 
 *About 110 calls including a run lost to a provider 503; the harness now saves paid
 verdicts even when a run dies part-way.*
+
+## Finding 20 — talent search needs a cutoff relative to the best match, and only with real embeddings
+
+`insightlm-eval-talent` runs six queries over cohort-v1 (each rubric criterion in the
+rubric's words and paraphrased; 25–34 of 50 people relevant per query) and scores each
+candidate by their best chunk's cosine similarity, as production does.
+
+| cutoff | offline embedder, mean F1 | gemini-embedding-001, mean F1 |
+| --- | ---: | ---: |
+| none | **0.737** | 0.737 |
+| absolute 0.5 | 0.000 | 0.737 |
+| relative 0.85 of best | 0.381 | 0.786 |
+| **relative 0.90 of best** | 0.236 | **0.918** |
+| relative 0.95 of best | 0.129 | 0.665 |
+
+With real embeddings, similarities are compressed (0.55–0.70 for relevant and
+irrelevant alike), so an absolute floor can't separate them, but 90% of the best
+match does. On the offline embedder the same cutoff destroys recall. The cutoff is
+therefore 0.9 with a real embedding model and off for the offline one, wired in the
+composition root. F1 at a fixed cutoff flatters "return everyone" when half the pool
+is relevant, which is why no-cutoff scores 0.74 in both columns.
