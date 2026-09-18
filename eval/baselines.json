@@ -1,0 +1,57 @@
+{
+  "note": [
+    "Recorded baselines for the CI regression gate. Measured, not guessed -- a gate",
+    "threshold nobody ran is a threshold that fires on noise or never fires at all.",
+    "",
+    "The gate runs on the OFFLINE adapters (HashingEmbedder, ExtractiveGenerator).",
+    "That is deliberate: they are deterministic, so a drop is a real regression in",
+    "the pipeline rather than model variance, and CI needs no API keys. Numbers that",
+    "depend on a provider belong in a keyed nightly run, not in a PR gate.",
+    "",
+    "Recall is deliberately NOT gated. On a five-document corpus with k=8, retrieval",
+    "returns nearly everything and recall sits at 1.000 for every configuration --",
+    "it cannot detect a regression it is already saturated against. nDCG can, because",
+    "it is sensitive to ordering. Recall becomes the headline metric again once the",
+    "corpus grows to the ~200 documents docs/05 plans for."
+  ],
+  "dataset": "seed-v1",
+  "measured_on": "2026-09-18",
+  "baselines": {
+    "B-dense": {
+      "adapters": "offline",
+      "recall_at_k": 1.0,
+      "ndcg_at_k": 0.699,
+      "mrr": 0.608,
+      "gate_min_ndcg": 0.67,
+      "gate_rationale": "3% below the recorded baseline, per docs/06 section 4."
+    }
+  },
+  "reference_runs": {
+    "B-dense-gemini": {
+      "adapters": "gemini-embedding-001 + gemini-2.5-pro",
+      "recall_at_k": 1.0,
+      "ndcg_at_k": 0.969,
+      "mrr": 0.95,
+      "citation_precision": 0.818,
+      "correct_abstention_rate": 0.75,
+      "over_refusal_rate": 0.0,
+      "note": "Not gated -- provider-dependent. Recorded for comparison."
+    },
+    "L-lexical-gemini": {
+      "adapters": "gemini-embedding-001 + gemini-2.5-pro",
+      "recall_at_k": 0.1,
+      "ndcg_at_k": 0.1,
+      "over_refusal_rate": 0.9,
+      "note": [
+        "Lexical retrieval alone, as a control rather than an ablation arm.",
+        "websearch_to_tsquery applies AND semantics over stemmed terms, so a",
+        "conversational question ('What transaction throughput did the settlement",
+        "platform sustain?') matches nothing and the system correctly declines --",
+        "hence over-refusal of 0.90. This does not show lexical search is useless;",
+        "it shows it is the wrong tool ALONE for this query distribution. Its value",
+        "is exact-term recall (PCI-DSS, CKA, a framework version) that dense",
+        "retrieval fumbles, which is why Phase 3 fuses the two rather than choosing."
+      ]
+    }
+  }
+}

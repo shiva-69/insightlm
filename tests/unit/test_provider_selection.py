@@ -43,9 +43,7 @@ def test_a_blank_key_counts_as_absent(blank: str) -> None:
 
 
 def test_auto_prefers_anthropic_when_its_key_is_present() -> None:
-    generator = _build_generator(
-        settings(anthropic_api_key="sk-test", gemini_api_key="gm-test")
-    )
+    generator = _build_generator(settings(anthropic_api_key="sk-test", gemini_api_key="gm-test"))
     assert type(generator).__name__ == "AnthropicGroundedGenerator"
 
 

@@ -117,6 +117,9 @@ class GeminiGroundedGenerator:
                 response_mime_type="application/json",
                 response_schema=_RESPONSE_SCHEMA,
                 max_output_tokens=self._max_output_tokens,
+                # This adapter declares no tools, so the SDK's automatic function
+                # calling has nothing to do but warn about itself on every call.
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             ),
         )
 

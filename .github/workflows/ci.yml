@@ -73,6 +73,57 @@ jobs:
           uv run alembic upgrade head
           uv run alembic check
 
+  evaluation:
+    name: Retrieval regression gate
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: insightlm
+          POSTGRES_PASSWORD: insightlm
+          POSTGRES_DB: insightlm
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U insightlm"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      minio:
+        image: quay.io/minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports: ["9000:9000"]
+        options: >-
+          --health-cmd "mc ready local"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+asyncpg://insightlm:insightlm@localhost:5432/insightlm
+      S3_ENDPOINT_URL: http://localhost:9000
+      JWT_SECRET: ci-secret-not-used-anywhere-real
+      # Deliberately keyless. The offline adapters are deterministic, so a drop here
+      # is a real regression in the pipeline rather than model variance -- and a PR
+      # gate that depends on a third-party API is a gate that fails for reasons the
+      # PR did not cause. Provider-dependent numbers belong in a keyed nightly run.
+      GENERATION_PROVIDER: offline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with: {version: "${{ env.UV_VERSION }}", enable-cache: true}
+      - run: uv sync --all-groups --frozen
+      - run: uv run alembic upgrade head
+
+      # The threshold comes from eval/baselines.json, which records a measured run
+      # rather than a guess. See the note in that file for why this gates nDCG and
+      # not recall.
+      - name: Golden set regression gate
+        run: uv run insightlm-eval --config B-dense --min-ndcg 0.67 --out eval-run.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation-run
+          path: eval-run.json
+
   security:
     name: Security scanning
     runs-on: ubuntu-latest

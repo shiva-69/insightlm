@@ -55,6 +55,9 @@ dev = [
     "asgi-lifespan>=2.1",
 ]
 
+[project.scripts]
+insightlm-eval = "insightlm.cli.evaluate:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -99,6 +102,9 @@ ignore = [
 # Spikes are throwaway scripts whose whole output is printed; they answer one question
 # and are kept for the record rather than imported.
 "spikes/*" = ["T201", "S101"]
+# A command-line tool's output *is* its interface; structured logging is for the
+# services. Printing is the point here, not a debugging leftover.
+"src/insightlm/cli/*" = ["T201"]
 "migrations/*" = ["N999", "S608"]
 
 [tool.ruff.lint.isort]
@@ -124,7 +130,10 @@ ignore_missing_imports = true
 # to this one adapter keeps --strict everywhere else, and keeps the untyped surface
 # behind a port.
 [[tool.mypy.overrides]]
-module = ["insightlm.documents.adapters.pymupdf_parser"]
+module = [
+    "insightlm.documents.adapters.pymupdf_parser",
+    "insightlm.evaluation.adapters.corpus",
+]
 disallow_untyped_calls = false
 
 # ---------------------------------------------------------------- pytest

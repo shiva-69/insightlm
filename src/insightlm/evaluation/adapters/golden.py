@@ -1,0 +1,214 @@
+"""The seed golden set, written by hand against the synthetic corpus.
+
+Hand-written, not model-generated. The methodology docs/03 SS5 describes for the full
+150-200 item set is generate-then-review; this seed set is the reviewed core it grows
+from, and every item records *why* it is here. An item whose purpose nobody can state
+is an item that will be silently broken by the next change.
+
+The distribution is deliberate:
+
+* **factual** -- the common case, answerable from one passage.
+* **multi_hop** -- needs two passages. Where naive top-k starts to fail.
+* **comparative** -- needs two *documents*. The extractive baseline cannot answer
+  these at all, which is precisely what makes them worth isolating.
+* **unanswerable** -- roughly a fifth of the set. Without these a system that never
+  refuses scores perfectly, and refusal is a first-class outcome here.
+
+The near-miss items matter most. `q-meera-settlement` asks about settlement of
+someone who wrote "reconciliation reports ... though not the settlement system
+itself"; `q-arjun-payments` asks about payments experience of a frontend engineer
+whose CV says "checkout flow". Both are answerable-sounding and unsupported, and both
+are exactly what a lexical matcher gets wrong.
+"""
+
+from __future__ import annotations
+
+from insightlm.evaluation.domain.dataset import GoldenDataset, GoldenItem, ItemKind
+
+CORPUS = (
+    "cv-priya-payments",
+    "cv-arjun-frontend",
+    "cv-meera-data",
+    "jd-staff-payments",
+    "cv-sparse-scan",
+)
+
+_ITEMS: tuple[GoldenItem, ...] = (
+    # ------------------------------------------------------------- factual
+    GoldenItem(
+        id="q-priya-throughput",
+        question="What transaction throughput did the settlement platform sustain?",
+        kind=ItemKind.FACTUAL,
+        quotes=("sustaining ten thousand transactions per second at peak",),
+        expected_answer="Ten thousand transactions per second at peak.",
+        documents=("cv-priya-payments",),
+        notes="Single-passage lookup with a distinctive number. The easiest case.",
+    ),
+    GoldenItem(
+        id="q-priya-latency",
+        question="How was p99 latency reduced?",
+        kind=ItemKind.FACTUAL,
+        quotes=(
+            "Reduced p99 latency by forty percent by batching ledger writes and moving "
+            "reconciliation off the request path",
+        ),
+        expected_answer=(
+            "By batching ledger writes and moving reconciliation off the request path."
+        ),
+        documents=("cv-priya-payments",),
+        notes="Answer spans a line break in the source; tests quote normalisation.",
+    ),
+    GoldenItem(
+        id="q-priya-certification",
+        question="What certification is held, and from when?",
+        kind=ItemKind.FACTUAL,
+        quotes=("Certified Kubernetes Administrator, 2024",),
+        expected_answer="Certified Kubernetes Administrator, 2024.",
+        documents=("cv-priya-payments",),
+        notes=(
+            "Lives in the right-hand column. A parser that interleaves columns will "
+            "shred this, so it doubles as a layout check."
+        ),
+    ),
+    GoldenItem(
+        id="q-arjun-accessibility",
+        question="Who has taken a checkout flow to WCAG compliance?",
+        kind=ItemKind.FACTUAL,
+        quotes=("Owned accessibility, taking the checkout flow to WCAG",),
+        expected_answer="Arjun Rao, to WCAG 2.2 AA.",
+        documents=("cv-arjun-frontend",),
+        notes="Retrieval must prefer Arjun over Priya despite 'checkout' appearing near payments vocabulary.",
+    ),
+    GoldenItem(
+        id="q-meera-batch",
+        question="How much was nightly batch time reduced by the warehouse migration?",
+        kind=ItemKind.FACTUAL,
+        quotes=("cutting nightly batch time from nine hours to forty minutes",),
+        expected_answer="From nine hours to forty minutes.",
+        documents=("cv-meera-data",),
+        notes="Distinctive figures; a control for the harder items.",
+    ),
+    GoldenItem(
+        id="q-jd-minimum-payments",
+        question="How many years of payments experience does the role require?",
+        kind=ItemKind.FACTUAL,
+        quotes=("at least three on payments, ledgers or settlement",),
+        expected_answer="At least three years on payments, ledgers or settlement.",
+        documents=("jd-staff-payments",),
+        notes="From the job description rather than a CV -- the corpus is not all resumes.",
+    ),
+    # ------------------------------------------------------------ multi-hop
+    GoldenItem(
+        id="q-priya-audit-and-throughput",
+        question=(
+            "What did the candidate do to make balance changes traceable, and at what "
+            "transaction volume was the system operating?"
+        ),
+        kind=ItemKind.MULTI_HOP,
+        quotes=(
+            "Introduced an append-only audit trail so every balance",
+            "sustaining ten thousand transactions per second at peak",
+        ),
+        expected_answer=(
+            "An append-only audit trail tracing each balance change to its "
+            "transaction, on a platform sustaining ten thousand TPS at peak."
+        ),
+        documents=("cv-priya-payments",),
+        notes="Two passages in one document. Top-1 retrieval cannot satisfy this.",
+    ),
+    GoldenItem(
+        id="q-priya-skills-and-role",
+        question="Does the candidate's certification match the infrastructure they list?",
+        kind=ItemKind.MULTI_HOP,
+        quotes=(
+            "Certified Kubernetes Administrator, 2024",
+            "Kubernetes, Docker, Redis",
+        ),
+        expected_answer=(
+            "Yes -- they list Kubernetes among their skills and hold the CKA from 2024."
+        ),
+        documents=("cv-priya-payments",),
+        notes="Both passages are in the right-hand column; needs two hits from one region.",
+    ),
+    # ---------------------------------------------------------- comparative
+    GoldenItem(
+        id="q-compare-payments-depth",
+        question="Which candidate best matches the payments requirement in the job description?",
+        kind=ItemKind.COMPARATIVE,
+        quotes=(
+            "at least three on payments, ledgers or settlement",
+            "Led the settlement platform at a payments company",
+        ),
+        expected_answer=(
+            "Priya Sharma -- the role wants three years on payments, ledgers or "
+            "settlement, and they led a settlement platform."
+        ),
+        documents=("jd-staff-payments", "cv-priya-payments"),
+        notes=(
+            "Spans two documents. The extractive baseline cannot answer this at all, "
+            "which is the point of separating comparative items out."
+        ),
+    ),
+    GoldenItem(
+        id="q-compare-idempotency",
+        question="Who has demonstrated idempotency experience the role asks for?",
+        kind=ItemKind.COMPARATIVE,
+        quotes=(
+            "Demonstrated experience with idempotency and exactly-once",
+            "and idempotent retries across three payment",
+        ),
+        expected_answer=(
+            "Priya Sharma, through idempotent retries across three payment service providers."
+        ),
+        documents=("jd-staff-payments", "cv-priya-payments"),
+        notes="Shared vocabulary across two documents; rewards fusing both.",
+    ),
+    # --------------------------------------------------------- unanswerable
+    GoldenItem(
+        id="q-unanswerable-salary",
+        question="What salary does each candidate expect?",
+        kind=ItemKind.UNANSWERABLE,
+        expected_answer=None,
+        notes="Nothing in the corpus mentions compensation. Plainly out of scope.",
+    ),
+    GoldenItem(
+        id="q-meera-settlement",
+        question="What settlement systems has Meera Iyer built?",
+        kind=ItemKind.UNANSWERABLE,
+        expected_answer=None,
+        notes=(
+            "The near miss that matters. Meera's CV says 'reconciliation reports ... "
+            "though not the settlement system itself'. A lexical matcher retrieves it "
+            "on 'settlement' and 'reconciliation'; a correct system reads the negation "
+            "and declines."
+        ),
+    ),
+    GoldenItem(
+        id="q-arjun-payments",
+        question="How many years of payments experience does Arjun Rao have?",
+        kind=ItemKind.UNANSWERABLE,
+        expected_answer=None,
+        notes=(
+            "Arjun's CV mentions a 'checkout flow', which sits in payments vocabulary "
+            "without being payments experience. Answering is the failure."
+        ),
+    ),
+    GoldenItem(
+        id="q-unanswerable-references",
+        question="Who are the referees for these candidates?",
+        kind=ItemKind.UNANSWERABLE,
+        expected_answer=None,
+        notes="A plausible recruiting question the corpus simply does not cover.",
+    ),
+)
+
+SEED_DATASET = GoldenDataset.of(
+    "seed-v1",
+    _ITEMS,
+    description=(
+        "Hand-written seed set over the synthetic corpus. Six factual, two multi-hop, "
+        "two comparative, four unanswerable. Grows by generate-then-review per "
+        "docs/03 section 5."
+    ),
+    corpus=CORPUS,
+)

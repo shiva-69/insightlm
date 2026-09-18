@@ -31,6 +31,13 @@ worker: ## Run the ARQ worker
 test: ## Run every test
 	uv run pytest
 
+eval: ## Run the golden set against every configuration
+	uv run insightlm-eval
+
+eval-gate: ## Run the CI regression gate locally (offline adapters, deterministic)
+	GENERATION_PROVIDER=offline GEMINI_API_KEY= VOYAGE_API_KEY= ANTHROPIC_API_KEY= \
+		uv run insightlm-eval --config B-dense --min-ndcg 0.67
+
 test-fast: ## Unit and architecture tests only (no Docker needed)
 	uv run pytest tests/unit tests/architecture -q
 
@@ -50,4 +57,4 @@ types: ## mypy --strict
 arch: ## Verify the architecture contracts
 	uv run lint-imports
 
-.PHONY: help install up down logs migrate revision dev worker test test-fast check lint types format arch
+.PHONY: help install up down logs migrate revision dev worker test test-fast eval eval-gate check lint types format arch

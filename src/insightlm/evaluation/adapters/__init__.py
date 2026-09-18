@@ -1,1 +1,1 @@
-"""evaluation :: adapters layer."""
+"""evaluation :: adapters."""

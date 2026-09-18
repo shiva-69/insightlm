@@ -40,6 +40,7 @@ These are not two projects. The second is the first, specialised — same ingest
 | [docs/04-recruiting-and-governance.md](docs/04-recruiting-and-governance.md) | ATS domain model, rubric scoring, collaboration/RBAC, fairness and compliance layer |
 | [docs/05-delivery-plan.md](docs/05-delivery-plan.md) | 16-week phased plan, milestones, demo script, risk register, compression options |
 | [docs/06-engineering-standards.md](docs/06-engineering-standards.md) | Testing strategy, CI/CD, observability, security, definition of done |
+| [docs/07-evaluation-findings.md](docs/07-evaluation-findings.md) | The harness, the first ablation numbers, and what they show |
 | [docs/adr/README.md](docs/adr/README.md) | Architecture Decision Records — index, template, and the decisions to write |
 
 **Read order for a reviewer:** 01 → 02 → 03 → 04. **Read order for building:** 05 → 02 → 06.

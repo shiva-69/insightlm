@@ -67,7 +67,7 @@
 - Baseline recorded for config **B (naive dense)** and **A (direct LLM, no retrieval)**
 - CI regression gate wired on a reduced set
 
-**Exit:** `./eval run --config B` prints a table you trust. Milestone **M2**.
+**Exit:** `make eval` prints a table you trust. Milestone **M2**. ✅ *Complete (18 Sep 2026) — see [docs/07](07-evaluation-findings.md).*
 
 ---
 
