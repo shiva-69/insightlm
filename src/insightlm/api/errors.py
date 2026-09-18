@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from insightlm.api.schemas import ErrorResponse
@@ -28,6 +29,29 @@ def _correlation_of(request: Request) -> str | None:
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(RequestValidationError)
+    async def _handle_request_validation(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        # FastAPI's default is {"detail": [...]}, a second error shape beside ours.
+        # Clients (the web app included) read `code` and `message`; give them those.
+        errors = [
+            {"field": ".".join(str(part) for part in e.get("loc", ())), "problem": e.get("msg", "")}
+            for e in exc.errors()
+        ]
+        first = errors[0] if errors else {"field": "", "problem": "invalid request"}
+        return JSONResponse(
+            status_code=422,
+            content=ErrorResponse(
+                code="validation_error",
+                message=f"{first['field']}: {first['problem']}"
+                if first["field"]
+                else first["problem"],
+                detail={"errors": errors},
+                correlation_id=_correlation_of(request),
+            ).model_dump(mode="json"),
+        )
+
     @app.exception_handler(DomainError)
     async def _handle_domain_error(request: Request, exc: DomainError) -> JSONResponse:
         if exc.http_status >= 500:

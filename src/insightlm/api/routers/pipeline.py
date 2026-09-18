@@ -18,6 +18,7 @@ from insightlm.api.routers.recruiting import (
     _In,
     _Out,
 )
+from insightlm.api.schemas import reject_unstorable
 from insightlm.recruiting.domain.assessment import Stage
 from insightlm.recruiting.domain.pipeline import RejectionReason
 from insightlm.recruiting.domain.scorecard import CriterionRating, Recommendation
@@ -225,6 +226,7 @@ async def search_talent(
     q: str = Query(min_length=1, max_length=500),
     limit: int = Query(default=10, ge=1, le=50),
 ) -> list[TalentMatchResponse]:
+    reject_unstorable(q)
     matches = await container.search_talent_pool.execute(actor, q, limit=limit)
     return [
         TalentMatchResponse(

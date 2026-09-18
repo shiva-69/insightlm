@@ -53,6 +53,7 @@ dev = [
     "testcontainers[postgres]>=4.8",
     "hypothesis>=6.122",
     "asgi-lifespan>=2.1",
+    "schemathesis>=4.27.3",
 ]
 
 [project.scripts]

@@ -15,6 +15,7 @@ from fastapi import APIRouter, status
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from insightlm.api.deps import ActorDep, ContainerDep
+from insightlm.api.schemas import RequestModel
 from insightlm.recruiting.application.requisitions import CriterionDraft
 from insightlm.recruiting.domain.assessment import (
     AssessmentFlag,
@@ -45,8 +46,7 @@ class _Out(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class _In(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+_In = RequestModel
 
 
 # -- requests ------------------------------------------------------------------------

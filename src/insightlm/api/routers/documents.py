@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, File, Form, Response, UploadFile, status
+from fastapi import APIRouter, File, Form, Query, Response, UploadFile, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from insightlm.api.deps import ActorDep, ContainerDep
 from insightlm.api.schemas import (
+    MAX_OFFSET,
     DocumentResponse,
     DocumentVersionResponse,
     UploadResponse,
+    reject_unstorable,
 )
 from insightlm.documents.domain.findings import FindingKind
 from insightlm.shared.domain.errors import NotFoundError
@@ -32,6 +34,8 @@ async def upload(
     file: UploadFile = File(...),
     title: str | None = Form(default=None),
 ) -> UploadResponse:
+    reject_unstorable(file.filename or "")
+    reject_unstorable(title or "")
     payload = await file.read()
     result = await container.upload_document.execute(
         actor,
@@ -48,7 +52,10 @@ async def upload(
 
 @router.get("", response_model=list[DocumentResponse], summary="List documents")
 async def list_documents(
-    actor: ActorDep, container: ContainerDep, limit: int = 50, offset: int = 0
+    actor: ActorDep,
+    container: ContainerDep,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0, le=MAX_OFFSET),
 ) -> list[DocumentResponse]:
     factory = container.documents_uow
     async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:  # type: ignore[operator]

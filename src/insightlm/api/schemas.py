@@ -7,15 +7,54 @@ invitation ``token_hash``.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
+from insightlm.shared.domain.errors import ValidationError
 from insightlm.shared.domain.roles import Role
 
+_UNSTORABLE = re.compile(r"[\x00\ud800-\udfff]")
 
-class RegisterOwnerRequest(BaseModel):
+
+def reject_unstorable(value: str) -> str:
+    """NUL and unpaired UTF-16 surrogates: valid in a Python string, but Postgres can't
+    store NUL in text and neither encodes as UTF-8. Refused at the edge as a 422
+    instead of surfacing as a 500 from the driver (found by schemathesis)."""
+    if _UNSTORABLE.search(value):
+        raise ValidationError(
+            "text contains characters that can't be stored (NUL or a lone surrogate)"
+        )
+    return value
+
+
+def _check(value: Any) -> Any:
+    if isinstance(value, str):
+        reject_unstorable(value)
+    elif isinstance(value, dict):
+        for item in value.values():
+            _check(item)
+    elif isinstance(value, list):
+        for item in value:
+            _check(item)
+    return value
+
+
+class RequestModel(BaseModel):
+    """Base for every request body: unknown fields refused, unstorable text refused."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _storable(cls, data: Any) -> Any:
+        return _check(data)
+
+
+class RegisterOwnerRequest(RequestModel):
     model_config = ConfigDict(extra="forbid")
 
     tenant_name: str = Field(min_length=1, max_length=200)
@@ -25,7 +64,7 @@ class RegisterOwnerRequest(BaseModel):
     password: str = Field(min_length=12, max_length=128)
 
 
-class LoginRequest(BaseModel):
+class LoginRequest(RequestModel):
     model_config = ConfigDict(extra="forbid")
 
     email: EmailStr
@@ -84,7 +123,7 @@ class MemberResponse(BaseModel):
     user: UserResponse
 
 
-class InviteMemberRequest(BaseModel):
+class InviteMemberRequest(RequestModel):
     model_config = ConfigDict(extra="forbid")
 
     email: EmailStr
@@ -104,7 +143,7 @@ class InvitationResponse(BaseModel):
     )
 
 
-class AcceptInvitationRequest(BaseModel):
+class AcceptInvitationRequest(RequestModel):
     model_config = ConfigDict(extra="forbid")
 
     token: str = Field(min_length=1, max_length=256)
@@ -112,7 +151,7 @@ class AcceptInvitationRequest(BaseModel):
     password: str = Field(min_length=12, max_length=128)
 
 
-class ChangeRoleRequest(BaseModel):
+class ChangeRoleRequest(RequestModel):
     model_config = ConfigDict(extra="forbid")
 
     role: Role
@@ -136,6 +175,11 @@ class ChainVerificationResponse(_FromDomain):
     is_intact: bool
     broken_at: UUID | None = None
     reason: str | None = None
+
+
+# Postgres OFFSET is a bigint, so an unbounded offset from a client becomes a 500
+# (found by schemathesis). Nobody pages past this by hand; bulk export is another API.
+MAX_OFFSET = 100_000
 
 
 class ErrorResponse(BaseModel):
@@ -176,7 +220,7 @@ class UploadResponse(BaseModel):
 
 
 # ---------------------------------------------------------------- answering
-class AskRequest(BaseModel):
+class AskRequest(RequestModel):
     model_config = ConfigDict(extra="forbid")
 
     question: str = Field(min_length=1, max_length=2000)

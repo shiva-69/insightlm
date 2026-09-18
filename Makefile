@@ -47,6 +47,11 @@ eval-injection: ## Injection red-team: detection, false positives, effect on sco
 eval-fairness: ## Counterfactual fairness (offline free; JUDGE=gemini for the model, cached)
 	uv run insightlm-eval-fairness $(if $(JUDGE),--judge $(JUDGE))
 
+fuzz: ## Schemathesis against a running API (start it keyless with RATE_LIMITS_ENABLED=false)
+	@TOKEN=$$(uv run python scripts/fuzz_token.py) && \
+		uv run schemathesis run http://localhost:8000/openapi.json -H "Authorization: Bearer $$TOKEN" \
+		--checks not_a_server_error,response_schema_conformance --max-examples 60 --workers 4
+
 samples: ## Write sample CVs (strong, weak, paraphrase, attacked) into ./samples
 	uv run insightlm-samples --cohort 50
 
@@ -69,4 +74,4 @@ types: ## mypy --strict
 arch: ## Verify the architecture contracts
 	uv run lint-imports
 
-.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch
+.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch fuzz
