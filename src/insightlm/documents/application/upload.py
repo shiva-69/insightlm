@@ -127,11 +127,14 @@ class UploadDocument:
                 action=AuditAction.DOCUMENT_UPLOADED,
                 subject_type="document",
                 subject_id=str(document.id),
+                # No title: it is often the person's name ("Asha Rao CV"), and the audit
+                # log is append-only, so nothing that identifies a candidate may enter
+                # it. Erasure verification searches it and would find the title forever.
                 payload={
-                    "title": document.title,
                     "media_type": media_type.value,
                     "byte_size": len(payload),
-                    "checksum": checksum,
+                    # No checksum either: it would let anyone holding a CV confirm it
+                    # was processed here, long after the CV itself is erased.
                 },
             )
             uow.outbox.add(

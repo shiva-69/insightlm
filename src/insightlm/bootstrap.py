@@ -19,6 +19,7 @@ from insightlm.documents.adapters.uow import SqlAlchemyDocumentsUnitOfWork
 from insightlm.documents.application.upload import UploadDocument
 from insightlm.documents.ports.repositories import DocumentsUnitOfWork
 from insightlm.documents.ports.storage import ObjectStore
+from insightlm.erasure import EraseCandidate
 from insightlm.governance.application.audit_queries import ListAuditEntries, VerifyAuditChain
 from insightlm.governance.ports.uow import GovernanceUnitOfWork
 from insightlm.identity.adapters.security import Argon2PasswordHasher, JwtTokenIssuer
@@ -121,6 +122,7 @@ class Container:
     submit_scorecard: SubmitScorecard
     my_interviews: MyInterviews
     search_talent_pool: SearchTalentPool
+    erase_candidate: EraseCandidate
 
     async def dispose(self) -> None:
         await self.engine.dispose()
@@ -228,6 +230,7 @@ def build_container(settings: Settings) -> Container:
         submit_scorecard=SubmitScorecard(recruiting_uow, clock),
         my_interviews=MyInterviews(recruiting_uow),
         search_talent_pool=SearchTalentPool(recruiting_uow, EvidenceProviderAdapter(ask)),
+        erase_candidate=EraseCandidate(session_factory, recruiting_uow, store),
         ingestion=IngestionPipeline(
             session_factory,
             store=store,

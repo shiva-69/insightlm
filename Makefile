@@ -44,6 +44,9 @@ eval-judge: ## Criterion judge benchmark (offline free; add JUDGE=gemini for the
 eval-injection: ## Injection red-team: detection, false positives, effect on scores (free)
 	uv run insightlm-eval-injection --assess
 
+eval-fairness: ## Counterfactual fairness (offline free; JUDGE=gemini for the model, cached)
+	uv run insightlm-eval-fairness $(if $(JUDGE),--judge $(JUDGE))
+
 samples: ## Write sample CVs (strong, weak, paraphrase, attacked) into ./samples
 	uv run insightlm-samples
 

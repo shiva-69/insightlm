@@ -30,6 +30,7 @@ from insightlm.recruiting.domain.rubric import (
 from insightlm.shared.domain.errors import ValidationError
 from insightlm.shared.domain.ids import (
     ApplicationId,
+    CandidateId,
     DocumentId,
     RequisitionId,
     RubricId,
@@ -330,3 +331,44 @@ async def shortlist(
         )
         for e in entries
     ]
+
+
+class ResidueResponse(BaseModel):
+    table: str
+    column: str
+    fingerprint: str
+
+
+class ErasureResponse(BaseModel):
+    candidate_id: str
+    documents_erased: int
+    documents_kept_shared: int
+    files_deleted: int
+    answers_deleted: int
+    events_deleted: int
+    verified: bool
+    residue: list[ResidueResponse]
+
+
+@router.post(
+    "/candidates/{candidate_id}/erasure",
+    response_model=ErasureResponse,
+    summary="Erase a candidate everywhere, then search every store to prove it",
+)
+async def erase_candidate(
+    candidate_id: UUID, actor: ActorDep, container: ContainerDep
+) -> ErasureResponse:
+    report = await container.erase_candidate.execute(actor, CandidateId(candidate_id))
+    return ErasureResponse(
+        candidate_id=report.candidate_id,
+        documents_erased=report.documents_erased,
+        documents_kept_shared=report.documents_kept_shared,
+        files_deleted=report.files_deleted,
+        answers_deleted=report.answers_deleted,
+        events_deleted=report.events_deleted,
+        verified=report.verified,
+        residue=[
+            ResidueResponse(table=r.table, column=r.column, fingerprint=r.fingerprint)
+            for r in report.residue
+        ],
+    )

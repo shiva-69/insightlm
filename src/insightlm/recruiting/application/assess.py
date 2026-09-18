@@ -163,7 +163,7 @@ def _resolve(
     )
 
 
-def _as_seen_by_judge(
+def evidence_as_seen_by_judge(
     bundle: EvidenceBundle, profile: RedactionProfile, candidate: Candidate
 ) -> EvidenceBundle:
     """Redact every field of a passage the model sees -- not just its text.
@@ -244,7 +244,7 @@ class RunAssessment:
         async def judged(criterion: Criterion) -> JudgeResult:
             # The judge reads the redacted copy; `_resolve` below quotes the original.
             # Labels are shared, so a citation made blind still points at real text.
-            shown = _as_seen_by_judge(bundles[criterion.id], profile, candidate)
+            shown = evidence_as_seen_by_judge(bundles[criterion.id], profile, candidate)
             async with gate:
                 return await self._judge.judge(criterion, shown)
 
