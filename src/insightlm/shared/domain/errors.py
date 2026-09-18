@@ -59,3 +59,14 @@ class InvariantViolationError(DomainError):
 
     code = "invariant_violation"
     http_status = 500
+
+
+class UpstreamError(DomainError):
+    """A model provider answered, but not with something we can use.
+
+    Surfaced rather than papered over: substituting a default answer (an "absent"
+    verdict, an empty answer) would put a fabricated result in front of a person.
+    """
+
+    code = "upstream_invalid"
+    http_status = 502

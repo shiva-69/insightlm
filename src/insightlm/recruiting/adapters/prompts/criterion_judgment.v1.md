@@ -18,6 +18,11 @@ What evidence would look like: {hint}
 `absent` is a statement about the evidence, not the candidate. Use it whenever the
 sources are silent. Never guess, and never fill a gap from general knowledge.
 
+## Confidence
+
+`confidence` is a number from 0 to 1: how sure you are that the verdict is right given
+these sources. 0.5 means a coin toss; 0.9 means you would be surprised to be wrong.
+
 ## Read negations
 
 A sentence that denies the criterion is evidence *against* it, not for it. "Built the

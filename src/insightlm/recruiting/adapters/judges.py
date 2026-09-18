@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
 from insightlm.recruiting.domain.assessment import Verdict
@@ -21,6 +21,7 @@ from insightlm.recruiting.ports.judge import JudgeResult
 from insightlm.retrieval.domain.evidence import EvidenceBundle
 from insightlm.shared.adapters.prompts import load_prompt_from
 from insightlm.shared.adapters.providers import TransientProviderError, classify_gemini_error
+from insightlm.shared.domain.errors import UpstreamError
 
 PROMPT_DIR = Path(__file__).parent / "prompts"
 PROMPT_NAME = "criterion_judgment.v1"
@@ -132,7 +133,7 @@ _GEMINI_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "verdict": {"type": "string", "enum": ["strong", "adequate", "weak", "absent"]},
-        "confidence": {"type": "number"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
         "rationale": {"type": "string"},
         "citations": {"type": "array", "items": {"type": "string"}},
     },
@@ -186,15 +187,20 @@ class GeminiCriterionJudge:
         except Exception as error:
             raise classify_gemini_error(error) from error
 
-        parsed = _Judgment.model_validate(
-            response.parsed
-            or {
-                "verdict": "absent",
-                "confidence": 0.0,
-                "rationale": "No usable response.",
-                "citations": [],
-            }
-        )
+        if response.parsed is None:
+            raise UpstreamError(
+                "the judge returned no parsable verdict",
+                detail={"model": self._model, "criterion": criterion.label},
+            )
+        try:
+            parsed = _Judgment.model_validate(response.parsed)
+        except ValidationError as error:
+            # A malformed verdict is an error, never a default. Falling back to
+            # "absent" here would quietly mark a candidate as lacking something.
+            raise UpstreamError(
+                "the judge returned a malformed verdict",
+                detail={"model": self._model, "criterion": criterion.label, "error": str(error)},
+            ) from error
         usage = response.usage_metadata
         return JudgeResult(
             verdict=Verdict(parsed.verdict),
@@ -230,13 +236,9 @@ class AnthropicCriterionJudge:
         )
         parsed = response.parsed_output
         if response.stop_reason == "refusal" or parsed is None:
-            return JudgeResult(
-                verdict=Verdict.ABSENT,
-                confidence=0.0,
-                rationale="The model returned no usable judgment.",
-                citation_labels=(),
-                model_version=self._model,
-                prompt_version=self._prompt.version_id,
+            raise UpstreamError(
+                "the judge returned no usable verdict",
+                detail={"model": self._model, "stop_reason": str(response.stop_reason)},
             )
         return JudgeResult(
             verdict=Verdict(parsed.verdict),

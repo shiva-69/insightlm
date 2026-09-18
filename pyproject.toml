@@ -57,6 +57,7 @@ dev = [
 
 [project.scripts]
 insightlm-eval = "insightlm.cli.evaluate:main"
+insightlm-eval-judge = "insightlm.cli.evaluate_judge:main"
 
 [build-system]
 requires = ["hatchling"]

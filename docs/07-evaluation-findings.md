@@ -389,3 +389,51 @@ Three things to fix or grow first:
 3. **Faithfulness is not yet measured.** Citation *precision* is computed exactly from
    labels; whether the cited passage actually *entails* the claim needs a judge behind
    a port, validated against human labels on a subset before its scores are trusted.
+
+---
+
+# Phase 4 follow-up: measuring the criterion judge
+
+The assessment design (ADR-0010) depends on a judge that reads meaning, not wording. Until
+now that was asserted, not measured. `insightlm-eval-judge` runs judges over **judge-v1**:
+23 hand-written cases in five groups, each probing one failure mode. Every case lists the
+verdicts a careful reader would accept and which passage actually supports the criterion,
+so a right verdict citing the wrong passage still counts as a citation miss.
+
+```
+judge                  acc  detect  cite   direct paraphrase mention negation unrelated
+offline (overlap)      48%    57%    69%     100%     20%      25%      0%     100%
+gemini-2.5-pro        100%   100%   100%     100%    100%     100%    100%     100%
+```
+
+*23 paid calls, cached in `eval/.cache/judgments.json`; reruns are free until a case,
+the prompt or the model changes. 19 Sep 2026.*
+
+### Finding 12 — the baseline fails exactly where it was expected to; the model doesn't
+
+The term-overlap baseline is perfect when a CV uses the criterion's own words and blind
+otherwise. It says **strong** to "Has never used Kubernetes" (0% on negation) and
+**absent** to "Ran our EKS clusters and wrote the Helm charts" (20% on paraphrase). Gemini
+gets every case right and cites the supporting passage every time. This is the measured
+reason the offline judge is labelled a baseline in the UI, and the reason a model judge
+is worth its per-criterion cost.
+
+**What this doesn't show.** The passages are single clean sentences. 100% means the model
+reads negation and paraphrase; it doesn't mean it is flawless on a real two-page CV. The
+set has also hit its ceiling: it can no longer tell two prompts or two models apart.
+**judge-v2** needs harder cases: long passages, mixed signals ("led the migration, then
+handed it over"), and seniority judgments.
+
+### Finding 13 — the first live call found a contract bug the offline tests couldn't
+
+The first Gemini run crashed on `confidence: 5`. The prompt never said what scale
+confidence was on, and the response schema didn't bound it. Reading the adapter turned up
+a worse sibling: an unparsable response was silently replaced with an **absent** verdict,
+which would quietly mark a candidate as lacking a skill. Both are fixed: the prompt
+defines the scale, the schema enforces `0 ≤ confidence ≤ 1`, and a judge that can't
+answer now raises `UpstreamError` (502) instead of inventing a result. A regression test
+covers all three malformed shapes.
+
+The lesson is about test strategy, not Gemini. Offline adapters prove the domain logic
+and cost nothing, but a provider contract is only verified by calling the provider.
+A small cached benchmark like this one is the cheapest way to keep doing that.
