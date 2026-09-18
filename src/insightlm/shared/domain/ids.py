@@ -22,6 +22,12 @@ ChunkId = NewType("ChunkId", UUID)
 IngestionJobId = NewType("IngestionJobId", UUID)
 ConversationId = NewType("ConversationId", UUID)
 MessageId = NewType("MessageId", UUID)
+RequisitionId = NewType("RequisitionId", UUID)
+RubricId = NewType("RubricId", UUID)
+CriterionId = NewType("CriterionId", UUID)
+CandidateId = NewType("CandidateId", UUID)
+ApplicationId = NewType("ApplicationId", UUID)
+AssessmentId = NewType("AssessmentId", UUID)
 CorrelationId = NewType("CorrelationId", str)
 
 
@@ -71,3 +77,27 @@ def new_conversation_id() -> ConversationId:
 
 def new_message_id() -> MessageId:
     return MessageId(uuid4())
+
+
+def new_requisition_id() -> RequisitionId:
+    return RequisitionId(uuid4())
+
+
+def new_rubric_id() -> RubricId:
+    return RubricId(uuid4())
+
+
+def new_criterion_id() -> CriterionId:
+    return CriterionId(uuid4())
+
+
+def new_candidate_id() -> CandidateId:
+    return CandidateId(uuid4())
+
+
+def new_application_id() -> ApplicationId:
+    return ApplicationId(uuid4())
+
+
+def new_assessment_id() -> AssessmentId:
+    return AssessmentId(uuid4())

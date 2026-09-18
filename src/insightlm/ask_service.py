@@ -10,6 +10,8 @@ sessions and concrete adapters -- composition, not domain logic.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from decimal import Decimal
 from uuid import uuid4
 
@@ -28,6 +30,7 @@ from insightlm.retrieval.application.answer import (
     AnswerRequest,
 )
 from insightlm.retrieval.domain.evidence import EvidenceBundle, EvidenceQuery
+from insightlm.retrieval.ports.evidence import EvidencePort
 from insightlm.retrieval.ports.generation import GroundedGenerator
 from insightlm.retrieval.ports.indexing import Embedder
 from insightlm.shared.adapters.db.base import set_actor_context, set_tenant_context
@@ -73,6 +76,20 @@ class AskService:
                     strategy=request.strategy,
                 )
             )
+
+    @asynccontextmanager
+    async def evidence_for(self, actor: Actor) -> AsyncIterator[EvidencePort]:
+        """An evidence port scoped to the actor, for other modules to consume.
+
+        This is how `recruiting` gets evidence without importing anything from
+        `retrieval` beyond its port: the composition layer opens the session and the
+        tenant context, and hands over only the Protocol.
+        """
+        async with self._session_factory() as session:
+            await session.begin()
+            await set_tenant_context(session, actor.tenant_id)
+            await set_actor_context(session, actor.user_id)
+            yield self._evidence(session, actor)
 
     def _evidence(self, session: AsyncSession, actor: Actor) -> HybridEvidenceService:
         return HybridEvidenceService(
@@ -158,3 +175,13 @@ def _provenance_row(actor: Actor, request: AnswerRequest, output: AnswerOutput) 
         cost_usd=Decimal(f"{cost:.6f}"),
         latency_ms=output.latency_ms,
     )
+
+
+class EvidenceProviderAdapter:
+    """Satisfies `recruiting.ports.EvidenceProvider` over the ask service."""
+
+    def __init__(self, ask: AskService) -> None:
+        self._ask = ask
+
+    def for_actor(self, actor: Actor) -> AbstractAsyncContextManager[EvidencePort]:
+        return self._ask.evidence_for(actor)

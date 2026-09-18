@@ -19,6 +19,7 @@ from sqlalchemy import engine_from_config, pool
 from insightlm.documents.adapters import models as _documents_models  # noqa: F401
 from insightlm.governance.adapters import models as _governance_models  # noqa: F401
 from insightlm.identity.adapters import models as _identity_models  # noqa: F401
+from insightlm.recruiting.adapters import models as _recruiting_models  # noqa: F401
 from insightlm.retrieval.adapters import models as _retrieval_models  # noqa: F401
 from insightlm.settings import get_settings
 from insightlm.shared.adapters.db import models as _shared_models  # noqa: F401

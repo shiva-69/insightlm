@@ -27,6 +27,10 @@ from insightlm.retrieval.adapters.prompt_registry import load_prompt
 from insightlm.retrieval.domain.answer import ProposedClaim
 from insightlm.retrieval.domain.evidence import EvidenceBundle
 from insightlm.retrieval.ports.generation import GenerationResult
+from insightlm.shared.adapters.providers import (
+    TransientProviderError,
+    classify_gemini_error,
+)
 from insightlm.shared.observability.logging import get_logger
 
 _logger = get_logger(__name__)
@@ -37,29 +41,6 @@ DEFAULT_MODEL = "gemini-2.5-pro"
 
 # The response schema, in the shape Gemini expects. It mirrors the Pydantic model the
 # Anthropic adapter constrains against -- both exist to produce the same domain type.
-class _TransientProviderError(Exception):
-    """A provider failure worth retrying.
-
-    The SDK raises `ServerError` for 5xx and `ClientError` for 4xx, and only some of
-    those are worth another attempt. A 503 "model is overloaded" or a 429 rate limit
-    will likely succeed shortly; a 400 malformed request never will. Retrying
-    everything burns an evaluation run's budget on requests that cannot succeed;
-    retrying nothing loses items to transient load -- five of thirty in one run,
-    which is how this was found.
-    """
-
-
-def _classify(error: Exception) -> Exception:
-    """Re-raise transient provider failures as something tenacity will retry."""
-    from google.genai import errors as genai_errors
-
-    if isinstance(error, genai_errors.ServerError):
-        return _TransientProviderError(str(error))
-    if isinstance(error, genai_errors.ClientError) and getattr(error, "code", None) == 429:
-        return _TransientProviderError(str(error))
-    return error
-
-
 _RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -101,7 +82,7 @@ class GeminiGroundedGenerator:
         self._prompt = load_prompt(PROMPT_NAME)
 
     @retry(
-        retry=retry_if_exception_type((TimeoutError, ConnectionError, _TransientProviderError)),
+        retry=retry_if_exception_type((TimeoutError, ConnectionError, TransientProviderError)),
         stop=stop_after_attempt(4),
         wait=wait_exponential_jitter(initial=1.0, max=30.0),
         reraise=True,
@@ -148,7 +129,7 @@ class GeminiGroundedGenerator:
                 ),
             )
         except Exception as error:
-            raise _classify(error) from error
+            raise classify_gemini_error(error) from error
 
         usage = response.usage_metadata
         input_tokens = getattr(usage, "prompt_token_count", 0) or 0

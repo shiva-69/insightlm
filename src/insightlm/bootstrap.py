@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from insightlm.ask_service import AskService
+from insightlm.ask_service import AskService, EvidenceProviderAdapter
 from insightlm.documents.adapters.pymupdf_parser import PyMuPdfParser
 from insightlm.documents.adapters.s3_store import S3ObjectStore
 from insightlm.documents.adapters.uow import SqlAlchemyDocumentsUnitOfWork
@@ -32,6 +32,22 @@ from insightlm.identity.application.members import (
 )
 from insightlm.identity.application.register import RegisterOwner
 from insightlm.identity.ports.uow import IdentityUnitOfWork
+from insightlm.recruiting.adapters.judges import (
+    AnthropicCriterionJudge,
+    GeminiCriterionJudge,
+    OfflineCriterionJudge,
+)
+from insightlm.recruiting.adapters.uow import SqlAlchemyRecruitingUnitOfWork
+from insightlm.recruiting.application.assess import AddCandidate, RunAssessment, Shortlist
+from insightlm.recruiting.application.requisitions import (
+    ApproveRubric,
+    CreateRequisition,
+    GetRequisition,
+    ListRequisitions,
+    ProposeRubric,
+)
+from insightlm.recruiting.ports.judge import CriterionJudge
+from insightlm.recruiting.ports.repositories import RecruitingUnitOfWork
 from insightlm.retrieval.adapters.anthropic_generator import AnthropicGroundedGenerator
 from insightlm.retrieval.adapters.chunker import StructureAwareChunker
 from insightlm.retrieval.adapters.embedding import (
@@ -83,6 +99,14 @@ class Container:
     ask: AskService
     ingestion: IngestionPipeline
     documents_uow: object
+    create_requisition: CreateRequisition
+    list_requisitions: ListRequisitions
+    get_requisition: GetRequisition
+    propose_rubric: ProposeRubric
+    approve_rubric: ApproveRubric
+    add_candidate: AddCandidate
+    run_assessment: RunAssessment
+    shortlist: Shortlist
 
     async def dispose(self) -> None:
         await self.engine.dispose()
@@ -136,6 +160,15 @@ def build_container(settings: Settings) -> Container:
             session_factory, clock, tenant_id=tenant_id, user_id=user_id
         )
 
+    def recruiting_uow(
+        *, tenant_id: TenantId | None = None, user_id: UserId | None = None
+    ) -> RecruitingUnitOfWork:
+        return SqlAlchemyRecruitingUnitOfWork(
+            session_factory, clock, tenant_id=tenant_id, user_id=user_id
+        )
+
+    ask = AskService(session_factory, embedder=embedder, generator=generator, rrf_k=settings.rrf_k)
+
     return Container(
         settings=settings,
         engine=engine,
@@ -164,12 +197,17 @@ def build_container(settings: Settings) -> Container:
         embedder=embedder,
         generator=generator,
         upload_document=UploadDocument(documents_uow, store, clock),
-        ask=AskService(
-            session_factory,
-            embedder=embedder,
-            generator=generator,
-            rrf_k=settings.rrf_k,
+        ask=ask,
+        create_requisition=CreateRequisition(recruiting_uow, clock),
+        list_requisitions=ListRequisitions(recruiting_uow),
+        get_requisition=GetRequisition(recruiting_uow),
+        propose_rubric=ProposeRubric(recruiting_uow, clock),
+        approve_rubric=ApproveRubric(recruiting_uow, clock),
+        add_candidate=AddCandidate(recruiting_uow, clock),
+        run_assessment=RunAssessment(
+            recruiting_uow, EvidenceProviderAdapter(ask), _build_judge(settings), clock
         ),
+        shortlist=Shortlist(recruiting_uow),
         ingestion=IngestionPipeline(
             session_factory,
             store=store,
@@ -260,3 +298,22 @@ def _build_generator(settings: Settings) -> GroundedGenerator:
         "using_offline_generator", reason="no ANTHROPIC_API_KEY or GEMINI_API_KEY configured"
     )
     return ExtractiveGenerator()
+
+
+def _build_judge(settings: Settings) -> CriterionJudge:
+    """Follows the same provider choice as generation, and the same fallback.
+
+    The offline judge is free and deterministic; it scores term overlap and cannot read
+    a negation. That is a real limitation, stated in the UI, and it is the baseline the
+    model-backed judges are measured against.
+    """
+    provider = settings.generation_provider
+    if provider in ("auto", "anthropic") and settings.anthropic_api_key is not None:
+        return AnthropicCriterionJudge(
+            settings.anthropic_api_key.get_secret_value(), model=settings.generation_model
+        )
+    if provider in ("auto", "gemini") and settings.gemini_api_key is not None:
+        return GeminiCriterionJudge(
+            settings.gemini_api_key.get_secret_value(), model=settings.gemini_model
+        )
+    return OfflineCriterionJudge()

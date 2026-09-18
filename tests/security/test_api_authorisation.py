@@ -20,6 +20,14 @@ PROTECTED_ENDPOINTS = [
     ("POST", "/members/invitations"),
     ("GET", "/audit/entries"),
     ("POST", "/audit/verify"),
+    ("GET", "/requisitions"),
+    ("POST", "/requisitions"),
+    ("GET", "/requisitions/00000000-0000-0000-0000-000000000000"),
+    ("POST", "/requisitions/00000000-0000-0000-0000-000000000000/rubrics"),
+    ("POST", "/requisitions/00000000-0000-0000-0000-000000000000/candidates"),
+    ("GET", "/requisitions/00000000-0000-0000-0000-000000000000/shortlist"),
+    ("POST", "/rubrics/00000000-0000-0000-0000-000000000000/approve"),
+    ("POST", "/applications/00000000-0000-0000-0000-000000000000/assessments"),
 ]
 
 

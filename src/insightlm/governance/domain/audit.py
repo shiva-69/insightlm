@@ -41,7 +41,10 @@ class AuditAction(StrEnum):
     AUDIT_CHAIN_VERIFIED = "audit.chain_verified"
     # reserved for later phases -- listed here so the vocabulary is designed, not accreted
     DOCUMENT_UPLOADED = "document.uploaded"
+    REQUISITION_CREATED = "requisition.created"
+    RUBRIC_PROPOSED = "rubric.proposed"
     RUBRIC_APPROVED = "rubric.approved"
+    CANDIDATE_ADDED = "candidate.added"
     ASSESSMENT_CREATED = "assessment.created"
     STAGE_TRANSITIONED = "application.stage_transitioned"
     CANDIDATE_DATA_ACCESSED = "candidate.data_accessed"

@@ -1,1 +1,1 @@
-"""recruiting :: ports layer."""
+"""recruiting :: ports."""

@@ -1,1 +1,1 @@
-"""recruiting :: adapters layer."""
+"""recruiting :: adapters."""
