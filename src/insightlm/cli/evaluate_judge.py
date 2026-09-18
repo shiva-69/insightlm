@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from insightlm.documents.domain.spans import PageRect, TextSpan
-from insightlm.evaluation.adapters.judge_cases import JUDGE_V1
+from insightlm.evaluation.adapters.judge_cases import JUDGE_V1, JUDGE_V2
 from insightlm.evaluation.domain.judging import CaseKind, JudgeCase, JudgeOutcome, JudgeReport
 from insightlm.recruiting.adapters.judges import (
     PROMPT_DIR,
@@ -110,7 +110,12 @@ def _key(model: str, prompt: str, case: JudgeCase) -> str:
 
 
 async def _run(
-    name: str, judge: CriterionJudge, model: str, cache: _Cache | None, concurrency: int
+    name: str,
+    judge: CriterionJudge,
+    model: str,
+    cache: _Cache | None,
+    concurrency: int,
+    cases: tuple[JudgeCase, ...],
 ) -> tuple[JudgeReport, int]:
     prompt = load_prompt_from(PROMPT_DIR, PROMPT_NAME).version_id
     report = JudgeReport(judge=name)
@@ -136,7 +141,7 @@ async def _run(
             }
         return JudgeOutcome(case, result.verdict, cited)
 
-    report.outcomes = list(await asyncio.gather(*(one(c) for c in JUDGE_V1)))
+    report.outcomes = list(await asyncio.gather(*(one(c) for c in cases)))
     return report, calls
 
 
@@ -178,6 +183,9 @@ def main(argv: list[str] | None = None) -> int:
         help="Judges to measure alongside the offline baseline (repeatable).",
     )
     parser.add_argument("--no-cache", action="store_true", help="Ignore cached paid verdicts.")
+    parser.add_argument(
+        "--set", choices=["v1", "v2", "all"], default="all", help="Which case set to run."
+    )
     parser.add_argument("--concurrency", type=int, default=4)
     parser.add_argument("--out", type=Path, help="Write the reports as JSON.")
     parser.add_argument(
@@ -217,18 +225,23 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
 
+    cases = {"v1": JUDGE_V1, "v2": JUDGE_V2, "all": JUDGE_V1 + JUDGE_V2}[args.set]
     cache = _Cache.load(CACHE, enabled=not args.no_cache)
     reports: list[JudgeReport] = []
     total_calls = 0
-    for name, judge, model, paid in runs:
-        report, calls = asyncio.run(
-            _run(name, judge, model, cache if paid else None, args.concurrency)
-        )
-        reports.append(report)
-        total_calls += calls
-    cache.save()
+    try:
+        for name, judge, model, paid in runs:
+            report, calls = asyncio.run(
+                _run(name, judge, model, cache if paid else None, args.concurrency, cases)
+            )
+            reports.append(report)
+            total_calls += calls
+    finally:
+        # Saved even when a run dies part-way (a provider 503 after retries): verdicts
+        # already paid for are kept. Losing them once cost ~20 calls.
+        cache.save()
 
-    print(f"judge-v1: {len(JUDGE_V1)} cases\n")
+    print(f"judge-{args.set}: {len(cases)} cases\n")
     _print(reports)
     print(f"\npaid judge calls this run: {total_calls} (rest from cache)")
 

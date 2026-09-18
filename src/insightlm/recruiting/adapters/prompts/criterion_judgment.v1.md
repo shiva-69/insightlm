@@ -23,6 +23,13 @@ sources are silent. Never guess, and never fill a gap from general knowledge.
 `confidence` is a number from 0 to 1: how sure you are that the verdict is right given
 these sources. 0.5 means a coin toss; 0.9 means you would be surprised to be wrong.
 
+## Whose work
+
+Credit the candidate only with what they did themselves. "My team built the payment
+gateway; I worked on the dashboard" is evidence about the dashboard, not the gateway.
+Work they planned but handed over before delivery is at most `weak`. Something they
+intend to learn, or plan to do, is not evidence at all: `absent`.
+
 ## Read negations
 
 A sentence that denies the criterion is evidence *against* it, not for it. "Built the

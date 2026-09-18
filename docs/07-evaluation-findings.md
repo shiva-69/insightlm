@@ -559,3 +559,34 @@ the harness. Cached.*
    audit log for names, emails and CV text on every run.
 3. **Verification is itself tested.** A negative control plants the name in a
    recruiter's free-text note; erasure must report it as residue, and does.
+
+## Finding 19 — a harder judge set, and a prompt change that single runs can't validate
+
+judge-v1 saturated (23/23), so it could no longer detect a regression. **judge-v2** adds
+14 harder cases: evidence buried in long passages, work handed over before delivery,
+"my team built X; I built Y", intentions ("planning to learn"), narrow-scope negation
+("not only built X but also…"), years-of-experience arithmetic, conflicting passages.
+
+| | v1 (23) | v2 (14) |
+| --- | ---: | ---: |
+| offline baseline | 48% | 36% |
+| gemini-2.5-pro, prompt as of Finding 16 | 100% | 86% |
+
+Gemini's v2 misses were credit for a team's work (h3: "my team built the payment
+gateway; I worked on the dashboard" → *adequate*) and planning-only work judged
+*absent* where the label accepts weak/adequate (h2, arguably a labelling call; the
+labels were not changed to match the model).
+
+A "whose work" rule was added to the prompt. Its first wording ("work they… intend to
+learn is at most weak") *caused* a miss: "planning to learn Kubernetes" became *weak*.
+After rewording (intentions are `absent`), the full 37-case set scored **35/37**, the
+same total as before the change: h3 passed in one run and failed in the next, and a
+v1 case (m1, "completed an online course" → wanted *weak*, said *absent*) now misses.
+
+The rule stays, because it's right about whose work counts. But this set, run once, can't
+show that it helps. Comparing prompts needs repeated samples per case and a test against
+the judge's own noise, exactly as the fairness harness does (Finding 17). That's the
+next change to `insightlm-eval-judge`.
+
+*About 110 calls including a run lost to a provider 503; the harness now saves paid
+verdicts even when a run dies part-way.*

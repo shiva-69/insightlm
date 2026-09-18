@@ -203,3 +203,146 @@ JUDGE_V1: tuple[JudgeCase, ...] = (
         NONE,
     ),
 )
+
+
+# -- judge-v2: harder, because v1 saturated at 100% and stopped telling prompts apart ----
+
+LONG_FILLER = (
+    "Joined a mid-size retail company as its third engineer. Wrote onboarding guides, "
+    "ran the weekly demo, and organised the internal hack day. Maintained the office "
+    "wiki and helped the design team pick a component library."
+)
+
+JUDGE_V2: tuple[JudgeCase, ...] = (
+    JudgeCase(
+        "h1",
+        CaseKind.DIRECT,
+        "Payment reconciliation",
+        (
+            LONG_FILLER + " Separately, ran the payments reconciliation service in "
+            "production for two years, owning its on-call.",
+            FILLER,
+        ),
+        SUPPORTED,
+        frozenset({"C1"}),
+    ),
+    JudgeCase(
+        "h2",
+        CaseKind.MENTION,
+        "Kubernetes in production",
+        (
+            "Led planning for the Kubernetes migration, then handed delivery to the "
+            "platform team before it went live.",
+        ),
+        PARTIAL,
+        frozenset({"C1"}),
+    ),
+    JudgeCase(
+        "h3",
+        CaseKind.NEGATION,
+        "Payment processing",
+        ("My team built the payment gateway; I worked on the admin dashboard.",),
+        frozenset({X, W}),
+        frozenset({"C1"}),
+    ),
+    JudgeCase(
+        "h4",
+        CaseKind.NEGATION,
+        "Kubernetes in production",
+        ("Planning to learn Kubernetes next quarter.", FILLER),
+        NONE,
+    ),
+    JudgeCase(
+        "h5",
+        CaseKind.NEGATION,
+        "Python backend services",
+        ("Used Python only for small scripts; every backend service was written in Go.",),
+        frozenset({X, W}),
+        frozenset({"C1"}),
+    ),
+    JudgeCase(
+        "h6",
+        CaseKind.DIRECT,
+        "Payment processing",
+        ("Not only built the payment APIs but also ran their on-call rotation.",),
+        SUPPORTED,
+        frozenset({"C1"}),
+    ),
+    JudgeCase(
+        "h7",
+        CaseKind.PARAPHRASE,
+        "Kubernetes in production",
+        (
+            "No container experience was needed in the previous role, but this one "
+            "involved running our EKS clusters day to day.",
+        ),
+        SUPPORTED,
+        frozenset({"C1"}),
+    ),
+    JudgeCase(
+        "h8",
+        CaseKind.MENTION,
+        "Five or more years of Python",
+        ("Python developer since 2023.",),
+        frozenset({W, X}),
+        frozenset({"C1"}),
+        hint="count the years; the current year is 2026",
+    ),
+    JudgeCase(
+        "h9",
+        CaseKind.PARAPHRASE,
+        "Distributed systems",
+        (
+            "Designed a sharded, replicated ledger with leader election and "
+            "idempotent writes across regions.",
+        ),
+        SUPPORTED,
+        frozenset({"C1"}),
+    ),
+    JudgeCase(
+        "h10",
+        CaseKind.MENTION,
+        "Python backend services",
+        (
+            "Five years building Python services.",
+            "Note: the Python work was a two-week hackathon; production code was Java.",
+        ),
+        frozenset({W, A, X}),
+        frozenset({"C1", "C2"}),
+    ),
+    JudgeCase(
+        "h11",
+        CaseKind.MENTION,
+        "Kubernetes in production",
+        ("Last used Kubernetes in production in 2014; since then, serverless only.",),
+        frozenset({W, A}),
+        frozenset({"C1"}),
+    ),
+    JudgeCase(
+        "h12",
+        CaseKind.NEGATION,
+        "Computer science degree",
+        ("BSc Physics; self-taught programmer.", FILLER),
+        frozenset({X, W}),
+        frozenset({"C1"}),
+    ),
+    JudgeCase(
+        "h13",
+        CaseKind.PARAPHRASE,
+        "Team leadership",
+        (
+            FILLER,
+            "Tech lead for three engineers on the checkout squad; ran planning and their reviews.",
+        ),
+        SUPPORTED,
+        frozenset({"C2"}),
+    ),
+    JudgeCase(
+        "h14",
+        CaseKind.UNRELATED,
+        "Payment processing",
+        (LONG_FILLER, "Paid the team's lunch invoices through the expenses tool."),
+        frozenset({X, W}),
+        frozenset({"C2"}),
+    ),
+)
