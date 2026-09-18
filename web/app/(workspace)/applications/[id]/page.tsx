@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import { ContentWarning } from "@/components/content-warning";
 import { useToast } from "@/components/toast";
 import { Button, Empty, Panel, Spinner, Tag } from "@/components/ui/primitives";
 import { api, ApiError } from "@/lib/api";
@@ -103,6 +104,10 @@ function Application({ detail }: { detail: ApplicationDetail }) {
             </Link>
           )}
         </header>
+
+        <div className="mb-3">
+          <ContentWarning documentIds={candidate.document_ids} />
+        </div>
 
         <StageTrack detail={detail} />
 

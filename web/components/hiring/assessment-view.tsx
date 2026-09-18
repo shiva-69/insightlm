@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import { useMemo, useState } from "react";
+import { ContentWarning } from "@/components/content-warning";
 import { DocumentViewer } from "@/components/document-viewer";
 import { Button, Empty, Tag } from "@/components/ui/primitives";
 import type { Citation, Criterion, Rubric, ShortlistEntry, Verdict } from "@/lib/types";
@@ -80,6 +81,10 @@ export function AssessmentView({
               <div className="data mt-1">of 100</div>
             </div>
           </header>
+
+          <div className="mt-4">
+            <ContentWarning documentIds={entry.candidate.document_ids} />
+          </div>
 
           {assessment.flags.length > 0 && (
             <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--caution)]/35 p-3.5">

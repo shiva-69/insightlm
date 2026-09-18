@@ -334,3 +334,22 @@ export interface TalentMatch {
     score: number;
   }[];
 }
+
+/* -- content findings ------------------------------------------------------------ */
+
+export type FindingKind =
+  | "invisible_text"
+  | "low_contrast_text"
+  | "micro_text"
+  | "off_page_text"
+  | "metadata_instruction"
+  | "instruction_like_text";
+
+export interface ContentFinding {
+  kind: FindingKind;
+  text: string;
+  page: number | null;
+  excluded: boolean;
+  instruction_like: boolean;
+  rect: Rect | null;
+}

@@ -134,3 +134,14 @@ def test_a_document_title_cannot_break_out_of_its_attribute() -> None:
     rendered = bundle(evil).as_context()
     assert 'id="C9"' not in rendered
     assert "<system>" not in rendered
+
+
+async def test_a_hidden_sentence_that_wraps_is_one_finding() -> None:
+    from insightlm.documents.adapters.pymupdf_parser import PyMuPdfParser
+    from insightlm.documents.domain.entities import MediaType
+    from insightlm.evaluation.adapters.redteam import CLAIM, build_redteam_v1
+
+    attack = next(d for d in build_redteam_v1() if d.id == "a-white-claim")
+    parsed = await PyMuPdfParser().parse(attack.pdf, media_type=MediaType.PDF)
+    [finding] = parsed.findings
+    assert " ".join(finding.text.split()) == CLAIM

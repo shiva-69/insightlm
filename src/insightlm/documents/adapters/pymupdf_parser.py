@@ -266,7 +266,8 @@ class PyMuPdfParser:
             if hidden is not None:
                 text = "".join(c["c"] for c in span_chars).strip()
                 if text:
-                    findings.append(
+                    _append_merged(
+                        findings,
                         ContentFinding(
                             kind=hidden,
                             text=text,
@@ -274,7 +275,7 @@ class PyMuPdfParser:
                             rect=span_rect,
                             excluded=self._exclude_concealed,
                             instruction_like=looks_like_instruction(text),
-                        )
+                        ),
                     )
                 if self._exclude_concealed:
                     continue
@@ -360,3 +361,38 @@ def _line_offsets(body: str) -> list[tuple[int, str]]:
         offsets.append((cursor, line.strip()))
         cursor += len(line)
     return offsets
+
+
+def _append_merged(findings: list[ContentFinding], new: ContentFinding) -> None:
+    """One hidden sentence wrapped over three lines is one finding, not three.
+
+    Merges into the previous finding when it is the same kind, on the same page, and
+    starts within about a line and a half below it -- otherwise a reviewer is told
+    "3 passages" for what is plainly one.
+    """
+    last = findings[-1] if findings else None
+    if (
+        last is not None
+        and last.rect is not None
+        and new.rect is not None
+        and last.kind is new.kind
+        and last.page == new.page
+        and 0 <= new.rect.y0 - last.rect.y0 <= 1.5 * max(last.rect.y1 - last.rect.y0, 1.0)
+    ):
+        text = f"{last.text} {new.text}"
+        findings[-1] = ContentFinding(
+            kind=last.kind,
+            text=text,
+            page=last.page,
+            rect=PageRect(
+                page=last.rect.page,
+                x0=min(last.rect.x0, new.rect.x0),
+                y0=last.rect.y0,
+                x1=max(last.rect.x1, new.rect.x1),
+                y1=max(last.rect.y1, new.rect.y1),
+            ),
+            excluded=last.excluded,
+            instruction_like=looks_like_instruction(text),
+        )
+        return
+    findings.append(new)

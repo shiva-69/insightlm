@@ -26,6 +26,7 @@ import type {
   Scorecard,
   Stage,
   TalentMatch,
+  ContentFinding,
 } from "./types";
 import { getToken, clearSession } from "./auth";
 
@@ -187,6 +188,9 @@ export const api = {
   ) => request<Scorecard>(`/scorecards/${id}/submit`, { method: "POST", json: input }),
 
   myInterviews: () => request<Interview[]>("/me/interviews"),
+
+  findings: (documentId: string) =>
+    request<ContentFinding[]>(`/documents/${documentId}/findings`),
 
   searchTalent: (q: string) =>
     request<TalentMatch[]>(`/talent/search?q=${encodeURIComponent(q)}`),

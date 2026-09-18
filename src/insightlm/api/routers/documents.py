@@ -5,6 +5,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Response, UploadFile, status
+from pydantic import BaseModel, ConfigDict, Field
 
 from insightlm.api.deps import ActorDep, ContainerDep
 from insightlm.api.schemas import (
@@ -12,6 +13,7 @@ from insightlm.api.schemas import (
     DocumentVersionResponse,
     UploadResponse,
 )
+from insightlm.documents.domain.findings import FindingKind
 from insightlm.shared.domain.errors import NotFoundError
 from insightlm.shared.domain.ids import DocumentId
 
@@ -119,3 +121,57 @@ async def document_raw(document_id: UUID, actor: ActorDep, container: ContainerD
 
     payload = await container.object_store.get(key)
     return Response(content=payload, media_type=media_type or "application/octet-stream")
+
+
+class FindingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    kind: FindingKind
+    text: str
+    page: int | None
+    excluded: bool = Field(description="Kept out of the index because a reader can't see it.")
+    instruction_like: bool
+    rect: dict[str, float] | None
+
+
+@router.get(
+    "/{document_id}/findings",
+    response_model=list[FindingResponse],
+    summary="Hidden or instruction-like content found in the latest version",
+)
+async def document_findings(
+    document_id: UUID, actor: ActorDep, container: ContainerDep
+) -> list[FindingResponse]:
+    """What a reviewer should know before trusting anything a model says about this file.
+
+    Concealed text is listed with its location so it can be drawn on the page: the point
+    is to show a person what was hidden from them, not merely that something was.
+    """
+    factory = container.documents_uow
+    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:  # type: ignore[operator]
+        version = await uow.versions.latest_for_document(DocumentId(document_id))
+        if version is None:
+            raise NotFoundError("document not found")
+        extracted = await uow.versions.load_text(version.id)
+
+    return [
+        FindingResponse(
+            kind=f.kind,
+            text=f.text,
+            page=f.page,
+            excluded=f.excluded,
+            instruction_like=f.instruction_like,
+            rect=(
+                {
+                    "page": f.rect.page,
+                    "x0": f.rect.x0,
+                    "y0": f.rect.y0,
+                    "x1": f.rect.x1,
+                    "y1": f.rect.y1,
+                }
+                if f.rect
+                else None
+            ),
+        )
+        for f in (extracted.findings if extracted else ())
+    ]
