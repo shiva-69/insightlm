@@ -12,6 +12,7 @@ from insightlm.recruiting.adapters.repositories import (
     SqlAlchemyRequisitionRepository,
     SqlAlchemyRubricRepository,
     SqlAlchemyScorecardRepository,
+    SqlAlchemySelfIdentificationRepository,
     SqlAlchemyStageTransitionRepository,
 )
 
@@ -26,3 +27,4 @@ class SqlAlchemyRecruitingUnitOfWork(SqlAlchemyGovernanceUnitOfWork):
         self.assessments = SqlAlchemyAssessmentRepository(session)
         self.transitions = SqlAlchemyStageTransitionRepository(session)
         self.scorecards = SqlAlchemyScorecardRepository(session)
+        self.self_identification = SqlAlchemySelfIdentificationRepository(session)

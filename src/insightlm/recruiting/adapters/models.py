@@ -206,3 +206,23 @@ class ScorecardRow(Base):
         ),
         Index("ix_scorecards_interviewer", "tenant_id", "interviewer_id"),
     )
+
+
+class SelfIdentificationRow(Base):
+    """Voluntary self-identification, kept apart from everything a reviewer reads.
+
+    Its own table so that access is a grant, not a filter: nothing that assembles
+    evidence or renders an application ever joins to it.
+    """
+
+    __tablename__ = "self_identifications"
+
+    candidate_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("candidates.id", ondelete="CASCADE"), primary_key=True
+    )
+    dimension: Mapped[str] = mapped_column(String(32), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    value: Mapped[str] = mapped_column(String(64), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    candidate: Mapped[CandidateRow] = relationship(lazy="raise")

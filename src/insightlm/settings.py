@@ -97,6 +97,8 @@ class Settings(BaseSettings):
     # Keep text a reader can't see (white-on-white, 1pt, transparent) out of the index.
     # Off only to measure or demonstrate the undefended baseline.
     exclude_concealed_text: bool = True
+    # Rejected candidates are erased (with verification) after this long without activity.
+    candidate_retention_days: int = 365
 
     embedding_cache_path: str | None = None
     """When set, embeddings are cached on disk by content. The evaluation harness sets

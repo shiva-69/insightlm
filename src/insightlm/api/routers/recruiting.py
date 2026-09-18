@@ -21,6 +21,8 @@ from insightlm.recruiting.domain.assessment import (
     Stage,
     Verdict,
 )
+from insightlm.recruiting.domain.fairness import FOUR_FIFTHS, MIN_GROUP_SIZE
+from insightlm.recruiting.domain.fairness import Dimension as FairnessDimension
 from insightlm.recruiting.domain.pipeline import is_overdue
 from insightlm.recruiting.domain.rubric import (
     CriterionKind,
@@ -372,3 +374,60 @@ async def erase_candidate(
             for r in report.residue
         ],
     )
+
+
+class SelfIdentificationRequest(_In):
+    dimension: FairnessDimension = FairnessDimension.GENDER
+    value: str = Field(min_length=1, max_length=64)
+
+
+@router.put(
+    "/candidates/{candidate_id}/self-identification",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Record voluntary self-identification (never shown to reviewers or models)",
+)
+async def record_self_identification(
+    candidate_id: UUID, body: SelfIdentificationRequest, actor: ActorDep, container: ContainerDep
+) -> None:
+    await container.record_self_identification.execute(
+        actor, CandidateId(candidate_id), body.dimension, body.value
+    )
+
+
+class GroupRateResponse(_Out):
+    group: str
+    decided: int
+    advanced: int
+    rate: float | None
+    impact_ratio: float | None
+    adverse: bool
+    too_few: bool
+
+
+class SelectionReportResponse(_Out):
+    dimension: FairnessDimension
+    stage: str
+    groups: list[GroupRateResponse]
+    pending: int
+    rejection_reasons: dict[str, dict[str, int]]
+    four_fifths: float = FOUR_FIFTHS
+    min_group_size: int = MIN_GROUP_SIZE
+
+
+@router.get(
+    "/governance/selection-rates",
+    response_model=SelectionReportResponse,
+    summary="Screening selection rates by self-identified group, with the four-fifths check",
+)
+async def selection_rates(
+    actor: ActorDep,
+    container: ContainerDep,
+    dimension: FairnessDimension = FairnessDimension.GENDER,
+    requisition_id: UUID | None = None,
+) -> SelectionReportResponse:
+    report = await container.selection_rates.execute(
+        actor,
+        dimension=dimension,
+        requisition_id=RequisitionId(requisition_id) if requisition_id else None,
+    )
+    return SelectionReportResponse.model_validate(report)

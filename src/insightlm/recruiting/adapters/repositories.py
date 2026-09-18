@@ -17,6 +17,7 @@ from insightlm.recruiting.adapters.models import (
     RequisitionRow,
     RubricRow,
     ScorecardRow,
+    SelfIdentificationRow,
     StageTransitionRow,
 )
 from insightlm.recruiting.domain.assessment import (
@@ -29,6 +30,8 @@ from insightlm.recruiting.domain.assessment import (
     Stage,
     Verdict,
 )
+from insightlm.recruiting.domain.fairness import Dimension as FairnessDimension
+from insightlm.recruiting.domain.fairness import SelfIdentification
 from insightlm.recruiting.domain.pipeline import RejectionReason, StageTransition
 from insightlm.recruiting.domain.rubric import (
     Criterion,
@@ -285,6 +288,16 @@ class SqlAlchemyCandidateRepository:
         row = await self._session.get(CandidateRow, candidate_id)
         return self._to_domain(row) if row else None
 
+    async def list_for_tenant(self, tenant_id: TenantId) -> list[Candidate]:
+        rows = (
+            await self._session.execute(
+                select(CandidateRow)
+                .where(CandidateRow.tenant_id == tenant_id)
+                .order_by(CandidateRow.created_at)
+            )
+        ).scalars()
+        return [self._to_domain(r) for r in rows]
+
     async def with_any_document(self, document_ids: list[DocumentId]) -> list[Candidate]:
         """Candidates whose documents include any of these -- JSONB `?|`, one query."""
         if not document_ids:
@@ -340,6 +353,16 @@ class SqlAlchemyApplicationRepository:
     async def get(self, application_id: ApplicationId) -> Application | None:
         row = await self._session.get(ApplicationRow, application_id)
         return self._to_domain(row) if row else None
+
+    async def list_for_candidate(self, candidate_id: CandidateId) -> list[Application]:
+        rows = (
+            await self._session.execute(
+                select(ApplicationRow)
+                .where(ApplicationRow.candidate_id == candidate_id)
+                .order_by(ApplicationRow.created_at)
+            )
+        ).scalars()
+        return [self._to_domain(r) for r in rows]
 
     async def list_for_requisition(self, requisition_id: RequisitionId) -> list[Application]:
         rows = (
@@ -531,3 +554,50 @@ class SqlAlchemyScorecardRepository:
             .distinct()
         )
         return {RequisitionId(r) for r in rows.scalars()}
+
+
+class SqlAlchemySelfIdentificationRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def put(self, record: SelfIdentification) -> None:
+        row = await self._session.get(
+            SelfIdentificationRow, (record.candidate_id, record.dimension.value)
+        )
+        if row is None:
+            self._session.add(
+                SelfIdentificationRow(
+                    candidate_id=record.candidate_id,
+                    dimension=record.dimension.value,
+                    tenant_id=record.tenant_id,
+                    value=record.value,
+                    recorded_at=record.recorded_at,
+                )
+            )
+        else:
+            row.value = record.value
+            row.recorded_at = record.recorded_at
+
+    async def for_candidates(
+        self, candidate_ids: list[CandidateId], dimension: FairnessDimension
+    ) -> dict[CandidateId, SelfIdentification]:
+        if not candidate_ids:
+            return {}
+        rows = (
+            await self._session.execute(
+                select(SelfIdentificationRow).where(
+                    SelfIdentificationRow.candidate_id.in_(candidate_ids),
+                    SelfIdentificationRow.dimension == dimension.value,
+                )
+            )
+        ).scalars()
+        return {
+            CandidateId(r.candidate_id): SelfIdentification(
+                tenant_id=TenantId(r.tenant_id),
+                candidate_id=CandidateId(r.candidate_id),
+                dimension=FairnessDimension(r.dimension),
+                value=r.value,
+                recorded_at=r.recorded_at,
+            )
+            for r in rows
+        }

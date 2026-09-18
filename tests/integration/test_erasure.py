@@ -44,6 +44,13 @@ async def _used_candidate(client: AsyncClient, container: Container) -> dict[str
         f"/applications/{application_id}/stage", json={"to": "screened"}, headers=auth(recruiter)
     )
 
+    put = await client.put(
+        f"/candidates/{added['candidate']['id']}/self-identification",
+        json={"dimension": "gender", "value": "woman"},
+        headers=auth(owner),
+    )
+    assert put.status_code == 204, put.text
+
     # A saved answer that names her and cites her CV.
     claims = container.token_issuer.verify_access_token(owner)
     actor = Actor(user_id=claims.user_id, tenant_id=claims.tenant_id, role=Role.OWNER)
@@ -93,6 +100,7 @@ async def test_erasure_removes_every_trace_and_proves_it(
         "SELECT count(*) FROM answers",
         "SELECT count(*) FROM chunks",
         "SELECT count(*) FROM document_texts",
+        "SELECT count(*) FROM self_identifications",
     ):
         assert await _count(container, actor, sql) == 0, sql
     assert (

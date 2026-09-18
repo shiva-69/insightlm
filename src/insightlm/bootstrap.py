@@ -9,6 +9,7 @@ more than a clever one.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -40,6 +41,7 @@ from insightlm.recruiting.adapters.judges import (
 )
 from insightlm.recruiting.adapters.uow import SqlAlchemyRecruitingUnitOfWork
 from insightlm.recruiting.application.assess import AddCandidate, RunAssessment, Shortlist
+from insightlm.recruiting.application.fairness import RecordSelfIdentification, SelectionRates
 from insightlm.recruiting.application.pipeline import (
     AssignInterviewer,
     GetApplication,
@@ -55,6 +57,7 @@ from insightlm.recruiting.application.requisitions import (
     ProposeRubric,
 )
 from insightlm.recruiting.application.talent import SearchTalentPool
+from insightlm.recruiting.application.transparency import FindExpiredCandidates, GetCandidateRecord
 from insightlm.recruiting.ports.judge import CriterionJudge
 from insightlm.recruiting.ports.repositories import RecruitingUnitOfWork
 from insightlm.retrieval.adapters.anthropic_generator import AnthropicGroundedGenerator
@@ -123,6 +126,10 @@ class Container:
     my_interviews: MyInterviews
     search_talent_pool: SearchTalentPool
     erase_candidate: EraseCandidate
+    record_self_identification: RecordSelfIdentification
+    selection_rates: SelectionRates
+    candidate_record: GetCandidateRecord
+    find_expired_candidates: FindExpiredCandidates
 
     async def dispose(self) -> None:
         await self.engine.dispose()
@@ -231,6 +238,12 @@ def build_container(settings: Settings) -> Container:
         my_interviews=MyInterviews(recruiting_uow),
         search_talent_pool=SearchTalentPool(recruiting_uow, EvidenceProviderAdapter(ask)),
         erase_candidate=EraseCandidate(session_factory, recruiting_uow, store),
+        record_self_identification=RecordSelfIdentification(recruiting_uow, clock),
+        selection_rates=SelectionRates(recruiting_uow),
+        candidate_record=GetCandidateRecord(recruiting_uow),
+        find_expired_candidates=FindExpiredCandidates(
+            recruiting_uow, clock, timedelta(days=settings.candidate_retention_days)
+        ),
         ingestion=IngestionPipeline(
             session_factory,
             store=store,
