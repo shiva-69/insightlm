@@ -24,6 +24,9 @@ dependencies = [
     "tenacity>=9.0",
     # --- Phase 1: document engine -------------------------------------------
     "anthropic>=0.40",
+    # A second provider behind the same port. Optional at runtime -- the adapter is
+    # imported lazily, so this only matters when GEMINI_API_KEY is set.
+    "google-genai>=1.0",
     "pymupdf>=1.25",          # text + per-character geometry; see spikes/
     # boto3 is sync, driven from asyncio via to_thread. aioboto3 would avoid that
     # but pins aiobotocore to exact botocore versions, which is a dependency

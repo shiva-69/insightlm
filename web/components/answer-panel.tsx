@@ -30,6 +30,13 @@ export function AnswerPanel({ answer, pending, question, activeLabel, onActivate
   const byLabel = new Map(answer.citations.map((c) => [c.label, c]));
   const grounded = answer.outcome === "answered";
 
+  // Which engine produced this. The offline adapters are a legitimate mode -- they
+  // are the extractive baseline the evaluation compares against -- but a reader has
+  // to be able to tell, because "verbatim passage" and "synthesised answer" are
+  // different things and only one of them reads like prose.
+  const extractive = answer.model_version.startsWith("extractive");
+  const offlineEmbedder = answer.embedding_model.startsWith("hashing");
+
   return (
     <div className="mx-auto max-w-[44rem] px-7 py-7">
       <p className="mb-5 font-serif text-[15px] italic leading-snug text-[var(--ink-3)]">
@@ -55,6 +62,10 @@ export function AnswerPanel({ answer, pending, question, activeLabel, onActivate
         </div>
       ) : (
         <Unsupported answer={answer} />
+      )}
+
+      {(extractive || offlineEmbedder) && (
+        <OfflineNotice extractive={extractive} offlineEmbedder={offlineEmbedder} />
       )}
 
       {answer.citations.length > 0 && (
@@ -237,5 +248,57 @@ function Thinking({ question }: { question: string }) {
         ))}
       </div>
     </div>
+  );
+}
+
+
+/* Says plainly which engine answered, and is specific about which half is degraded.
+ *
+ * Generation and retrieval fall back independently, so a blanket "no model keys are
+ * configured" is wrong as soon as one of them is configured and the other is not --
+ * and a notice that is wrong is worse than no notice, because it teaches the reader
+ * to ignore it.
+ */
+function OfflineNotice({
+  extractive,
+  offlineEmbedder,
+}: {
+  extractive: boolean;
+  offlineEmbedder: boolean;
+}) {
+  const both = extractive && offlineEmbedder;
+  const label = both ? "Offline mode" : extractive ? "Extractive answers" : "Keyword retrieval";
+  const summary = both
+    ? "No model keys are configured."
+    : extractive
+      ? "Answers are quoted, not written."
+      : "Passages are found by wording, not meaning.";
+
+  return (
+    <aside className="mt-7 rounded-[var(--radius-md)] border border-[var(--rule-strong)] bg-[var(--surface-sunk)] p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Tag>{label}</Tag>
+        <span className="text-[12.5px] text-[var(--ink-2)]">{summary}</span>
+      </div>
+      <ul className="mt-2.5 space-y-1.5 text-[12.5px] leading-relaxed text-[var(--ink-3)]">
+        {extractive && (
+          <li>
+            <span className="text-[var(--ink-2)]">Answers are verbatim passages.</span>{" "}
+            Sentences are selected from the sources and quoted exactly, so nothing can
+            be hallucinated — but nothing is paraphrased or combined across documents
+            either. Set <code className="data">ANTHROPIC_API_KEY</code> or{" "}
+            <code className="data">GEMINI_API_KEY</code> for synthesis.
+          </li>
+        )}
+        {offlineEmbedder && (
+          <li>
+            <span className="text-[var(--ink-2)]">Retrieval matches on wording.</span>{" "}
+            It will find “payment settlement” but not connect it to “built the
+            checkout flow”. Set <code className="data">VOYAGE_API_KEY</code> for
+            semantic search.
+          </li>
+        )}
+      </ul>
+    </aside>
   );
 }

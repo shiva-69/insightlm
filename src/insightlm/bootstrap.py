@@ -41,6 +41,7 @@ from insightlm.retrieval.ports.indexing import Embedder
 from insightlm.settings import Settings
 from insightlm.shared.adapters.clock import SystemClock
 from insightlm.shared.adapters.db.base import create_engine, create_session_factory
+from insightlm.shared.domain.errors import InvariantViolationError
 from insightlm.shared.domain.ids import TenantId, UserId
 from insightlm.shared.observability.logging import get_logger
 from insightlm.shared.ports.clock import Clock
@@ -178,19 +179,54 @@ def _build_embedder(settings: Settings) -> Embedder:
 
 
 def _build_generator(settings: Settings) -> GroundedGenerator:
-    """Claude when a key is configured, the extractive baseline otherwise.
+    """Pick a generator from configuration.
 
-    The extractive generator cannot hallucinate -- every claim is copied verbatim from
-    a retrieved span -- so the citation contract holds either way. What it cannot do is
-    synthesise across sources, which is precisely the difference Phase 2 measures.
+    All three satisfy one port, so the choice changes nothing downstream: retrieval,
+    the citation contract and validation are identical whichever answers. That is the
+    point of the port -- and it is what lets the evaluation re-run the same ablation
+    on a second provider, turning "our pipeline scores X" into "the effect holds
+    across models".
+
+    `auto` picks the first provider with a key. Naming one explicitly makes a missing
+    key an error rather than a silent downgrade, which matters in CI and during an
+    evaluation run: answering with the wrong engine invalidates the results without
+    anything appearing to go wrong.
     """
-    if settings.anthropic_api_key is not None:
+    provider = settings.generation_provider
+
+    if provider == "offline":
+        _logger.info("using_offline_generator", reason="explicitly selected")
+        return ExtractiveGenerator()
+
+    if provider in ("auto", "anthropic") and settings.anthropic_api_key is not None:
         from anthropic import AsyncAnthropic
 
+        _logger.info("using_generator", provider="anthropic", model=settings.generation_model)
         return AnthropicGroundedGenerator(
             AsyncAnthropic(api_key=settings.anthropic_api_key.get_secret_value()),
             model=settings.generation_model,
             effort=settings.generation_effort,
         )
-    _logger.info("using_offline_generator", reason="no ANTHROPIC_API_KEY configured")
+
+    if provider in ("auto", "gemini") and settings.gemini_api_key is not None:
+        from insightlm.retrieval.adapters.gemini_generator import GeminiGroundedGenerator
+
+        _logger.info("using_generator", provider="gemini", model=settings.gemini_model)
+        return GeminiGroundedGenerator(
+            settings.gemini_api_key.get_secret_value(), model=settings.gemini_model
+        )
+
+    if provider != "auto":
+        raise InvariantViolationError(
+            f"generation_provider is '{provider}' but its API key is not configured",
+            detail={"provider": provider, "expected_env": f"{provider.upper()}_API_KEY"},
+        )
+
+    # The extractive fallback cannot hallucinate -- every claim is copied verbatim from
+    # a retrieved span -- so the citation contract holds either way. What it cannot do
+    # is synthesise across sources or paraphrase, which is exactly the difference the
+    # Phase 2 evaluation measures, and which the UI now states plainly.
+    _logger.info(
+        "using_offline_generator", reason="no ANTHROPIC_API_KEY or GEMINI_API_KEY configured"
+    )
     return ExtractiveGenerator()

@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, RedisDsn, SecretStr
+from pydantic import Field, PostgresDsn, RedisDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -58,9 +58,35 @@ class Settings(BaseSettings):
     # Absent keys are not an error. The system falls back to deterministic offline
     # adapters so that `docker compose up`, CI and a demo all work without an
     # account -- and so a dead key can never block a viva.
+    # `auto` picks the first provider with a key configured, in the order listed in
+    # `bootstrap._build_generator`, and falls back to the offline extractive adapter.
+    # Naming a provider explicitly makes a missing key an error rather than a silent
+    # downgrade -- which is what you want in CI and when running an evaluation, where
+    # answering with the wrong engine invalidates the whole run.
+    generation_provider: Literal["auto", "anthropic", "gemini", "offline"] = "auto"
+
     anthropic_api_key: SecretStr | None = None
+    gemini_api_key: SecretStr | None = None
     voyage_api_key: SecretStr | None = None
+
+    @field_validator("anthropic_api_key", "gemini_api_key", "voyage_api_key", mode="before")
+    @classmethod
+    def _blank_is_absent(cls, value: object) -> object:
+        """An empty value means "not configured", not "configured as empty".
+
+        The two are easy to conflate and they fail very differently. A commented-out
+        line in `.env`, or compose's `${VAR:-}` default, both produce an empty string
+        rather than an unset variable -- and an empty string is not None, so the
+        provider adapter gets constructed with a blank key and the whole service dies
+        on startup instead of quietly using the offline path it was meant to.
+        """
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    # Per provider, because the identifiers are not interchangeable.
     generation_model: str = "claude-opus-5"
+    gemini_model: str = "gemini-2.5-pro"
     generation_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
 
     # --- observability ------------------------------------------------------

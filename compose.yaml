@@ -11,6 +11,16 @@ x-app-env: &app-env
   S3_ACCESS_KEY: minioadmin
   S3_SECRET_KEY: minioadmin
   JWT_SECRET: dev-only-change-me
+  # Passed through from your shell when present. Absent, the system runs on its
+  # offline adapters -- deterministic, no network, and visibly degraded in the UI
+  # rather than silently worse.
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+  GENERATION_PROVIDER: ${GENERATION_PROVIDER:-auto}
+  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-pro}
+  GENERATION_MODEL: ${GENERATION_MODEL:-claude-opus-5}
+  GENERATION_EFFORT: ${GENERATION_EFFORT:-medium}
   ENVIRONMENT: local
   LOG_JSON: "false"
   OTEL_ENABLED: "true"
