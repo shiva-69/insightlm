@@ -59,6 +59,7 @@ dev = [
 insightlm-eval = "insightlm.cli.evaluate:main"
 insightlm-eval-judge = "insightlm.cli.evaluate_judge:main"
 insightlm-eval-injection = "insightlm.cli.evaluate_injection:main"
+insightlm-samples = "insightlm.cli.samples:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -137,6 +138,7 @@ module = [
     "insightlm.evaluation.adapters.corpus",
     "insightlm.evaluation.adapters.generator",
     "insightlm.evaluation.adapters.redteam",
+    "insightlm.cli.samples",
 ]
 disallow_untyped_calls = false
 

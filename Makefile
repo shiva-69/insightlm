@@ -38,6 +38,15 @@ eval-gate: ## Run the CI regression gate locally (offline adapters, deterministi
 	GENERATION_PROVIDER=offline GEMINI_API_KEY= VOYAGE_API_KEY= ANTHROPIC_API_KEY= \
 		uv run insightlm-eval --config D-hybrid --corpus generated --count 40 --min-ndcg 0.56
 
+eval-judge: ## Criterion judge benchmark (offline free; add JUDGE=gemini for the model, cached)
+	uv run insightlm-eval-judge $(if $(JUDGE),--judge $(JUDGE))
+
+eval-injection: ## Injection red-team: detection, false positives, effect on scores (free)
+	uv run insightlm-eval-injection --assess
+
+samples: ## Write sample CVs (strong, weak, paraphrase, attacked) into ./samples
+	uv run insightlm-samples
+
 test-fast: ## Unit and architecture tests only (no Docker needed)
 	uv run pytest tests/unit tests/architecture -q
 

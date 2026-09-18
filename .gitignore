@@ -17,3 +17,6 @@ node_modules/
 
 # Evaluation embedding cache: content-addressed vectors, regenerable, never committed.
 eval/.cache/
+
+# Generated sample CVs for manual testing (make samples)
+samples/
