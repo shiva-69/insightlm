@@ -61,11 +61,11 @@ test-fast: ## Unit and architecture tests only (no Docker needed)
 check: lint types arch ## Everything CI checks, locally
 
 lint: ## ruff
-	uv run ruff check src tests migrations spikes
+	uv run ruff check src tests migrations spikes scripts
 	uv run ruff format --check src tests migrations spikes
 
 format: ## Apply formatting
-	uv run ruff check src tests migrations spikes --fix
+	uv run ruff check src tests migrations spikes scripts --fix
 	uv run ruff format src tests migrations spikes
 
 types: ## mypy --strict
