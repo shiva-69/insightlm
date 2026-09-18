@@ -13,6 +13,8 @@ planner use the composite index instead of relying on the policy rewrite.
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -124,12 +126,95 @@ class PgVectorSearch:
         ]
 
 
-class PostgresLexicalSearch:
-    """BM25-style retrieval over the trigger-maintained tsvector.
+_STOPWORDS = frozenset(
+    [
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "did",
+        "do",
+        "does",
+        "for",
+        "from",
+        "had",
+        "has",
+        "have",
+        "how",
+        "in",
+        "is",
+        "it",
+        "its",
+        "of",
+        "on",
+        "or",
+        "that",
+        "the",
+        "their",
+        "them",
+        "there",
+        "these",
+        "this",
+        "to",
+        "was",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "whom",
+        "why",
+        "will",
+        "with",
+        "would",
+        "each",
+        "any",
+        "all",
+        "both",
+        "candidate",
+        "candidates",
+        "person",
+    ]
+)
+_TERM = re.compile(r"[a-z0-9]+")
 
-    `websearch_to_tsquery` is used rather than `plainto_tsquery` because it tolerates
-    what people actually type -- quoted phrases, `or`, a leading minus -- instead of
-    erroring on it.
+
+def or_query(text: str) -> str | None:
+    """Turn a question into an OR of its distinctive terms.
+
+    The first version used `websearch_to_tsquery`, which applies AND semantics: every
+    stemmed term must be present. That suits a search box, where people type keywords,
+    and fails completely on the questions this system actually receives -- "For Kavya
+    Pillai, what peak throughput was sustained and by how much was p99 latency cut?"
+    has a dozen terms and no single passage contains all of them. Measured on a
+    40-document corpus it retrieved nothing for any question, and hybrid fusion
+    therefore added exactly zero over dense retrieval alone.
+
+    OR semantics turns the arm from a boolean filter into a ranking: `ts_rank_cd`
+    scores a passage by how many terms it matches and how close together they sit, so
+    the passage matching the rare, specific terms rises to the top.
+
+    Terms are reduced to lowercase alphanumerics before being joined with `|`, so no
+    user input can reach tsquery syntax -- the string is safe to bind to
+    `to_tsquery` even though it is assembled here.
+    """
+    terms: list[str] = []
+    for term in _TERM.findall(text.lower()):
+        if len(term) < 2 or term in _STOPWORDS or term in terms:
+            continue
+        terms.append(term)
+    return " | ".join(terms) if terms else None
+
+
+class PostgresLexicalSearch:
+    """BM25-style ranking over the trigger-maintained tsvector.
+
+    OR semantics, ranked -- see `or_query` for why AND semantics failed.
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -143,21 +228,25 @@ class PostgresLexicalSearch:
         limit: int,
         document_ids: tuple[DocumentId, ...] | None = None,
     ) -> list[SearchHit]:
+        expression = or_query(query)
+        if expression is None:
+            return []
+
         rows = await self._session.execute(
             text(
                 f"""
                 SELECT c.id,
-                       ts_rank_cd(c.search_vector, websearch_to_tsquery('english', :q)) AS score
+                       ts_rank_cd(c.search_vector, to_tsquery('english', :q)) AS score
                 {_JOIN}
                 WHERE c.tenant_id = CAST(:tenant AS uuid)
-                  AND c.search_vector @@ websearch_to_tsquery('english', :q)
+                  AND c.search_vector @@ to_tsquery('english', :q)
                   AND (:doc_filter = FALSE OR dv.document_id = ANY(CAST(:docs AS uuid[])))
                 ORDER BY score DESC
                 LIMIT :limit
                 """
             ),
             {
-                "q": query,
+                "q": expression,
                 "tenant": str(tenant_id),
                 "doc_filter": document_ids is not None,
                 "docs": [str(d) for d in (document_ids or ())],

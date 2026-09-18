@@ -116,7 +116,9 @@ jobs:
       # rather than a guess. See the note in that file for why this gates nDCG and
       # not recall.
       - name: Golden set regression gate
-        run: uv run insightlm-eval --config B-dense --min-ndcg 0.67 --out eval-run.json
+        run: >-
+          uv run insightlm-eval --config D-hybrid --corpus generated --count 40
+          --min-ndcg 0.858 --no-cache --out eval-run.json
 
       - uses: actions/upload-artifact@v4
         if: always()

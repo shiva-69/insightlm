@@ -94,6 +94,11 @@ class Settings(BaseSettings):
     # Exposed as configuration so the ablation is a config sweep rather than a
     # rewrite, which is the whole reason the pipeline sits behind ports.
     chunk_enrich_with_title: bool = True
+
+    embedding_cache_path: str | None = None
+    """When set, embeddings are cached on disk by content. The evaluation harness sets
+    it; the API does not -- see retrieval/adapters/embedding_cache.py for why a
+    cross-tenant cache stays out of the request path."""
     rrf_k: int = 60
     """The rank-fusion constant. 60 is the value from the original RRF paper and is
     what nearly everyone uses; it damps the influence of top ranks enough that one

@@ -14,3 +14,6 @@ build/
 node_modules/
 .next/
 .DS_Store
+
+# Evaluation embedding cache: content-addressed vectors, regenerable, never committed.
+eval/.cache/

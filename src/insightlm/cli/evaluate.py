@@ -121,6 +121,7 @@ async def run_config(
     documents: list[SyntheticDocument],
     *,
     slug: str,
+    generate: bool = False,
 ) -> EvalRun:
     # Chunking is part of the configuration, so the corpus is re-ingested per arm.
     # Sharing one index across arms that chunk differently would compare them against
@@ -144,15 +145,43 @@ async def run_config(
         outcomes: list[ItemOutcome] = []
         for entry in resolved:
             item = entry.item
-            try:
-                output = await container.ask.ask(
-                    actor,
-                    AnswerRequest(
-                        question=item.question,
-                        top_k=config.top_k,
-                        strategy=RetrievalStrategy(config.strategy),
-                    ),
+            request = AnswerRequest(
+                question=item.question,
+                top_k=config.top_k,
+                strategy=RetrievalStrategy(config.strategy),
+            )
+
+            if not generate:
+                try:
+                    bundle = await container.ask.retrieve(actor, request)
+                except Exception as cause:
+                    outcomes.append(
+                        ItemOutcome(
+                            item_id=item.id,
+                            kind=item.kind,
+                            answerable=item.answerable,
+                            abstained=False,
+                            error=f"{type(cause).__name__}: {cause}",
+                        )
+                    )
+                    continue
+                retrieved = [str(span.chunk_id) for span in bundle.spans]
+                outcomes.append(
+                    ItemOutcome(
+                        item_id=item.id,
+                        kind=item.kind,
+                        answerable=item.answerable,
+                        abstained=False,
+                        retrieval=score_retrieval(
+                            retrieved, set(entry.relevant_chunk_ids), k=config.top_k
+                        ),
+                        unmatched_quotes=entry.unmatched_quotes,
+                    )
                 )
+                continue
+
+            try:
+                output = await container.ask.ask(actor, request)
             except Exception as cause:
                 outcomes.append(
                     ItemOutcome(
@@ -191,11 +220,15 @@ async def run_config(
                 )
             )
 
+        cache = container.embedder
         return EvalRun(
             config=config,
             dataset_name=dataset.name,
             started_at=started,
             outcomes=tuple(outcomes),
+            generated=generate,
+            provider_calls=getattr(cache, "misses", 0),
+            cache_hits=getattr(cache, "hits", 0),
         )
     finally:
         await container.dispose()
@@ -245,14 +278,19 @@ def render_report(runs: list[EvalRun]) -> str:
         summaries = [run.summary() for run in group]
         latencies = [s.median_latency_ms for s in summaries if s.median_latency_ms]
         latency = f"{statistics.fmean(latencies):.0f}" if latencies else "-"
+        generated = group[0].generated
+        # Unmeasured is not zero. A retrieval-only run never asked the generator, so
+        # its refusal rate is not 0.00 -- it does not exist, and printing a number
+        # would invite someone to report it.
+        gen = (lambda text: text) if generated else (lambda _text: "n/a")
         lines.append(
             f"  {name:<22} {summaries[0].items:>3}  "
             f"{_spread([s.recall_at_k for s in summaries]):<{width}} "
             f"{_spread([s.ndcg_at_k for s in summaries]):<{width}} "
             f"{_spread([s.mrr for s in summaries]):<{width}} "
-            f"{_spread([s.citation_precision for s in summaries]):<{width}} "
-            f"{_spread([s.abstention.correct_abstention_rate for s in summaries])[:5]:<7} "
-            f"{_spread([s.abstention.over_refusal_rate for s in summaries])[:5]:<8} "
+            f"{gen(_spread([s.citation_precision for s in summaries])):<{width}} "
+            f"{gen(_spread([s.abstention.correct_abstention_rate for s in summaries])[:5]):<7} "
+            f"{gen(_spread([s.abstention.over_refusal_rate for s in summaries])[:5]):<8} "
             f"{latency:>7}"
         )
 
@@ -276,7 +314,9 @@ def render_report(runs: list[EvalRun]) -> str:
             lines.append(f"    errors: {sum(s.errors for s in summaries)}")
         lines.append(
             f"    tokens: {sum(s.total_input_tokens for s in summaries)} in / "
-            f"{sum(s.total_output_tokens for s in summaries)} out"
+            f"{sum(s.total_output_tokens for s in summaries)} out   "
+            f"texts embedded: {sum(r.provider_calls for r in group)} paid, "
+            f"{sum(r.cache_hits for r in group)} cached"
         )
         lines.append("    by kind:")
         for kind in run_kinds(group):
@@ -292,6 +332,16 @@ def render_report(runs: list[EvalRun]) -> str:
             )
         _ = head
 
+    paid = sum(run.provider_calls for run in runs)
+    cached = sum(run.cache_hits for run in runs)
+    generation_calls = sum(
+        sum(1 for o in run.outcomes if o.input_tokens) for run in runs if run.generated
+    )
+    lines.append("")
+    lines.append(
+        f"  cost: {paid} text(s) embedded at the provider, {cached} from cache, "
+        f"{generation_calls} generation call(s)"
+    )
     lines.append("")
     return "\n".join(lines)
 
@@ -336,6 +386,20 @@ async def _main(argv: list[str]) -> int:
     )
     parser.add_argument("--count", type=int, default=40, help="Documents in the generated corpus.")
     parser.add_argument(
+        "--generate",
+        action="store_true",
+        help=(
+            "Also call the generator, to measure abstention and citation behaviour. "
+            "Off by default: retrieval metrics are computed before generation runs, so "
+            "paying for generation to measure retrieval buys nothing."
+        ),
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable the on-disk embedding cache (eval/.cache/embeddings.sqlite).",
+    )
+    parser.add_argument(
         "--runs",
         type=int,
         default=1,
@@ -366,7 +430,21 @@ async def _main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     settings = get_settings()
+    if not args.no_cache:
+        settings = settings.model_copy(
+            update={"embedding_cache_path": str(Path("eval/.cache/embeddings.sqlite"))}
+        )
     configure_logging(level="WARNING", json_output=False)
+
+    if args.runs > 1 and not args.generate:
+        # Retrieval is deterministic: identical input, identical embedding, identical
+        # ranking. Repeating it measures nothing and, uncached, would pay again.
+        print(
+            "note: --runs has no effect without --generate -- retrieval is "
+            "deterministic, so only generation has variance worth measuring",
+            file=sys.stderr,
+        )
+        args.runs = 1
 
     if args.dataset:
         dataset = GoldenDataset.load(args.dataset)
@@ -380,7 +458,8 @@ async def _main(argv: list[str]) -> int:
 
     print(
         f"corpus: {len(documents)} documents   dataset: {dataset.name} "
-        f"({len(dataset.items)} items)   runs: {args.runs}",
+        f"({len(dataset.items)} items)   runs: {args.runs}   "
+        f"mode: {'retrieval + generation' if args.generate else 'retrieval only'}",
         file=sys.stderr,
     )
 
@@ -397,6 +476,7 @@ async def _main(argv: list[str]) -> int:
                     CONFIGS[name],
                     documents,
                     slug=f"eval-{datetime.now(UTC):%H%M%S}-{index}-{repeat}",
+                    generate=args.generate,
                 )
             )
 

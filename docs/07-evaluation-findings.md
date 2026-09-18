@@ -237,6 +237,112 @@ Caveats stated plainly:
   40 before recall is informative once more.
 * **No reranker arm yet**, and no query-transformation arm. Both remain in the plan.
 
+---
+
+# Phase 3, continued — fixing the lexical arm, and cutting the cost
+
+## The cost problem
+
+The first ablation made roughly 400 paid calls, about 120 of them generation. Most were
+waste: **retrieval metrics are computed from the evidence bundle, which exists before
+the generator runs**, so paying for generation to measure retrieval bought nothing. And
+every configuration re-embedded the same forty documents.
+
+Two changes, both structural:
+
+* **Retrieval-only is the default.** `insightlm-eval` no longer calls the generator
+  unless `--generate` is passed. Generation metrics print as `n/a`, never `0.00` — an
+  unmeasured refusal rate does not exist, and printing a number invites someone to
+  report it.
+* **A content-addressed embedding cache** (`eval/.cache/embeddings.sqlite`). Identical
+  text under the same model is embedded once, ever. Harness-only: a cross-tenant cache
+  in the request path would leak, through timing, whether text had been embedded
+  before.
+
+Result: the Gemini ablation below cost **358 texts embedded and 0 generation calls**.
+Re-running it costs nothing.
+
+A consequence worth stating: identical input produces identical embeddings, so
+**retrieval is deterministic and never needs `--runs`**. Two offline runs produced
+byte-identical metrics. Only generation has variance worth paying to measure, so the
+CLI now refuses `--runs` without `--generate` rather than silently paying for
+repetitions that cannot differ.
+
+## Finding 8 — the lexical arm was broken, not weak
+
+Finding 5 reported that hybrid fusion added nothing because the lexical arm returned
+nothing. The cause was `websearch_to_tsquery`, which applies AND semantics: every
+stemmed term must appear in one passage. No passage contains a dozen terms from a
+conversational question.
+
+Replaced with an OR of the question's distinctive terms, ranked by `ts_rank_cd` — a
+ranking rather than a boolean filter. Terms are reduced to lowercase alphanumerics
+before being joined, because binding stops SQL injection but not *tsquery* injection:
+`&`, `|`, `!`, `<->` and `:*` are operators inside the query language, and a malformed
+expression is a 500. A property test over 300 random strings pins that.
+
+| Lexical arm | R@8 | nDCG | MRR |
+| --- | --- | --- | --- |
+| AND semantics | 0.000 | 0.000 | 0.000 |
+| **OR, ranked** | **0.955** | **0.965** | **1.000** |
+
+Finding 5's null result was therefore a bug in one arm masquerading as a finding about
+fusion. Worth recording precisely because it looked like a legitimate negative result.
+
+## Finding 9 — a weak arm dilutes RRF
+
+Offline, with the hashing embedder:
+
+| | R@8 | nDCG |
+| --- | --- | --- |
+| C — dense + context | 0.826 | 0.560 |
+| **L — lexical only** | **0.955** | **0.965** |
+| D — hybrid RRF | 0.939 | 0.885 |
+
+Lexical alone beats the fusion. RRF gives each arm an equal vote, so a weak arm pulls
+a strong one down. That is a property of unweighted RRF, not a bug — and it is the
+case for weighted fusion if arms of very different quality are ever combined.
+
+## Finding 10 — with a real embedder, the benchmark has saturated
+
+Gemini embeddings, retrieval-only:
+
+| | R@8 | nDCG | MRR |
+| --- | --- | --- | --- |
+| B — dense | 0.773 | 0.469 | 0.373 |
+| C — dense + context | 0.955 | 0.965 | 1.000 |
+| D — hybrid RRF | 0.955 | 0.965 | 1.000 |
+| L — lexical only | 0.955 | 0.965 | 1.000 |
+
+Three genuinely different methods — semantic, lexical, and their fusion — produce
+**identical** numbers, down to the per-kind breakdown. When distinct methods converge
+exactly, the benchmark has stopped discriminating between them. The ablation cannot
+say whether fusion helps, because both arms are individually already at the ceiling
+this dataset allows. Fusion's value is robustness — rescuing items where one arm fails
+and the other succeeds — and here they fail on the *same* items.
+
+It does settle Finding 9: with a strong dense arm, fusion is neutral rather than
+harmful. The offline result was an artefact of the weak embedder.
+
+### The ceiling is partly a synthetic-data artefact
+
+Every arm misses the same two multi-hop items, retrieving one of their two facts but
+not the other. Both facts sit in separate chunks, and the missed one is always the
+latency chunk. The generator renders that fact from one template —
+*"by removing a synchronous call from the write path"* — so it appears **verbatim in
+all forty CVs**. Each candidate's latency chunk competes against thirty-nine
+near-duplicates that differ only in a number.
+
+Real CVs do not share boilerplate verbatim. This is a flaw in the evaluation, not in
+the pipeline, and it would be easy to misreport as a retrieval limitation. The fix is
+in the generator: vary the phrasing per candidate.
+
+## Recommended configuration
+
+**C — dense + contextual enrichment**, unchanged from before. D matches it at the cost
+of a second query, and L matches it only because this benchmark cannot tell them
+apart. Revisit once the benchmark can discriminate.
+
 ## What Phase 3 inherits
 
 The ablation table now has two arms and a control. Phase 3 adds hybrid + RRF, the

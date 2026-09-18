@@ -113,6 +113,14 @@ class EvalRun:
     dataset_name: str
     started_at: datetime
     outcomes: tuple[ItemOutcome, ...] = field(default=())
+    generated: bool = True
+    """False for a retrieval-only run. Abstention and citation metrics are then *not
+    measured* -- not zero -- and the report must say so, or a reader will take an
+    unmeasured 0.00 refusal rate as a finding."""
+    provider_calls: int = 0
+    """Embedding calls that reached the provider. Reported so the cost of a run is
+    visible next to its results rather than discovered on the invoice."""
+    cache_hits: int = 0
 
     def summary(self, *, kind: ItemKind | None = None) -> RunSummary:
         """Aggregate, optionally for one item kind.

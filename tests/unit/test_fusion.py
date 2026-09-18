@@ -9,9 +9,7 @@ from insightlm.retrieval.domain.fusion import reciprocal_rank_fusion
 
 def test_a_document_found_by_both_arms_outranks_one_found_by_either() -> None:
     """The property that justifies running two arms at all."""
-    fused = reciprocal_rank_fusion(
-        {"dense": ["a", "b", "c"], "lexical": ["c", "a", "d"]}
-    )
+    fused = reciprocal_rank_fusion({"dense": ["a", "b", "c"], "lexical": ["c", "a", "d"]})
     order = [hit.key for hit in fused]
     assert order[0] == "a"  # rank 1 and rank 2
     assert order.index("a") < order.index("b")

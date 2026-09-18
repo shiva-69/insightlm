@@ -118,6 +118,15 @@ def build_container(settings: Settings) -> Container:
 
     store = S3ObjectStore(settings)
     embedder = _build_embedder(settings)
+    if settings.embedding_cache_path:
+        from pathlib import Path
+
+        from insightlm.retrieval.adapters.embedding_cache import (
+            CachingEmbedder,
+            EmbeddingStore,
+        )
+
+        embedder = CachingEmbedder(embedder, EmbeddingStore(Path(settings.embedding_cache_path)))
     generator = _build_generator(settings)
 
     def documents_uow(

@@ -27,6 +27,7 @@ from insightlm.retrieval.application.answer import (
     AnswerQuestion,
     AnswerRequest,
 )
+from insightlm.retrieval.domain.evidence import EvidenceBundle, EvidenceQuery
 from insightlm.retrieval.ports.generation import GroundedGenerator
 from insightlm.retrieval.ports.indexing import Embedder
 from insightlm.shared.adapters.db.base import set_actor_context, set_tenant_context
@@ -50,6 +51,38 @@ class AskService:
         self._embedder = embedder
         self._generator = generator
         self._rrf_k = rrf_k
+
+    async def retrieve(self, actor: Actor, request: AnswerRequest) -> EvidenceBundle:
+        """Retrieval alone, with no generation call.
+
+        Retrieval metrics -- recall, nDCG, MRR -- are computed from the evidence bundle,
+        which exists before the generator runs. Measuring them through `ask` pays for a
+        generation call per item whose output is then thrown away; on a four-arm
+        ablation that was roughly 120 paid calls buying nothing.
+        """
+        async with self._session_factory() as session:
+            await session.begin()
+            await set_tenant_context(session, actor.tenant_id)
+            await set_actor_context(session, actor.user_id)
+            evidence = self._evidence(session, actor)
+            return await evidence.find(
+                EvidenceQuery(
+                    text=request.question,
+                    top_k=request.top_k,
+                    document_ids=request.document_ids,
+                    strategy=request.strategy,
+                )
+            )
+
+    def _evidence(self, session: AsyncSession, actor: Actor) -> HybridEvidenceService:
+        return HybridEvidenceService(
+            embedder=self._embedder,
+            vector_search=PgVectorSearch(session, embedding_model=self._embedder.model_id),
+            lexical_search=PostgresLexicalSearch(session),
+            hydrate=ChunkHydrator(session),
+            tenant_id=actor.tenant_id,
+            rrf_k=self._rrf_k,
+        )
 
     async def ask(self, actor: Actor, request: AnswerRequest) -> AnswerOutput:
         async with self._session_factory() as session:

@@ -1,28 +1,30 @@
 {
   "note": [
-    "Recorded baselines for the CI regression gate. Measured, not guessed -- a gate",
-    "threshold nobody ran is a threshold that fires on noise or never fires at all.",
+    "Recorded baselines for the CI regression gate. Measured, not guessed.",
     "",
-    "The gate runs on the OFFLINE adapters (HashingEmbedder, ExtractiveGenerator).",
-    "That is deliberate: they are deterministic, so a drop is a real regression in",
-    "the pipeline rather than model variance, and CI needs no API keys. Numbers that",
-    "depend on a provider belong in a keyed nightly run, not in a PR gate.",
+    "The gate runs on the OFFLINE adapters, which are deterministic -- so a drop is a",
+    "real pipeline regression rather than model variance, and CI needs no API key.",
     "",
-    "Recall is deliberately NOT gated. On a five-document corpus with k=8, retrieval",
-    "returns nearly everything and recall sits at 1.000 for every configuration --",
-    "it cannot detect a regression it is already saturated against. nDCG can, because",
-    "it is sensitive to ordering. Recall becomes the headline metric again once the",
-    "corpus grows to the ~200 documents docs/05 plans for."
+    "The gate PINS its corpus (--corpus generated --count 40). It first inherited the",
+    "CLI default, and when that default changed from the 5-document seed corpus to the",
+    "40-document generated one, the recorded threshold silently stopped describing the",
+    "run it gated. A gate must name exactly what it measures.",
+    "",
+    "It gates D-hybrid rather than B-dense because D exercises both retrieval arms and",
+    "the fusion between them, so it covers the most code. Checked retroactively: this",
+    "gate would have FAILED on the AND-semantics lexical bug (D scored 0.560 then,",
+    "against a floor of 0.858), which is the evidence it is set somewhere useful."
   ],
-  "dataset": "seed-v1",
+  "dataset": "generated-40",
   "measured_on": "2026-09-18",
   "baselines": {
-    "B-dense": {
+    "D-hybrid": {
       "adapters": "offline",
-      "recall_at_k": 1.0,
-      "ndcg_at_k": 0.699,
-      "mrr": 0.608,
-      "gate_min_ndcg": 0.67,
+      "corpus": "generated --count 40",
+      "recall_at_k": 0.939,
+      "ndcg_at_k": 0.885,
+      "mrr": 0.902,
+      "gate_min_ndcg": 0.858,
       "gate_rationale": "3% below the recorded baseline, per docs/06 section 4."
     }
   },
@@ -52,6 +54,29 @@
         "is exact-term recall (PCI-DSS, CKA, a framework version) that dense",
         "retrieval fumbles, which is why Phase 3 fuses the two rather than choosing."
       ]
+    }
+  },
+  "offline_reference": {
+    "note": "All four arms, offline, generated-40. Retrieval-only; zero paid calls.",
+    "B-dense": {
+      "recall_at_k": 0.727,
+      "ndcg_at_k": 0.452,
+      "mrr": 0.363
+    },
+    "C-dense-enriched": {
+      "recall_at_k": 0.826,
+      "ndcg_at_k": 0.56,
+      "mrr": 0.483
+    },
+    "D-hybrid": {
+      "recall_at_k": 0.939,
+      "ndcg_at_k": 0.885,
+      "mrr": 0.902
+    },
+    "L-lexical": {
+      "recall_at_k": 0.955,
+      "ndcg_at_k": 0.965,
+      "mrr": 1.0
     }
   }
 }
