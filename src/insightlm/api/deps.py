@@ -11,6 +11,7 @@ from insightlm.bootstrap import Container
 from insightlm.shared.domain.errors import AuthenticationError
 from insightlm.shared.domain.policy import Actor
 from insightlm.shared.domain.roles import Role
+from insightlm.shared.observability.telemetry import bind_tenant
 
 _bearer = HTTPBearer(auto_error=False, description="Access token from POST /auth/login")
 
@@ -42,6 +43,8 @@ async def get_actor(
     except ValueError as exc:
         raise AuthenticationError("token carries an unknown role") from exc
 
+    # Labels model-call metrics with the workspace, so cost per tenant is visible.
+    bind_tenant(str(claims.tenant_id))
     return Actor(user_id=claims.user_id, tenant_id=claims.tenant_id, role=role)
 
 

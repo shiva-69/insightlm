@@ -35,6 +35,7 @@ from insightlm.identity.application.members import (
 )
 from insightlm.identity.application.register import RegisterOwner
 from insightlm.identity.ports.uow import IdentityUnitOfWork
+from insightlm.instrumented import ObservedEmbedder, ObservedGenerator, ObservedJudge
 from insightlm.recruiting.adapters.judges import (
     AnthropicCriterionJudge,
     GeminiCriterionJudge,
@@ -84,6 +85,7 @@ from insightlm.shared.adapters.limits import (
 from insightlm.shared.domain.errors import InvariantViolationError
 from insightlm.shared.domain.ids import TenantId, UserId
 from insightlm.shared.observability.logging import get_logger
+from insightlm.shared.observability.telemetry import instrument_engine
 from insightlm.shared.ports.clock import Clock
 from insightlm.shared.ports.limits import IdempotencyStore, ModelBudget, RateLimiter
 from insightlm.shared.ports.password import PasswordHasher
@@ -149,6 +151,8 @@ class Container:
 
 def build_container(settings: Settings) -> Container:
     engine = create_engine(settings)
+    if settings.otel_enabled:
+        instrument_engine(engine)
     session_factory = create_session_factory(engine)
 
     clock: Clock = SystemClock()
@@ -187,6 +191,11 @@ def build_container(settings: Settings) -> Container:
 
         embedder = CachingEmbedder(embedder, EmbeddingStore(Path(settings.embedding_cache_path)))
     generator = _build_generator(settings)
+    # Paid providers only: the offline adapters make no calls worth observing.
+    if not isinstance(_unwrap(embedder), HashingEmbedder):
+        embedder = ObservedEmbedder(embedder)
+    if not isinstance(generator, ExtractiveGenerator):
+        generator = ObservedGenerator(generator, _generation_model(settings))
 
     def documents_uow(
         *, tenant_id: TenantId | None = None, user_id: UserId | None = None
@@ -202,7 +211,7 @@ def build_container(settings: Settings) -> Container:
             session_factory, clock, tenant_id=tenant_id, user_id=user_id
         )
 
-    judge = _build_judge(settings)
+    judge: CriterionJudge = _build_judge(settings)
     # Shared by every short-lived counter. Connects lazily, so building a container
     # (as the tests do) opens no connection until a limit is actually checked.
     redis = Redis.from_url(str(settings.redis_url))
@@ -211,6 +220,8 @@ def build_container(settings: Settings) -> Container:
         if isinstance(judge, OfflineCriterionJudge)
         else MeteredBudget(RedisSpendMeter(redis), calls_per_day=settings.model_calls_per_day)
     )
+    if not isinstance(judge, OfflineCriterionJudge):
+        judge = ObservedJudge(judge, _generation_model(settings))
     ask = AskService(
         session_factory,
         embedder=embedder,
@@ -399,3 +410,14 @@ def _unwrap(embedder: Embedder) -> Embedder:
     """The provider behind any caching wrapper."""
     inner = getattr(embedder, "_inner", None)
     return _unwrap(inner) if inner is not None else embedder
+
+
+def _generation_model(settings: Settings) -> str:
+    """The model generation and judging use, for labelling their telemetry."""
+    if settings.generation_provider == "gemini" or (
+        settings.generation_provider == "auto"
+        and settings.anthropic_api_key is None
+        and settings.gemini_api_key is not None
+    ):
+        return settings.gemini_model
+    return settings.generation_model

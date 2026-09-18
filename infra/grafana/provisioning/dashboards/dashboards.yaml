@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: insightlm
+    folder: InsightLM
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

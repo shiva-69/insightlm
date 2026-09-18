@@ -114,12 +114,20 @@ services:
     ports: ["3000:3000"]
     depends_on: [api]
 
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./infra/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports: ["3200:3200"]
+
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:0.111.0
     command: ["--config=/etc/otel/config.yaml"]
     volumes: ["./infra/otel/config.yaml:/etc/otel/config.yaml:ro"]
     ports: ["4317:4317"]
-    depends_on: [prometheus]
+    depends_on: [prometheus, tempo]
 
   prometheus:
     image: prom/prometheus:latest
@@ -133,10 +141,14 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
       GF_SECURITY_ADMIN_PASSWORD: admin
     ports: ["3001:3000"]
-    volumes: ["grafana-data:/var/lib/grafana"]
-    depends_on: [prometheus]
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [prometheus, tempo]
 
 volumes:
+  tempo-data:
   postgres-data:
   redis-data:
   minio-data:

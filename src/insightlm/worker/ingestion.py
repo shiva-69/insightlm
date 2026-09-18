@@ -19,6 +19,7 @@ which is precisely the class of failure this project exists to make impossible.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from uuid import uuid4
 
@@ -40,6 +41,7 @@ from insightlm.retrieval.ports.indexing import Chunker, Embedder
 from insightlm.shared.domain.errors import DomainError, NotFoundError, ValidationError
 from insightlm.shared.domain.ids import DocumentVersionId, TenantId
 from insightlm.shared.observability.logging import get_logger
+from insightlm.shared.observability.telemetry import DEAD_LETTERS, INGESTION_STEP, tracer
 from insightlm.shared.ports.clock import Clock
 
 _logger = get_logger(__name__)
@@ -125,6 +127,7 @@ class IngestionPipeline:
         self, tenant_id: TenantId, version_id: DocumentVersionId, step: IngestionStep
     ) -> None:
         _logger.info("ingestion_step_started", step=step.value, version_id=str(version_id))
+        started = time.perf_counter()
 
         handlers = {
             IngestionStep.PARSE: self._step_parse,
@@ -133,7 +136,9 @@ class IngestionPipeline:
             IngestionStep.EMBED: self._step_embed,
             IngestionStep.INDEX: self._step_index,
         }
-        await handlers[step](tenant_id, version_id)
+        with tracer.start_as_current_span(f"ingestion.{step.value}"):
+            await handlers[step](tenant_id, version_id)
+        INGESTION_STEP.record((time.perf_counter() - started) * 1000, {"step": step.value})
 
         # Recorded only after the work committed, so a crash between the two costs a
         # redo (every step is idempotent) rather than a silent skip.
@@ -332,6 +337,7 @@ class IngestionPipeline:
             await uow.commit()
 
         if exhausted:
+            DEAD_LETTERS.add(1, {"step": step.value})
             _logger.error("ingestion_dead_lettered", version_id=str(version_id), step=step.value)
 
         return IngestionOutcome(

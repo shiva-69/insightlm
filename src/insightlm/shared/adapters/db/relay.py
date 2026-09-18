@@ -30,8 +30,9 @@ from insightlm.shared.observability.logging import get_logger
 _logger = get_logger(__name__)
 
 
-Publisher = Callable[[str, dict[str, Any], str], Awaitable[None]]
-"""(event_type, payload, tenant_id) -> enqueued. Injected so the relay stays testable
+Publisher = Callable[[str, dict[str, Any], str, dict[str, Any]], Awaitable[None]]
+"""(event_type, payload, tenant_id, attributes) -> enqueued. Attributes carry the
+originating trace context. Injected so the relay stays testable
 without a queue, and so what "publish" means can change without touching this file."""
 
 
@@ -71,7 +72,12 @@ class OutboxRelay:
 
                 for row in rows:
                     if self._publisher is not None:
-                        await self._publisher(row.event_type, dict(row.payload), str(row.tenant_id))
+                        await self._publisher(
+                            row.event_type,
+                            dict(row.payload),
+                            str(row.tenant_id),
+                            dict(row.attributes),
+                        )
                     _logger.info(
                         "outbox_event_published",
                         event_type=row.event_type,

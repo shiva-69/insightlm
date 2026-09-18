@@ -19,6 +19,12 @@ from insightlm.settings import get_settings
 from insightlm.shared.adapters.db.relay import OutboxRelay
 from insightlm.shared.domain.ids import DocumentVersionId, TenantId
 from insightlm.shared.observability.logging import configure_logging, get_logger
+from insightlm.shared.observability.telemetry import (
+    bind_tenant,
+    configure_telemetry,
+    continued_from,
+    tracer,
+)
 
 _logger = get_logger(__name__)
 
@@ -30,6 +36,12 @@ _EVENT_TASKS = {"document.ingest_requested": INGEST_TASK}
 async def startup(ctx: dict[str, Any]) -> None:
     settings = get_settings()
     configure_logging(level=settings.log_level, json_output=settings.log_json)
+    configure_telemetry(
+        enabled=settings.otel_enabled,
+        endpoint=settings.otel_endpoint,
+        service="insightlm-worker",
+        environment=settings.environment,
+    )
     ctx["container"] = build_container(settings)
     await ctx["container"].object_store.ensure_bucket()
     _logger.info("worker_started")
@@ -42,7 +54,10 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 
 
 async def ingest_document_version(
-    ctx: dict[str, Any], tenant_id: str, document_version_id: str
+    ctx: dict[str, Any],
+    tenant_id: str,
+    document_version_id: str,
+    trace: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Run the ingestion pipeline for one document version.
 
@@ -50,10 +65,15 @@ async def ingest_document_version(
     message re-runs at most the step that was in flight.
     """
     container: Container = ctx["container"]
-    outcome = await container.ingestion.run(
-        tenant_id=TenantId(UUID(tenant_id)),
-        version_id=DocumentVersionId(UUID(document_version_id)),
-    )
+    # Continue the upload request's trace: the event carried its context through the
+    # outbox, so these spans appear under the request that caused them.
+    with continued_from(trace), tracer.start_as_current_span("ingest_document_version") as span:
+        span.set_attribute("insightlm.document_version_id", document_version_id)
+        bind_tenant(tenant_id)
+        outcome = await container.ingestion.run(
+            tenant_id=TenantId(UUID(tenant_id)),
+            version_id=DocumentVersionId(UUID(document_version_id)),
+        )
     if outcome.retry_in is not None:
         # The pipeline decided this failure is worth another attempt; the queue only
         # schedules it. Without this, a failed step was recorded and never retried,
@@ -64,6 +84,7 @@ async def ingest_document_version(
             tenant_id,
             document_version_id,
             _defer_by=timedelta(seconds=outcome.retry_in),
+            trace=trace,  # the retry belongs to the same trace as the first attempt
         )
         _logger.warning(
             "ingestion_retry_scheduled", version_id=document_version_id, in_s=outcome.retry_in
@@ -86,11 +107,15 @@ async def drain_outbox(ctx: dict[str, Any]) -> int:
     container: Container = ctx["container"]
     redis: ArqRedis = ctx["redis"]
 
-    async def publish(event_type: str, payload: dict[str, Any], tenant_id: str) -> None:
+    async def publish(
+        event_type: str, payload: dict[str, Any], tenant_id: str, attributes: dict[str, Any]
+    ) -> None:
         task = _EVENT_TASKS.get(event_type)
         if task is None:
             return  # nothing consumes this event type yet
-        await redis.enqueue_job(task, tenant_id, payload["document_version_id"])
+        await redis.enqueue_job(
+            task, tenant_id, payload["document_version_id"], trace=attributes.get("trace")
+        )
 
     published = await OutboxRelay(container.session_factory, publisher=publish).drain()
     if published:

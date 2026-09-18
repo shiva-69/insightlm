@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from insightlm.shared.adapters.db.models import OutboxEventRow
+from insightlm.shared.observability.telemetry import current_trace_carrier
 from insightlm.shared.ports.outbox import OutboxEvent
 
 
@@ -25,7 +26,9 @@ class SqlAlchemyOutbox:
                 tenant_id=event.tenant_id,
                 event_type=event.event_type,
                 payload=dict(event.payload),
-                attributes=dict(event.attributes),
+                # The trace that wrote the event, so the consumer's spans join it
+                # rather than starting an unrelated trace after the request has ended.
+                attributes={**dict(event.attributes), "trace": current_trace_carrier()},
                 correlation_id=event.correlation_id,
                 occurred_at=event.occurred_at or datetime.now(UTC),
             )

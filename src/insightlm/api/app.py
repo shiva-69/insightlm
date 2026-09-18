@@ -30,6 +30,7 @@ from insightlm.api.schemas import ErrorResponse
 from insightlm.bootstrap import Container, build_container
 from insightlm.settings import Settings, get_settings
 from insightlm.shared.observability.logging import configure_logging, get_logger
+from insightlm.shared.observability.telemetry import configure_telemetry, instrument_app
 
 _logger = get_logger(__name__)
 
@@ -54,6 +55,12 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
     """
     resolved = settings or get_settings()
     configure_logging(level=resolved.log_level, json_output=resolved.log_json)
+    configure_telemetry(
+        enabled=resolved.otel_enabled,
+        endpoint=resolved.otel_endpoint,
+        service="insightlm-api",
+        environment=resolved.environment,
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -97,6 +104,8 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
     app.include_router(pipeline.router)
     app.include_router(governance.router)
     _document_error_envelope(app)
+    if resolved.otel_enabled:
+        instrument_app(app)
 
     # The bundled evidence viewer. A single page, served by the API, so the citation
     # contract can be demonstrated end to end without a Node toolchain. The production
