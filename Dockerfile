@@ -13,21 +13,33 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 
 
-FROM base AS deps
-# Dependencies resolve from the lockfile alone, so this layer is cached until the
+FROM base AS build
+# Dependencies resolve from the lockfile alone, so this layer stays cached until the
 # lockfile changes -- not on every source edit.
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
+# Then the project itself. Installing it -- rather than leaning on PYTHONPATH -- is
+# what makes `insightlm` importable the same way it is in development, and it is the
+# step whose absence made every container exit with ModuleNotFoundError.
+COPY src/ ./src/
+COPY migrations/ ./migrations/
+COPY alembic.ini ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+
 
 FROM base AS runtime
 RUN groupadd --system app && useradd --system --gid app --home /app app
-COPY --from=deps /app/.venv /app/.venv
+COPY --from=build --chown=app:app /app/.venv /app/.venv
 COPY --chown=app:app src/ ./src/
 COPY --chown=app:app migrations/ ./migrations/
 COPY --chown=app:app alembic.ini pyproject.toml ./
 USER app
+# Fail fast and loudly if the package did not make it into the image, rather than
+# discovering it from a stack trace at container start.
+RUN python -c "import insightlm; print('insightlm', insightlm.__version__)"
 
 
 FROM runtime AS api

@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
-const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8000";
+/* The API proxy lives in `app/api/[...path]/route.ts`, not in `rewrites()`.
+   Rewrites are evaluated at build time and baked into the route manifest, so an
+   env-var destination captures whatever was set during `docker build` — which for a
+   container image is nothing. See the note in that file. */
 
 const config: NextConfig = {
   reactStrictMode: true,
@@ -9,12 +12,6 @@ const config: NextConfig = {
   agentRules: false,
   // Traced standalone server for the container image.
   output: "standalone",
-  // Proxy the API through Next rather than calling it cross-origin. Same-origin
-  // requests mean no CORS configuration, no preflight latency, and the bearer token
-  // never has to be attached to a third-party origin.
-  async rewrites() {
-    return [{ source: "/api/:path*", destination: `${API_ORIGIN}/:path*` }];
-  },
 };
 
 export default config;
