@@ -88,6 +88,11 @@ class DocumentTextRow(Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     page_count: Mapped[int] = mapped_column(nullable=False, default=1)
     warnings: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
+    # Concealed and instruction-like content found at parse time. Kept with the text
+    # it was found in, so it follows the same version and the same erasure.
+    findings: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
 
     version: Mapped[DocumentVersionRow] = relationship(lazy="raise")
 

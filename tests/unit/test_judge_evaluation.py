@@ -65,7 +65,7 @@ class _FakeModels:
         self._parsed = parsed
 
     async def generate_content(self, **_: Any) -> Any:
-        return SimpleNamespace(parsed=self._parsed, usage_metadata=None)
+        return SimpleNamespace(parsed=self._parsed, usage_metadata=None, candidates=[])
 
 
 def _gemini(parsed: Any) -> GeminiCriterionJudge:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +23,8 @@ from insightlm.documents.domain.entities import (
     MediaType,
     StepStatus,
 )
+from insightlm.documents.domain.findings import ContentFinding, FindingKind
+from insightlm.documents.domain.spans import PageRect
 from insightlm.shared.domain.errors import NotFoundError
 from insightlm.shared.domain.ids import (
     DocumentId,
@@ -70,6 +74,33 @@ def _to_job(row: IngestionJobRow) -> IngestionJob:
         status=StepStatus(row.status),
         attempts=row.attempts,
         last_error=row.last_error,
+    )
+
+
+def _finding_to_json(f: ContentFinding) -> dict[str, Any]:
+    return {
+        "kind": f.kind.value,
+        "text": f.text,
+        "page": f.page,
+        "rect": [f.rect.page, f.rect.x0, f.rect.y0, f.rect.x1, f.rect.y1] if f.rect else None,
+        "excluded": f.excluded,
+        "instruction_like": f.instruction_like,
+    }
+
+
+def _finding_from_json(raw: dict[str, Any]) -> ContentFinding:
+    rect = raw.get("rect")
+    return ContentFinding(
+        kind=FindingKind(raw["kind"]),
+        text=raw["text"],
+        page=raw.get("page"),
+        rect=(
+            PageRect(page=int(rect[0]), x0=rect[1], y0=rect[2], x1=rect[3], y1=rect[4])
+            if rect
+            else None
+        ),
+        excluded=bool(raw.get("excluded", False)),
+        instruction_like=bool(raw.get("instruction_like", False)),
     )
 
 
@@ -179,6 +210,7 @@ class SqlAlchemyDocumentVersionRepository:
                     body=extracted.text,
                     page_count=extracted.page_count,
                     warnings=list(extracted.warnings),
+                    findings=[_finding_to_json(f) for f in extracted.findings],
                 )
             )
         else:
@@ -188,6 +220,7 @@ class SqlAlchemyDocumentVersionRepository:
             existing.body = extracted.text
             existing.page_count = extracted.page_count
             existing.warnings = list(extracted.warnings)
+            existing.findings = [_finding_to_json(f) for f in extracted.findings]
 
     async def load_text(self, version_id: DocumentVersionId) -> ExtractedText | None:
         row = await self._session.get(DocumentTextRow, version_id)
@@ -198,6 +231,7 @@ class SqlAlchemyDocumentVersionRepository:
             text=row.body,
             page_count=row.page_count,
             warnings=tuple(row.warnings),
+            findings=tuple(_finding_from_json(f) for f in row.findings),
         )
 
 

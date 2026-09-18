@@ -231,7 +231,7 @@ def build_container(settings: Settings) -> Container:
         ingestion=IngestionPipeline(
             session_factory,
             store=store,
-            parser=PyMuPdfParser(),
+            parser=PyMuPdfParser(exclude_concealed=settings.exclude_concealed_text),
             chunker=StructureAwareChunker(enrich_with_title=settings.chunk_enrich_with_title),
             embedder=embedder,
             clock=clock,

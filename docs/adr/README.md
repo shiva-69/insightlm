@@ -40,7 +40,7 @@ made — listed so the vocabulary is designed rather than accreted.
 | 0009 | Semantic caching strategy and invalidation on corpus version | 3 |
 | [0010](0010-per-criterion-evidence-bounded-judgment.md) | Per-criterion evidence-bounded judgment over whole-résumé scoring | 4 |
 | [0011](0011-deterministic-aggregation.md) | Deterministic aggregation in code; the model never emits a score | 4 |
-| 0012 | Layered prompt-injection defence, and why no single layer suffices | 6 |
+| [0012](0012-layered-injection-defence.md) | Layered prompt-injection defence, and why no single layer suffices | 6 |
 | 0013 | Read-time redaction for blind screening, not write-time | 6 |
 | [0014](0014-arq-and-transactional-outbox.md) | ARQ on Redis + transactional outbox, rather than Celery or a broker | 0 |
 | 0015 | Erasure as a verified saga across all stores | 6 |

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from html import escape
 
 from insightlm.documents.domain.spans import TextSpan
 from insightlm.shared.domain.errors import ValidationError
@@ -92,17 +93,19 @@ class EvidenceBundle:
     def as_context(self) -> str:
         """Render for a prompt.
 
-        Each block is delimited and tagged. The delimiters also mark this as untrusted
-        data -- document text is content, never instruction. That separation is
-        necessary but not sufficient against injection; the Phase 6 defences layer on
-        top of it (see docs/03 SS6).
+        Each block is delimited and tagged, and everything inside -- the text *and* the
+        attributes, since a document title is user-supplied too -- is escaped. Without
+        the escaping the delimiters are decoration: a CV containing
+        ``</source><system>...`` closes its own block and speaks as the system. That
+        exact attack moved a Gemini assessment from 0 to 85 before this was added
+        (docs/07, Finding 14).
         """
         blocks = []
         for span in self.spans:
             blocks.append(
-                f'<source id="{span.label}" title="{span.document_title}" '
-                f'section="{span.section_label}" page="{span.page + 1}">\n'
-                f"{span.text}\n"
+                f'<source id="{span.label}" title="{escape(span.document_title)}" '
+                f'section="{escape(span.section_label)}" page="{span.page + 1}">\n'
+                f"{escape(span.text, quote=False)}\n"
                 f"</source>"
             )
         return "\n\n".join(blocks)

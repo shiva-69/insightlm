@@ -8,6 +8,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Self
 
+from insightlm.documents.domain.findings import ContentFinding
 from insightlm.documents.domain.spans import PageRect
 from insightlm.shared.domain.errors import ConflictError, ValidationError
 from insightlm.shared.domain.ids import (
@@ -222,6 +223,8 @@ class ParsedDocument:
     ocr_used: bool = False
     ocr_confidence: float | None = None
     warnings: tuple[str, ...] = ()
+    findings: tuple[ContentFinding, ...] = ()
+    """Concealed or instruction-like content found while parsing. See `findings`."""
 
     def __post_init__(self) -> None:
         if len(self.char_rects) != len(self.text):
@@ -267,6 +270,7 @@ class ExtractedText:
     text: str
     page_count: int
     warnings: tuple[str, ...] = ()
+    findings: tuple[ContentFinding, ...] = ()
 
     def excerpt(self, char_start: int, char_end: int, *, padding: int = 0) -> str:
         start = max(0, char_start - padding)

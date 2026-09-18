@@ -94,6 +94,9 @@ class Settings(BaseSettings):
     # Exposed as configuration so the ablation is a config sweep rather than a
     # rewrite, which is the whole reason the pipeline sits behind ports.
     chunk_enrich_with_title: bool = True
+    # Keep text a reader can't see (white-on-white, 1pt, transparent) out of the index.
+    # Off only to measure or demonstrate the undefended baseline.
+    exclude_concealed_text: bool = True
 
     embedding_cache_path: str | None = None
     """When set, embeddings are cached on disk by content. The evaluation harness sets

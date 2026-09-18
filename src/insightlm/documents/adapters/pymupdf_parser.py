@@ -22,6 +22,14 @@ from typing import Any
 import pymupdf
 
 from insightlm.documents.domain.entities import MediaType, ParsedDocument
+from insightlm.documents.domain.findings import (
+    RGB,
+    WHITE,
+    ContentFinding,
+    FindingKind,
+    concealment,
+    looks_like_instruction,
+)
 from insightlm.documents.domain.spans import PageRect
 from insightlm.shared.domain.errors import ValidationError
 from insightlm.shared.observability.logging import get_logger
@@ -39,7 +47,16 @@ heading. Ratio rather than an absolute size, because point sizes vary by templat
 
 
 class PyMuPdfParser:
-    """Parses PDF natively; DOCX and text without geometry."""
+    """Parses PDF natively; DOCX and text without geometry.
+
+    ``exclude_concealed`` is the ingestion-time injection defence: text a reader can't
+    see is kept out of the parsed text and reported as a finding instead. It is a
+    switch only so the undefended baseline can be measured and demonstrated; nothing
+    in production turns it off.
+    """
+
+    def __init__(self, *, exclude_concealed: bool = True) -> None:
+        self._exclude_concealed = exclude_concealed
 
     def supports(self, media_type: MediaType) -> bool:
         return media_type in {
@@ -79,15 +96,20 @@ class PyMuPdfParser:
             pieces: list[str] = []
             rects: list[PageRect | None] = []
             sections: list[tuple[int, str]] = []
+            findings: list[ContentFinding] = self._metadata_findings(doc)
             cursor = 0
 
             for page_number in range(doc.page_count):
                 page = doc.load_page(page_number)
+                fills = self._filled_regions(page)
+                findings.extend(self._off_page_findings(page, page_number))
                 for block in page.get_text("rawdict")["blocks"]:
                     if block.get("type") != 0:  # 0 = text; 1 = image
                         continue
                     for line in block["lines"]:
-                        line_text, line_rects, max_size = self._read_line(line, page_number)
+                        line_text, line_rects, max_size = self._read_line(
+                            line, page, page_number, fills, findings
+                        )
                         if not line_text.strip():
                             continue
 
@@ -126,9 +148,80 @@ class PyMuPdfParser:
                 page_count=page_count,
                 section_offsets=tuple(sections),
                 warnings=tuple(warnings),
+                findings=tuple(findings),
             )
         finally:
             doc.close()
+
+    # ------------------------------------------------------- concealment
+    @staticmethod
+    def _rgb(value: int) -> RGB:
+        return ((value >> 16 & 255) / 255, (value >> 8 & 255) / 255, (value & 255) / 255)
+
+    @staticmethod
+    def _filled_regions(page: pymupdf.Page) -> list[tuple[pymupdf.Rect, RGB]]:
+        """Filled shapes, in paint order: what text actually sits on.
+
+        Needed so white text on a dark banner reads as the design choice it is, and
+        white text on a white box as the concealment it is. Without this, contrast is
+        measured against an assumed white page and both answers come out wrong.
+        """
+        regions: list[tuple[pymupdf.Rect, RGB]] = []
+        for drawing in page.get_drawings():
+            fill = drawing.get("fill")
+            if fill is not None and drawing.get("fill_opacity", 1.0) > 0.5:
+                regions.append((pymupdf.Rect(drawing["rect"]), (fill[0], fill[1], fill[2])))
+        return regions
+
+    @staticmethod
+    def _background(fills: list[tuple[pymupdf.Rect, RGB]], bbox: tuple[float, ...]) -> RGB:
+        centre = pymupdf.Point((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2)
+        background = WHITE
+        for rect, colour in fills:  # later shapes paint over earlier ones
+            if centre in rect:
+                background = colour
+        return background
+
+    def _off_page_findings(self, page: pymupdf.Page, page_number: int) -> list[ContentFinding]:
+        """Text placed outside the page. Extraction already clips it; this reports it."""
+        unclipped = pymupdf.TEXTFLAGS_DICT & ~pymupdf.TEXT_MEDIABOX_CLIP
+        width, height = page.rect.width, page.rect.height
+        found: list[ContentFinding] = []
+        # The flag alone isn't enough: extraction still clips to the page unless it is
+        # given an explicit infinite clip. Found by the red-team corpus.
+        blocks = page.get_text("dict", flags=unclipped, clip=pymupdf.INFINITE_RECT())["blocks"]
+        for block in blocks:
+            for line in block.get("lines", []):
+                for span in line["spans"]:
+                    x0, y0, x1, y1 = span["bbox"]
+                    if x1 <= 0 or y1 <= 0 or x0 >= width or y0 >= height:
+                        text = span["text"].strip()
+                        if text:
+                            found.append(
+                                ContentFinding(
+                                    kind=FindingKind.OFF_PAGE,
+                                    text=text,
+                                    page=page_number,
+                                    excluded=True,
+                                    instruction_like=looks_like_instruction(text),
+                                )
+                            )
+        return found
+
+    @staticmethod
+    def _metadata_findings(doc: pymupdf.Document) -> list[ContentFinding]:
+        found: list[ContentFinding] = []
+        for field, value in (doc.metadata or {}).items():
+            if isinstance(value, str) and looks_like_instruction(value):
+                found.append(
+                    ContentFinding(
+                        kind=FindingKind.METADATA,
+                        text=f"{field}: {value.strip()}",
+                        excluded=True,
+                        instruction_like=True,
+                    )
+                )
+        return found
 
     def _collect_font_sizes(self, doc: pymupdf.Document) -> list[float]:
         sizes: list[float] = []
@@ -144,15 +237,50 @@ class PyMuPdfParser:
         return sizes
 
     def _read_line(
-        self, line: dict[str, Any], page_number: int
+        self,
+        line: dict[str, Any],
+        page: pymupdf.Page,
+        page_number: int,
+        fills: list[tuple[pymupdf.Rect, RGB]],
+        findings: list[ContentFinding],
     ) -> tuple[str, list[PageRect | None], float]:
         chars: list[str] = []
         rects: list[PageRect | None] = []
         max_size = 0.0
 
         for span in line["spans"]:
+            span_chars = span.get("chars", [])
+            if not span_chars:
+                continue
+            x0, y0, x1, y1 = span["bbox"]
+            span_rect = PageRect(page=page_number, x0=x0, y0=y0, x1=x1, y1=y1)
+            hidden = concealment(
+                alpha=span.get("alpha", 255) / 255,
+                color=self._rgb(int(span.get("color", 0))),
+                background=self._background(fills, span["bbox"]),
+                size=float(span.get("size", 10.0)),
+                rect=span_rect,
+                page_width=page.rect.width,
+                page_height=page.rect.height,
+            )
+            if hidden is not None:
+                text = "".join(c["c"] for c in span_chars).strip()
+                if text:
+                    findings.append(
+                        ContentFinding(
+                            kind=hidden,
+                            text=text,
+                            page=page_number,
+                            rect=span_rect,
+                            excluded=self._exclude_concealed,
+                            instruction_like=looks_like_instruction(text),
+                        )
+                    )
+                if self._exclude_concealed:
+                    continue
+
             max_size = max(max_size, float(span.get("size", 0.0)))
-            for char in span.get("chars", []):
+            for char in span_chars:
                 chars.append(char["c"])
                 x0, y0, x1, y1 = char["bbox"]
                 rects.append(PageRect(page=page_number, x0=x0, y0=y0, x1=x1, y1=y1))

@@ -32,6 +32,7 @@ from insightlm.documents.domain.entities import (
     IngestionStep,
     MediaType,
 )
+from insightlm.documents.domain.findings import instruction_findings
 from insightlm.documents.ports.parsing import DocumentParser
 from insightlm.documents.ports.storage import ObjectStore
 from insightlm.retrieval.adapters.index import PostgresChunkIndex
@@ -158,6 +159,9 @@ class IngestionPipeline:
         # Only the text is persisted. Per-character geometry would be tens of MB for a
         # long PDF; the merged rectangles that a highlight actually needs are written
         # onto each chunk instead. See `ExtractedText`.
+        # Visible text addressed to a model is kept -- it's what the document says, and
+        # a reviewer can read it -- but recorded, so the reviewer is told to.
+        instructions = instruction_findings(parsed.text, parsed.char_rects)
         async with self._uow(tenant_id) as uow:
             await uow.versions.save_text(
                 ExtractedText(
@@ -165,6 +169,7 @@ class IngestionPipeline:
                     text=parsed.text,
                     page_count=parsed.page_count,
                     warnings=parsed.warnings,
+                    findings=parsed.findings + instructions,
                 )
             )
             await uow.commit()

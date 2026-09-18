@@ -153,6 +153,9 @@ def _absent_without_evidence(model: str, prompt: str) -> JudgeResult:
     )
 
 
+_THINKING_BUDGET = 1_024
+
+
 class GeminiCriterionJudge:
     def __init__(self, api_key: str, *, model: str = "gemini-2.5-pro") -> None:
         from google import genai
@@ -180,7 +183,12 @@ class GeminiCriterionJudge:
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=_GEMINI_SCHEMA,
-                    max_output_tokens=2_000,
+                    # gemini-2.5-pro thinks before it answers, and thinking counts against
+                    # max_output_tokens. At a 2k ceiling a longer think occasionally left
+                    # no room for the verdict at all. Thinking is capped, and the ceiling
+                    # sits well above cap + answer.
+                    thinking_config=types.ThinkingConfig(thinking_budget=_THINKING_BUDGET),
+                    max_output_tokens=_THINKING_BUDGET + 2_000,
                     automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
                 ),
             )
@@ -188,9 +196,14 @@ class GeminiCriterionJudge:
             raise classify_gemini_error(error) from error
 
         if response.parsed is None:
+            candidates = response.candidates or []
             raise UpstreamError(
                 "the judge returned no parsable verdict",
-                detail={"model": self._model, "criterion": criterion.label},
+                detail={
+                    "model": self._model,
+                    "criterion": criterion.label,
+                    "finish_reason": str(candidates[0].finish_reason) if candidates else None,
+                },
             )
         try:
             parsed = _Judgment.model_validate(response.parsed)
