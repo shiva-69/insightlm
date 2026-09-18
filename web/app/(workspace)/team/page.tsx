@@ -194,7 +194,7 @@ function IssuedInvitation({
   const [copied, setCopied] = useState(false);
 
   async function copy() {
-    await navigator.clipboard.writeText(invitation.token);
+    await navigator.clipboard.writeText(joinLink(invitation.token));
     setCopied(true);
     notify("Invitation link copied");
     setTimeout(() => setCopied(false), 2000);
@@ -223,7 +223,7 @@ function IssuedInvitation({
       </div>
       <div className="mt-3 flex items-center gap-2">
         <code className="data flex-1 truncate rounded-[var(--radius-xs)] border border-[var(--rule)] bg-[var(--surface-sunk)] px-2.5 py-2 text-[var(--ink-2)]">
-          {invitation.token}
+          {joinLink(invitation.token)}
         </code>
         <Button size="sm" onClick={copy}>
           {copied ? "Copied" : "Copy"}
@@ -231,4 +231,8 @@ function IssuedInvitation({
       </div>
     </Panel>
   );
+}
+
+function joinLink(token: string): string {
+  return `${window.location.origin}/join?token=${encodeURIComponent(token)}`;
 }
