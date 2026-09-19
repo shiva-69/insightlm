@@ -12,10 +12,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 from insightlm.documents.adapters.pymupdf_parser import PyMuPdfParser
 from insightlm.documents.domain.entities import MediaType, ParsedDocument
@@ -197,6 +200,7 @@ def _rate(values: list[bool]) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="insightlm-eval-injection", description=__doc__)
     parser.add_argument("--verbose", action="store_true", help="List every document.")
+    parser.add_argument("--out", type=Path, help="Write detection and assessment results as JSON.")
     parser.add_argument(
         "--assess", action="store_true", help="Also measure the effect on assessment scores."
     )
@@ -243,8 +247,25 @@ def main(argv: list[str] | None = None) -> int:
         for outcome in missed:
             print(f"  {outcome.doc.id}")
 
+    report: dict[str, Any] = {
+        "detection": {
+            technique: {"caught": sum(r), "total": len(r)} for technique, r in by_technique.items()
+        },
+        "reached_index": {
+            "undefended": sum(reached),
+            "defended": sum(o.payload_in_text for o in concealed),
+            "total": len(concealed),
+        },
+        "controls": {
+            "total": len(controls),
+            "flagged": len(false_flags),
+            "text_excluded": sum(o.wrongly_excluded for o in controls),
+        },
+        "assessment": {},
+    }
     if args.assess:
-        _print_assessment("offline (overlap)", asyncio.run(_assess(OfflineCriterionJudge())))
+        report["assessment"]["offline"] = asyncio.run(_assess(OfflineCriterionJudge()))
+        _print_assessment("offline (overlap)", report["assessment"]["offline"])
         if args.judge == "gemini":
             settings = get_settings()
             if settings.gemini_api_key is None:
@@ -259,10 +280,16 @@ def main(argv: list[str] | None = None) -> int:
                 prompt=load_prompt_from(PROMPT_DIR, PROMPT_NAME).version_id,
             )
             try:
-                _print_assessment(settings.gemini_model, asyncio.run(_assess(judge)))
+                report["assessment"][settings.gemini_model] = asyncio.run(_assess(judge))
+                _print_assessment(
+                    settings.gemini_model, report["assessment"][settings.gemini_model]
+                )
             finally:
                 store.save()
                 print(f"\npaid judge calls this run: {judge.calls} (rest from cache)")
+
+    if args.out:
+        args.out.write_text(json.dumps(report, indent=2))
 
     if args.verbose:
         print()

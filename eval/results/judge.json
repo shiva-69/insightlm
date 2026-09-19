@@ -1,0 +1,55 @@
+[
+  {
+    "judge": "offline (overlap)",
+    "accuracy": 0.43243243243243246,
+    "detection": 0.5517241379310345,
+    "citation_precision": 0.7619047619047619,
+    "by_kind": {
+      "direct": 1.0,
+      "paraphrase": 0.125,
+      "mention": 0.25,
+      "negation": 0.1111111111111111,
+      "unrelated": 1.0
+    },
+    "misses": [
+      "p1",
+      "p2",
+      "p4",
+      "p5",
+      "m1",
+      "m3",
+      "m4",
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h7",
+      "h9",
+      "h10",
+      "h11",
+      "h13"
+    ]
+  },
+  {
+    "judge": "gemini-2.5-pro",
+    "accuracy": 0.9459459459459459,
+    "detection": 0.9655172413793104,
+    "citation_precision": 1.0,
+    "by_kind": {
+      "direct": 1.0,
+      "paraphrase": 1.0,
+      "mention": 0.875,
+      "negation": 0.8888888888888888,
+      "unrelated": 1.0
+    },
+    "misses": [
+      "m1",
+      "h3"
+    ]
+  }
+]

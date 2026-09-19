@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import math
 import statistics
 import sys
@@ -52,7 +53,7 @@ def _prf(returned: set[str], relevant: set[str]) -> tuple[float, float, float]:
     return p, r, (2 * p * r / (p + r) if p + r else 0.0)
 
 
-async def _measure(embedder: Embedder) -> None:
+async def _measure(embedder: Embedder) -> dict[str, float]:
     cohort = build_cohort(50)
     parser = PyMuPdfParser()
     chunker = StructureAwareChunker()
@@ -93,11 +94,13 @@ async def _measure(embedder: Embedder) -> None:
     for key, f1s in rows.items():
         mark = "  <- best" if key == best_row else ""
         print(f"  {key[0]:<10}{key[1]:<12}{statistics.fmean(f1s):>24.3f}{mark}")
+    return {f"{kind}:{value}": statistics.fmean(f1s) for (kind, value), f1s in rows.items()}
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="insightlm-eval-talent", description=__doc__)
     parser.add_argument("--embedder", choices=["offline", "gemini"], default="offline")
+    parser.add_argument("--out", type=Path, help="Write mean F1 per cutoff as JSON.")
     args = parser.parse_args(argv)
     settings = get_settings()
     if args.embedder == "gemini":
@@ -108,7 +111,9 @@ def main(argv: list[str] | None = None) -> int:
         inner = HashingEmbedder()
     embedder = CachingEmbedder(inner, EmbeddingStore(Path("eval/.cache/embeddings.sqlite")))
     print(f"talent search on cohort-v1, embedder {inner.model_id}\n")
-    asyncio.run(_measure(embedder))
+    f1 = asyncio.run(_measure(embedder))
+    if args.out:
+        args.out.write_text(json.dumps({"embedder": inner.model_id, "mean_f1": f1}, indent=2))
     print(f"\nembedding calls this run: {embedder.misses} texts (rest from cache)")
     return 0
 

@@ -16,22 +16,22 @@
     "against a floor of 0.858), which is the evidence it is set somewhere useful."
   ],
   "dataset": "generated-40",
-  "measured_on": "2026-09-18",
+  "measured_on": "2026-09-19",
   "baselines": {
     "D-hybrid": {
       "adapters": "offline",
       "corpus": "generated --count 40",
       "recall_at_k": 0.818,
-      "ndcg_at_k": 0.578,
-      "mrr": 0.498,
+      "ndcg_at_k": 0.572,
+      "mrr": 0.489,
       "gate_min_ndcg": 0.56,
       "gate_rationale": "3% below the recorded baseline, per docs/06 section 4.",
-      "remeasured": "after varying generated phrasing; the corpus changed, so the floor had to"
+      "remeasured": "2026-09-19, after adding deterministic tiebreaks to both searches. Before that, equal scores came back in arbitrary order and D varied run to run (Gemini: 0.804/0.837/0.819 nDCG on identical inputs); now 0.572 offline, identical across runs. Floor unchanged at 0.56 (2% below)."
     }
   },
   "reference_runs": {
     "gemini-retrieval-only": {
-      "note": "Gemini embeddings, varied phrasing. 87 texts embedded, 0 generation calls.",
+      "note": "Gemini embeddings, varied phrasing. 87 texts embedded, 0 generation calls. D re-measured 2026-09-19 with deterministic tiebreaks.",
       "C-dense-enriched": {
         "recall_at_k": 1.0,
         "ndcg_at_k": 1.0,
@@ -39,8 +39,8 @@
       },
       "D-hybrid": {
         "recall_at_k": 0.955,
-        "ndcg_at_k": 0.811,
-        "mrr": 0.763
+        "ndcg_at_k": 0.801,
+        "mrr": 0.752
       },
       "L-lexical": {
         "recall_at_k": 0.773,
@@ -63,8 +63,8 @@
     },
     "D-hybrid": {
       "recall_at_k": 0.818,
-      "ndcg_at_k": 0.578,
-      "mrr": 0.498
+      "ndcg_at_k": 0.572,
+      "mrr": 0.489
     },
     "L-lexical": {
       "recall_at_k": 0.773,

@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
+import { QueryError } from "@/components/query-state";
 import { useToast } from "@/components/toast";
 import { Button, Empty, Field, Input, Panel, Spinner, Tag } from "@/components/ui/primitives";
 import { api, ApiError } from "@/lib/api";
@@ -88,6 +89,8 @@ export function CandidatesPanel({
         <div className="flex justify-center py-10 text-[var(--ink-3)]">
           <Spinner />
         </div>
+      ) : shortlist.isError ? (
+        <QueryError error={shortlist.error} retry={() => shortlist.refetch()} what="candidates" />
       ) : entries.length === 0 ? (
         !adding &&
         !bulk && (
@@ -267,6 +270,8 @@ function AddCandidate({ requisitionId, onClose }: { requisitionId: string; onClo
         </legend>
         {documents.isPending ? (
           <Spinner />
+        ) : documents.isError ? (
+          <QueryError error={documents.error} retry={() => documents.refetch()} what="the library" />
         ) : ready.length === 0 ? (
           <p className="text-[12.5px] text-[var(--ink-3)]">
             The Library is empty. Upload the CV there first.

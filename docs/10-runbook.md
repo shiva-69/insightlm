@@ -75,6 +75,17 @@ release, so the previous code runs on the new schema.
 - **Do:** confirm on "Estimated spend by workspace" that the use is real, then raise
   the limit if it's warranted. It resets at 00:00 UTC.
 
+### Answers or assessments find nothing after changing the embedding model
+- **Cause:** chunks are stored with the model that embedded them, and search only
+  matches chunks from the current model, correctly, since vectors from different models
+  aren't comparable. Documents ingested under the old model become unsearchable, and
+  re-uploading doesn't help, because deduplication returns the existing copy.
+- **Known gap:** there is no re-index command yet. Found when a workspace seeded
+  offline was assessed with Gemini and every criterion came back "not found".
+- **Do:** keep one embedding model per deployment. A likely route to re-index (reset the
+  affected ingestion jobs to re-run from the `embed` step and let the reaper pick them
+  up) is **untested**; try it on a copy first. A proper re-index command is the fix.
+
 ### Redis down
 - **Behaviour, by design:** rate limits and idempotency **fail open** (requests proceed;
   `rate_limiter_unavailable` / `idempotency_store_unavailable` in logs). The model

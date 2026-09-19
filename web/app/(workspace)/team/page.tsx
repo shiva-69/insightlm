@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Loading, QueryError } from "@/components/query-state";
 import { useToast } from "@/components/toast";
 import { Button, Empty, Field, Input, Panel, Spinner, Tag } from "@/components/ui/primitives";
 import { api, ApiError } from "@/lib/api";
@@ -144,6 +145,10 @@ export default function TeamPage() {
             </p>
           )}
 
+          {members.isPending && <Loading />}
+          {members.isError && (
+            <QueryError error={members.error} retry={() => members.refetch()} what="the team" />
+          )}
           {members.data?.length === 0 && (
             <Empty title="Just you so far" body="Invite the people who will work on this with you." />
           )}

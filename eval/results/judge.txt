@@ -1,0 +1,35 @@
+judge-all: 37 cases
+
+judge                    acc  detect   cite       direct paraphrase    mention   negation  unrelated
+----------------------------------------------------------------------------------------------------
+offline (overlap)        43%     55%    76%         100%        12%        25%        11%       100%
+gemini-2.5-pro           95%     97%   100%         100%       100%        88%        89%       100%
+
+offline (overlap) missed 21:
+  p1   paraphrase said absent   wanted adequate/strong  Kubernetes in production
+  p2   paraphrase said absent   wanted adequate/strong  Payment processing
+  p4   paraphrase said absent   wanted adequate/strong  Team leadership
+  p5   paraphrase said absent   wanted adequate/strong  Mobile app development
+  m1   mention    said strong   wanted weak             Kubernetes in production
+  m3   mention    said adequate wanted weak             Python backend services
+  m4   mention    said absent   wanted adequate/weak    Team leadership
+  n1   negation   said strong   wanted absent           Kubernetes in production
+  n2   negation   said strong   wanted absent           Python backend services
+  n3   negation   said strong   wanted absent           Payment processing
+  n4   negation   said strong   wanted absent/weak      Built a settlement engine
+  n5   negation   said strong   wanted absent           Team leadership
+  h2   mention    said strong   wanted adequate/weak    Kubernetes in production
+  h3   negation   said strong   wanted absent/weak      Payment processing
+  h4   negation   said strong   wanted absent           Kubernetes in production
+  h5   negation   said strong   wanted absent/weak      Python backend services
+  h7   paraphrase said absent   wanted adequate/strong  Kubernetes in production
+  h9   paraphrase said absent   wanted adequate/strong  Distributed systems
+  h10  mention    said strong   wanted absent/adequate/weak Python backend services
+  h11  mention    said strong   wanted adequate/weak    Kubernetes in production
+  h13  paraphrase said absent   wanted adequate/strong  Team leadership
+
+gemini-2.5-pro missed 2:
+  m1   mention    said absent   wanted weak             Kubernetes in production
+  h3   negation   said adequate wanted absent/weak      Payment processing
+
+paid judge calls this run: 0 (rest from cache)

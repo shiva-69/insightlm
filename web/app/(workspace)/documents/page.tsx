@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { Loading, QueryError } from "@/components/query-state";
 import { useToast } from "@/components/toast";
 import { Button, Empty, Spinner, StatusDot, Tag } from "@/components/ui/primitives";
 import { api, ApiError } from "@/lib/api";
@@ -113,6 +114,10 @@ export default function LibraryPage() {
             </p>
           )}
 
+          {documents.isPending && <Loading />}
+          {documents.isError && (
+            <QueryError error={documents.error} retry={() => documents.refetch()} what="the library" />
+          )}
           {documents.data?.length === 0 && (
             <Empty
               title="Nothing here yet"

@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Loading, QueryError } from "@/components/query-state";
 import { useToast } from "@/components/toast";
 import { Button, Empty, Panel, Spinner, Tag } from "@/components/ui/primitives";
 import { api, ApiError } from "@/lib/api";
@@ -55,6 +56,10 @@ export default function AuditPage() {
           </p>
         )}
 
+        {entries.isPending && <Loading />}
+        {entries.isError && (
+          <QueryError error={entries.error} retry={() => entries.refetch()} what="the audit log" />
+        )}
         {entries.data?.length === 0 && (
           <Empty title="Nothing logged yet" body="Actions appear here as they happen." />
         )}

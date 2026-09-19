@@ -113,6 +113,15 @@ export default function AskPage() {
             </Button>
           </div>
 
+          {documents.isError && (
+            <p className="text-[12px] text-[var(--ink-3)]" role="status">
+              Couldn&rsquo;t load your document list, so questions search everything.{" "}
+              <button className="underline" onClick={() => documents.refetch()}>
+                Try again
+              </button>
+            </p>
+          )}
+
           {ready.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="mr-0.5 text-[11.5px] text-[var(--ink-3)]">Search</span>

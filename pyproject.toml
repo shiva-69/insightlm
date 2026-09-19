@@ -54,6 +54,7 @@ dev = [
     "hypothesis>=6.122",
     "asgi-lifespan>=2.1",
     "schemathesis>=4.27.3",
+    "matplotlib>=3.11.2",
 ]
 
 [project.scripts]

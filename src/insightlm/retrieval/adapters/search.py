@@ -98,6 +98,13 @@ class PgVectorSearch:
         limit: int,
         document_ids: tuple[DocumentId, ...] | None = None,
     ) -> list[SearchHit]:
+        # The HNSW index spans every workspace. Without iterative scans it collects its
+        # top candidates from the whole index and only then applies the tenant filter,
+        # so a workspace whose chunks are crowded out by other workspaces' would get
+        # fewer results than it asked for -- results depending on other customers'
+        # data. pgvector 0.8 keeps scanning until the filtered result is full;
+        # strict_order keeps the ordering exact. Transaction-scoped (SET LOCAL).
+        await self._session.execute(text("SET LOCAL hnsw.iterative_scan = strict_order"))
         rows = await self._session.execute(
             text(
                 f"""
@@ -107,7 +114,11 @@ class PgVectorSearch:
                   AND c.embedding IS NOT NULL
                   AND c.embedding_model = :embedding_model
                   AND (:doc_filter = FALSE OR dv.document_id = ANY(CAST(:docs AS uuid[])))
-                ORDER BY c.embedding <=> CAST(:query AS vector)
+                -- Ties broken on the chunk's text, then id: equal scores otherwise come back
+                -- in whatever order Postgres picks, and rank fusion turned that into a
+                -- hybrid nDCG of 0.804 / 0.837 / 0.819 on identical inputs. Text, not id,
+                -- because ids are new on every re-ingestion.
+                ORDER BY c.embedding <=> CAST(:query AS vector), md5(c.body), c.id
                 LIMIT :limit
                 """
             ),
@@ -241,7 +252,11 @@ class PostgresLexicalSearch:
                 WHERE c.tenant_id = CAST(:tenant AS uuid)
                   AND c.search_vector @@ to_tsquery('english', :q)
                   AND (:doc_filter = FALSE OR dv.document_id = ANY(CAST(:docs AS uuid[])))
-                ORDER BY score DESC
+                -- Ties broken on the chunk's text, then id: equal scores otherwise come back
+                -- in whatever order Postgres picks, and rank fusion turned that into a
+                -- hybrid nDCG of 0.804 / 0.837 / 0.819 on identical inputs. Text, not id,
+                -- because ids are new on every re-ingestion.
+                ORDER BY score DESC, md5(c.body), c.id
                 LIMIT :limit
                 """
             ),
