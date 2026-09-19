@@ -58,6 +58,9 @@ load: ## 50-user k6 load test against the SLOs (run the stack keyless with RATE_
 		-v $(PWD)/eval/.cache/demo.json:/data/demo.json:ro -v $(PWD)/eval/.cache:/out \
 		grafana/k6:0.54.0 run --summary-export /out/k6-summary.json /scripts/load.js
 
+a11y: ## axe-core (WCAG 2.1 AA) on every page + phone-width overflow check (needs `make load` seed)
+	mkdir -p eval/.cache/a11y && cd web && node scripts/a11y.mjs ../eval/.cache/a11y ../eval/.cache/demo.json
+
 samples: ## Write sample CVs (strong, weak, paraphrase, attacked) into ./samples
 	uv run insightlm-samples --cohort 50
 
@@ -80,4 +83,4 @@ types: ## mypy --strict
 arch: ## Verify the architecture contracts
 	uv run lint-imports
 
-.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch fuzz load
+.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch fuzz load a11y
