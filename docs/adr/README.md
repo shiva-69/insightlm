@@ -35,9 +35,9 @@ made — listed so the vocabulary is designed rather than accreted.
 | [0004](0004-structure-aware-chunking.md) | Structure-aware chunking with persisted geometry spans | 1 |
 | [0005](0005-unit-of-work-contract.md) | An explicit unit of work, with exactly one commit site | 0 |
 | [0006](0006-the-citation-contract.md) | The citation contract: structured claims, validated before display | 1 |
-| 0007 | Hybrid lexical + dense retrieval fused with RRF | 3 |
-| 0008 | Cross-encoder reranker selection and its cost/quality trade-off | 3 |
-| 0009 | Semantic caching strategy and invalidation on corpus version | 3 |
+| [0007](0007-dense-retrieval-with-contextual-enrichment.md) | Dense retrieval with contextual enrichment; hybrid RRF kept as an arm, not the default | 3 |
+| [0008](0008-no-reranker-until-it-earns-its-place.md) | No cross-encoder reranker until the benchmark can show it helping | 3 |
+| [0009](0009-caching-only-in-evaluation.md) | Cache in the evaluation harness, never in the product's judgments | 3 |
 | [0010](0010-per-criterion-evidence-bounded-judgment.md) | Per-criterion evidence-bounded judgment over whole-résumé scoring | 4 |
 | [0011](0011-deterministic-aggregation.md) | Deterministic aggregation in code; the model never emits a score | 4 |
 | [0012](0012-layered-injection-defence.md) | Layered prompt-injection defence, and why no single layer suffices | 6 |
@@ -45,7 +45,7 @@ made — listed so the vocabulary is designed rather than accreted.
 | [0014](0014-arq-and-transactional-outbox.md) | ARQ on Redis + transactional outbox, rather than Celery or a broker | 0 |
 | [0015](0015-verified-erasure-saga.md) | Erasure as a verified saga across all stores | 6 |
 | [0016](0016-row-level-security-for-tenancy.md) | Postgres RLS for tenancy rather than application-layer filtering | 0 |
-| 0017 | Direct provider SDKs behind an `LLMPort`, not LangChain | 1 |
-| 0018 | Synthetic-only data as an ethics position, and its methodology | 2 |
+| [0017](0017-direct-sdks-behind-ports.md) | Provider SDKs directly, behind ports, not an LLM framework | 1 |
+| [0018](0018-synthetic-only-data.md) | Synthetic data only, as an ethics position with a method | 2 |
 
 Add records as real decisions arise. Superseded ADRs stay in the repo with their status updated — **the trail of a changed mind is evidence of engineering judgment, not of error.**
