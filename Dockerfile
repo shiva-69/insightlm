@@ -31,7 +31,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 
 FROM base AS runtime
-RUN groupadd --system app && useradd --system --gid app --home /app app
+RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --home /app app
 COPY --from=build --chown=app:app /app/.venv /app/.venv
 COPY --chown=app:app src/ ./src/
 COPY --chown=app:app migrations/ ./migrations/

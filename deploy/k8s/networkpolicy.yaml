@@ -1,0 +1,27 @@
+# The API is private: only the web tier may call it. This is what makes trusting the
+# proxy's client-IP header safe (config.yaml: TRUST_PROXY_CLIENT_IP).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-from-web-only
+  namespace: insightlm
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/component: api}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/component: web}
+      ports: [{port: 8000}]
+---
+# Workers take no inbound traffic at all.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker-no-ingress
+  namespace: insightlm
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/component: worker}
+  policyTypes: [Ingress]

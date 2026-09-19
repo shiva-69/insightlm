@@ -139,3 +139,46 @@ async def test_over_budget_assessment_is_refused_before_any_model_call(
         f"/requisitions/{requisition_id}/shortlist", headers=auth(recruiter)
     )
     assert shortlist.json()[0]["assessment"] is None
+
+
+class _Down:
+    """A Redis that isn't there."""
+
+    async def hit(self, *args: object, **kwargs: object) -> int:
+        raise ConnectionError("redis unavailable")
+
+    async def charge(self, *args: object, **kwargs: object) -> int:
+        raise ConnectionError("redis unavailable")
+
+    async def claim(self, *args: object, **kwargs: object) -> object:
+        raise ConnectionError("redis unavailable")
+
+
+async def test_when_redis_is_down_requests_still_work_but_spending_pauses(
+    container: Container,
+) -> None:
+    down = _Down()
+    limited = replace(
+        container,
+        settings=container.settings.model_copy(update={"rate_limits_enabled": True}),
+        rate_limiter=down,
+        idempotency=down,
+    )
+    app = create_app(limited.settings, container=limited)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        app.state.container = limited
+        tokens = await workspace(client)  # rate limiter down: fails open
+        created = await client.post(
+            "/requisitions",
+            json={"title": "Payments Engineer"},
+            headers={**auth(tokens["recruiter"]), "Idempotency-Key": "k1"},  # store down: proceeds
+        )
+        assert created.status_code == 201
+
+    # The budget fails closed: no metering, no paid calls.
+    budget = MeteredBudget(down, calls_per_day=100)  # type: ignore[arg-type]
+    from insightlm.shared.domain.errors import ServiceUnavailableError
+    from insightlm.shared.domain.ids import new_tenant_id
+
+    with pytest.raises(ServiceUnavailableError):
+        await budget.charge(new_tenant_id(), 1)

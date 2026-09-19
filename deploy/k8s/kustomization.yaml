@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: insightlm
+resources:
+  - namespace.yaml
+  - config.yaml
+  - api.yaml
+  - worker.yaml
+  - web.yaml
+  - networkpolicy.yaml
+# migrate-job.yaml is applied separately, before each rollout.
+# secret.example.yaml is documentation, never applied.

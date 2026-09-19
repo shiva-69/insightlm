@@ -1,0 +1,29 @@
+# Run before each rollout: `kubectl apply -f migrate-job.yaml && kubectl wait ...`.
+# Migrations run as the privileged owner; the application never does.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: insightlm-migrate
+  namespace: insightlm
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: migrate
+          image: ghcr.io/example/insightlm-api:0.1.0
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef: {name: insightlm-config}
+            - secretRef: {name: insightlm-secrets}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}

@@ -1,0 +1,21 @@
+# Non-secret settings. Secrets (database DSNs, JWT secret, provider keys) come from the
+# `insightlm-secrets` Secret, created out of band -- see secret.example.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: insightlm-config
+  namespace: insightlm
+data:
+  ENVIRONMENT: production
+  LOG_JSON: "true"
+  LOG_LEVEL: INFO
+  OTEL_ENABLED: "true"
+  OTEL_ENDPOINT: http://otel-collector.observability:4317
+  GENERATION_PROVIDER: auto
+  RATE_LIMITS_ENABLED: "true"
+  # Only the web proxy can reach the API (see networkpolicy.yaml), so its client-IP
+  # header can be trusted here -- unlike in compose, where the API port is published.
+  TRUST_PROXY_CLIENT_IP: "true"
+  MODEL_CALLS_PER_DAY: "2000"
+  CANDIDATE_RETENTION_DAYS: "365"
+  WEB_CONCURRENCY: "4"

@@ -6,7 +6,7 @@ import json
 import time
 from typing import Any
 
-from insightlm.shared.domain.errors import BudgetExceededError
+from insightlm.shared.domain.errors import BudgetExceededError, ServiceUnavailableError
 from insightlm.shared.domain.ids import TenantId
 from insightlm.shared.ports.limits import SpendMeter, StoredResponse
 
@@ -145,10 +145,20 @@ class MeteredBudget:
         self._limit = calls_per_day
 
     async def charge(self, tenant_id: TenantId, calls: int) -> None:
-        if calls > 0:
+        if calls <= 0:
+            return
+        try:
             await self._meter.charge(
                 f"model:{tenant_id}", calls, limit=self._limit, window_s=86_400
             )
+        except BudgetExceededError:
+            raise
+        except Exception as error:
+            # Fail closed, unlike rate limiting: without the meter, paid calls would run
+            # unmetered. Model features pause; everything else keeps working.
+            raise ServiceUnavailableError(
+                "AI features are briefly unavailable; please retry shortly"
+            ) from error
 
 
 class UnmeteredBudget:

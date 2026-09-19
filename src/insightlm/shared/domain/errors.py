@@ -86,3 +86,10 @@ class BudgetExceededError(DomainError):
 
     code = "budget_exceeded"
     http_status = 429
+
+
+class ServiceUnavailableError(DomainError):
+    """A dependency needed to do this safely is down; retrying later will work."""
+
+    code = "service_unavailable"
+    http_status = 503

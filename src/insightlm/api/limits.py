@@ -31,7 +31,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from insightlm.shared.observability.logging import get_logger
 from insightlm.shared.ports.limits import IdempotencyStore, RateLimiter, StoredResponse
+
+_logger = get_logger(__name__)
 
 CLIENT_IP_HEADER = "x-insightlm-client-ip"
 IDEMPOTENCY_HEADER = "idempotency-key"
@@ -111,7 +114,15 @@ class LimitsMiddleware(BaseHTTPMiddleware):
             "tenant": principal[0] if principal else ip,
             "user": principal[1] if principal else ip,
         }[rule.by]
-        wait = await limiter.hit(f"{rule.name}:{subject}", limit=rule.limit, window_s=rule.window_s)
+        try:
+            wait = await limiter.hit(
+                f"{rule.name}:{subject}", limit=rule.limit, window_s=rule.window_s
+            )
+        except Exception as error:
+            # Fail open: a Redis outage must not take the whole API down with it.
+            # Losing throttling for a few minutes is the smaller harm; it's logged.
+            _logger.warning("rate_limiter_unavailable", error=type(error).__name__)
+            wait = 0
         if wait:
             return _error(
                 429,
@@ -132,7 +143,12 @@ class LimitsMiddleware(BaseHTTPMiddleware):
         body = await request.body()
         fingerprint = hashlib.sha256(body).hexdigest()
 
-        claimed = await idempotency.claim(scoped, fingerprint, ttl_s=IDEMPOTENCY_TTL_S)
+        try:
+            claimed = await idempotency.claim(scoped, fingerprint, ttl_s=IDEMPOTENCY_TTL_S)
+        except Exception as error:
+            # Fail open, as above: the write proceeds without replay protection.
+            _logger.warning("idempotency_store_unavailable", error=type(error).__name__)
+            return await call_next(request)
         if claimed is False:
             return _error(
                 409, "conflict", "a request with this Idempotency-Key is in progress", request
