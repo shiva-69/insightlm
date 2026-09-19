@@ -149,7 +149,13 @@ class Container:
         await self.engine.dispose()
 
 
-def build_container(settings: Settings) -> Container:
+def build_container(settings: Settings, *, object_store: ObjectStore | None = None) -> Container:
+    """Wire the application.
+
+    `object_store` replaces S3 everywhere at once. Tests pass an in-memory store here
+    rather than patching consumers one by one after the fact: that approach missed
+    erasure, whose tests then passed only while a local MinIO happened to be running.
+    """
     engine = create_engine(settings)
     if settings.otel_enabled:
         instrument_engine(engine)
@@ -179,7 +185,7 @@ def build_container(settings: Settings) -> Container:
             session_factory, clock, tenant_id=tenant_id, user_id=user_id
         )
 
-    store = S3ObjectStore(settings)
+    store = object_store or S3ObjectStore(settings)
     embedder = _build_embedder(settings)
     if settings.embedding_cache_path:
         from pathlib import Path

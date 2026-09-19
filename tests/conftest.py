@@ -120,7 +120,12 @@ async def container(settings: Settings) -> AsyncIterator[Container]:
     from sqlalchemy import text
     from sqlalchemy.ext.asyncio import create_async_engine
 
-    built = build_container(settings)
+    # No test wants real MinIO in the loop: object storage is not what any of them
+    # assert, and a container per run would cost seconds for nothing. The port exists
+    # so this substitution is legitimate rather than a mock.
+    from tests.fakes import InMemoryObjectStore
+
+    built = build_container(settings, object_store=InMemoryObjectStore())
     # Truncation runs as the owner: the application role is deliberately denied
     # TRUNCATE on audit_entries, which is the point of the grant.
     admin_engine = create_async_engine(str(settings.database_url))
@@ -135,34 +140,14 @@ async def container(settings: Settings) -> AsyncIterator[Container]:
                 )
             )
             await session.commit()
-        # No test wants real MinIO in the loop: object storage is not what any of
-        # them assert, and a container per run would cost seconds for nothing. The
-        # port exists so this substitution is legitimate rather than a mock.
         from dataclasses import replace
 
-        from insightlm.documents.adapters.pymupdf_parser import PyMuPdfParser
-        from insightlm.documents.application.upload import UploadDocument
-        from insightlm.retrieval.adapters.chunker import StructureAwareChunker
-        from insightlm.worker.ingestion import IngestionPipeline
-        from tests.fakes import InMemoryObjectStore
-
-        store = InMemoryObjectStore()
         from insightlm.shared.adapters.limits import MemoryIdempotencyStore, MemoryRateLimiter
 
         yield replace(
             built,
-            object_store=store,
             rate_limiter=MemoryRateLimiter(),
             idempotency=MemoryIdempotencyStore(),
-            upload_document=UploadDocument(built.documents_uow, store, built.clock),
-            ingestion=IngestionPipeline(
-                built.session_factory,
-                store=store,
-                parser=PyMuPdfParser(),
-                chunker=StructureAwareChunker(),
-                embedder=built.embedder,
-                clock=built.clock,
-            ),
         )
     finally:
         await admin_engine.dispose()

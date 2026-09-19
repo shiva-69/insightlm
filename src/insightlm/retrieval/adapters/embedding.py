@@ -221,9 +221,12 @@ class GeminiEmbedder:
     async def _embed(self, texts: list[str], *, task_type: str) -> list[list[float]]:
         from google.genai import types
 
+        # Typed as the SDK's union: `list[str]` is not a subtype of its list-of-union,
+        # lists being invariant.
+        contents: list[types.PartUnionDict] = list(texts)
         response = await self._client.aio.models.embed_content(
             model=self._model,
-            contents=texts,
+            contents=contents,
             config=types.EmbedContentConfig(
                 task_type=task_type,
                 output_dimensionality=self._dimensions,
