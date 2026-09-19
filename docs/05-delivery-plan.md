@@ -182,7 +182,29 @@
 - Runbook, SLOs, Helm/K8s manifests (as artifact), seed/demo data script
 - Accessibility and responsive pass on the web app
 
-**Exit:** Milestone **M7**.
+**Exit:** Milestone **M7**. ✅ *Complete (19 Sep 2026).*
+
+> **Delivered, each with its evidence:**
+> - **One trace from upload to model call**, across the outbox and queue; Tempo,
+>   Prometheus and a provisioned Grafana dashboard (latency by route, model calls,
+>   tokens and estimated spend per workspace, ingestion steps, dead letters).
+> - **Load test against declared SLOs** (docs/09): 50 users, 0 failures, p95 58 ms. At
+>   200 users one API process pinned a core; four processes took p95 from 1.73 s to
+>   115 ms.
+> - **STRIDE threat model** (docs/08), every control pointing at its test.
+> - **Rate limits, a per-workspace model budget, idempotency keys**; a deliberate Redis
+>   outage policy (limits fail open, spend fails closed).
+> - **schemathesis**: 2 server errors and 8 schema violations found and fixed; 3,183
+>   generated requests pass. **Coverage** 89% (domain 96%), measured correctly once
+>   greenlets were tracked, with an 85% floor in CI. 393 tests.
+> - **Runbook** (docs/10), SLOs, **Kubernetes manifests** validated by kubeconform, a
+>   **seed script**, and a reaper for ingestion nothing else would retry.
+> - **Accessibility**: 0 axe violations (WCAG 2.1 AA) on 13 pages after fixing text
+>   contrast; no overflow at 390 px.
+>
+> **Not done:** Helm packaging (plain manifests with kustomize instead); httpOnly-cookie
+> sessions and a CSP (docs/08, known gaps); the PDF viewer is desktop-only, though the
+> cited quotes show on phones.
 
 ---
 
