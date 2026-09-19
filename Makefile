@@ -61,6 +61,12 @@ load: ## 50-user k6 load test against the SLOs (run the stack keyless with RATE_
 a11y: ## axe-core (WCAG 2.1 AA) on every page + phone-width overflow check (needs `make load` seed)
 	mkdir -p eval/.cache/a11y && cd web && node scripts/a11y.mjs ../eval/.cache/a11y ../eval/.cache/demo.json
 
+diagrams: ## Regenerate the ER diagram from the models and render every diagram to SVG
+	uv run python scripts/er_diagram.py > docs/diagrams/er.mmd
+	for f in context containers components er; do \
+		docker run --rm -u "$$(id -u):$$(id -g)" -v $(PWD)/docs/diagrams:/data minlag/mermaid-cli:11.4.0 \
+			-i /data/$$f.mmd -o /data/svg/$$f.svg -b transparent; done
+
 samples: ## Write sample CVs (strong, weak, paraphrase, attacked) into ./samples
 	uv run insightlm-samples --cohort 50
 
@@ -86,4 +92,4 @@ types: ## mypy --strict
 arch: ## Verify the architecture contracts
 	uv run lint-imports
 
-.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch fuzz load a11y coverage
+.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch fuzz load a11y coverage diagrams

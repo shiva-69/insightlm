@@ -1,0 +1,35 @@
+flowchart TB
+    subgraph delivery["Delivery"]
+        routers["api routers<br/>(HTTP schemas, error envelope)"]
+        workerep["worker entrypoints"]
+        cli["cli: evaluation harnesses"]
+    end
+    subgraph composition["Composition root"]
+        bootstrap["bootstrap.py<br/>wires adapters to ports"]
+        ask["ask_service.py"]
+        erase["erasure.py<br/>verified saga"]
+        instr["instrumented.py<br/>model-call telemetry"]
+    end
+    subgraph modules["Modules"]
+        recruiting["<b>recruiting</b><br/>rubrics, assessment, pipeline,<br/>scorecards, fairness, talent"]
+        retrieval["<b>retrieval</b><br/>chunking, embeddings, search,<br/>citation contract"]
+        documents["<b>documents</b><br/>upload, parsing, hidden-text<br/>findings"]
+        identity["<b>identity</b><br/>tenants, users, roles,<br/>invitations"]
+        governance["<b>governance</b><br/>audit chain, redaction"]
+        evaluation["<b>evaluation</b><br/>metrics, corpora, red team"]
+    end
+    shared["<b>shared kernel</b><br/>ids, errors, policy, ports, UoW"]
+
+    routers --> bootstrap
+    workerep --> bootstrap
+    cli --> bootstrap
+    bootstrap --> ask & erase & instr
+    composition -- "the only place that sees every module" --> modules
+    recruiting -- "EvidencePort only" --> retrieval
+    retrieval --> documents
+    documents --> identity
+    identity --> governance
+    recruiting --> governance
+    evaluation -. "domain + ports only" .-> recruiting
+    governance --> shared
+    modules --> shared

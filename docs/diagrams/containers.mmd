@@ -1,0 +1,33 @@
+flowchart TB
+    browser(["Browser"])
+    subgraph edge["Public"]
+        web["<b>web</b><br/>Next.js 16<br/>UI + same-origin proxy;<br/>sets client IP header"]
+    end
+    subgraph private["Private network"]
+        api["<b>api</b><br/>FastAPI, 4 uvicorn processes<br/>auth, RLS sessions, rate limits,<br/>idempotency, use cases"]
+        worker["<b>worker</b><br/>ARQ<br/>outbox relay (10 s), ingestion,<br/>stalled-job reaper (60 s)"]
+        pg[("<b>Postgres 17 + pgvector</b><br/>rows, vectors, tsvector;<br/>RLS per tenant;<br/>hash-chained audit log")]
+        redis[("<b>Redis</b><br/>job queue, rate limits,<br/>model budget, idempotency")]
+        s3[("<b>Object store</b><br/>MinIO / S3<br/>original files")]
+    end
+    subgraph obs["Observability"]
+        otelc["OTel collector"] --> tempo[("Tempo")]
+        otelc --> prom[("Prometheus")]
+        grafana["Grafana"] --> tempo
+        grafana --> prom
+    end
+    providers[["Model providers"]]
+
+    browser -- HTTPS --> web
+    web -- "/api/* (only caller)" --> api
+    api -- "SQL as restricted role" --> pg
+    api --> redis
+    api --> s3
+    api -- "outbox row, same transaction" --> pg
+    worker -- "drains outbox" --> pg
+    worker -- "jobs + trace context" --> redis
+    worker --> s3
+    api -- "judge / generate / embed" --> providers
+    worker -- "embed" --> providers
+    api -. OTLP .-> otelc
+    worker -. OTLP .-> otelc

@@ -1,0 +1,19 @@
+flowchart LR
+    recruiter(["Recruiter / hiring manager<br/>owner, recruiter, hiring manager"])
+    interviewer(["Interviewer<br/>scorecards only"])
+    auditor(["Auditor<br/>read-only, fairness report"])
+    candidate(["Candidate<br/>writes the CV; never logs in"])
+
+    system["<b>InsightLM</b><br/>Evidence-grounded document Q&A<br/>and hiring assessment"]
+
+    gemini[["Gemini<br/>generation, judging, embeddings"]]
+    anthropic[["Anthropic<br/>generation, judging (optional)"]]
+    otel[["Grafana stack<br/>traces, metrics"]]
+
+    recruiter -- "uploads CVs, asks, sets rubrics,<br/>moves candidates" --> system
+    interviewer -- "submits scorecards" --> system
+    auditor -- "verifies audit chain,<br/>reads selection rates" --> system
+    candidate -. "CV text: untrusted input<br/>that models read" .-> system
+    system -- "redacted, escaped evidence;<br/>metered calls" --> gemini
+    system -. "same port, by configuration" .-> anthropic
+    system -- "OTLP" --> otel
