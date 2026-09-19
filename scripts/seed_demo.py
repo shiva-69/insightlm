@@ -115,12 +115,22 @@ def upload(api: Api, token: str, filename: str, payload: bytes) -> str:
         "POST", "/documents", token, files={"file": (filename, payload, "application/pdf")}
     )
     document_id: str = result["document"]["id"]
-    for _ in range(120):
-        status = api.call("GET", f"/documents/{document_id}/status", token)["status"]
-        if status in ("ready", "failed"):
-            break
-        time.sleep(0.5)
     return document_id
+
+
+def wait_until_processed(api: Api, token: str, document_ids: list[str]) -> None:
+    """Upload everything first, then wait once: ingestion starts on the outbox's
+    10-second cycle, so waiting per file turns 30 CVs into several minutes."""
+    pending = set(document_ids)
+    for _ in range(600):
+        for document_id in list(pending):
+            status = api.call("GET", f"/documents/{document_id}/status", token)["status"]
+            if status in ("ready", "failed"):
+                pending.discard(document_id)
+        if not pending:
+            return
+        time.sleep(1)
+    raise RuntimeError(f"{len(pending)} documents never finished processing")
 
 
 def main() -> int:
@@ -163,9 +173,16 @@ def main() -> int:
     ]
     applicants += [(a.name, a.filename, a.pdf) for a in build_cohort(args.cohort)]
 
+    document_ids = [
+        upload(api, recruiter, filename, payload) for _, filename, payload in applicants
+    ]
+    log(f"uploaded {len(document_ids)} CVs; waiting for ingestion")
+    wait_until_processed(api, recruiter, document_ids)
+
+    # Tokens last 15 minutes; sign in again rather than assume the seed was quick.
+    recruiter = api.login(PEOPLE["recruiter"][0])
     application_ids: list[str] = []
-    for name, filename, payload in applicants:
-        document_id = upload(api, recruiter, filename, payload)
+    for (name, _, _), document_id in zip(applicants, document_ids, strict=True):
         added = api.call(
             "POST",
             f"/requisitions/{requisition['id']}/candidates",

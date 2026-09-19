@@ -24,6 +24,10 @@ x-app-env: &app-env
   TRUST_PROXY_CLIENT_IP: ${TRUST_PROXY_CLIENT_IP:-true}
   RATE_LIMITS_ENABLED: ${RATE_LIMITS_ENABLED:-true}
   MODEL_CALLS_PER_DAY: ${MODEL_CALLS_PER_DAY:-2000}
+  # API worker processes (read by uvicorn). One process saturates one core at ~90
+  # req/s; 4 x (pool 10 + overflow 5) = 60 connections, inside Postgres's default 100.
+  # Safe because every limit, budget and idempotency key lives in Redis, not in-process.
+  WEB_CONCURRENCY: ${API_WORKERS:-4}
   GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-pro}
   GENERATION_MODEL: ${GENERATION_MODEL:-claude-opus-5}
   GENERATION_EFFORT: ${GENERATION_EFFORT:-medium}

@@ -52,6 +52,12 @@ fuzz: ## Schemathesis against a running API (start it keyless with RATE_LIMITS_E
 		uv run schemathesis run http://localhost:8000/openapi.json -H "Authorization: Bearer $$TOKEN" \
 		--checks not_a_server_error,response_schema_conformance --max-examples 60 --workers 4
 
+load: ## 50-user k6 load test against the SLOs (run the stack keyless with RATE_LIMITS_ENABLED=false)
+	uv run python scripts/seed_demo.py --cohort 30 --out eval/.cache/demo.json > /dev/null
+	docker run --rm --network insightlm_default -v $(PWD)/infra/k6:/scripts:ro \
+		-v $(PWD)/eval/.cache/demo.json:/data/demo.json:ro -v $(PWD)/eval/.cache:/out \
+		grafana/k6:0.54.0 run --summary-export /out/k6-summary.json /scripts/load.js
+
 samples: ## Write sample CVs (strong, weak, paraphrase, attacked) into ./samples
 	uv run insightlm-samples --cohort 50
 
@@ -74,4 +80,4 @@ types: ## mypy --strict
 arch: ## Verify the architecture contracts
 	uv run lint-imports
 
-.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch fuzz
+.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch fuzz load
