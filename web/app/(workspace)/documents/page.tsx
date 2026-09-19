@@ -183,7 +183,7 @@ function DocumentRow({
         </span>
         {state === "failed" && <Tag tone="caution">Failed</Tag>}
         {state === "ready" && (
-          <span className="text-[11.5px] text-[var(--ink-4)]">
+          <span className="text-[11.5px] text-[var(--ink-3)]">
             {new Date(document.created_at).toLocaleDateString(undefined, {
               day: "numeric",
               month: "short",

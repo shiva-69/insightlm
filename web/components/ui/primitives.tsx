@@ -82,7 +82,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
         className={clsx(
           "h-9 w-full rounded-[var(--radius-sm)] border border-[var(--rule-strong)]",
           "bg-[var(--surface)] px-3 text-[13.5px] text-[var(--ink)]",
-          "placeholder:text-[var(--ink-4)]",
+          "placeholder:text-[var(--ink-3)]",
           "transition-colors duration-150 hover:border-[var(--ink-4)]",
           "focus:border-[var(--ink)] focus:outline-none",
           className,

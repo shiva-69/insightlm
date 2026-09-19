@@ -76,7 +76,7 @@ export default function HiringPage() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
-                  className="w-full resize-y rounded-[var(--radius-sm)] border border-[var(--rule-strong)] bg-[var(--surface)] px-3 py-2 text-[13.5px] placeholder:text-[var(--ink-4)] hover:border-[var(--ink-4)] focus:border-[var(--ink)] focus:outline-none"
+                  className="w-full resize-y rounded-[var(--radius-sm)] border border-[var(--rule-strong)] bg-[var(--surface)] px-3 py-2 text-[13.5px] placeholder:text-[var(--ink-3)] hover:border-[var(--ink-4)] focus:border-[var(--ink)] focus:outline-none"
                   placeholder="Owns settlement and reconciliation for card payments."
                 />
               </Field>

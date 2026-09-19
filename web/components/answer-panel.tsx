@@ -124,7 +124,7 @@ export function AnswerPanel({ answer, pending, question, activeLabel, onActivate
               ["tokens in / out", `${answer.input_tokens} / ${answer.output_tokens}`],
             ].map(([term, value]) => (
               <div key={term} className="contents">
-                <dt className="text-[11.5px] text-[var(--ink-4)]">{term}</dt>
+                <dt className="text-[11.5px] text-[var(--ink-3)]">{term}</dt>
                 <dd className="data truncate text-[var(--ink-2)]">{value}</dd>
               </div>
             ))}

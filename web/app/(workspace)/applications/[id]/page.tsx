@@ -167,10 +167,14 @@ function StageTrack({ detail }: { detail: ApplicationDetail }) {
                       : "bg-[var(--surface-sunk)]",
                 )}
               />
+              {/* Five labels don't fit a phone: there, only the current stage is named
+                  and the bar carries position. */}
               <span
                 className={clsx(
-                  "mt-2 block text-[12px]",
-                  current ? "font-medium text-[var(--ink)]" : "text-[var(--ink-3)]",
+                  "mt-2 text-[12px]",
+                  current
+                    ? "block whitespace-nowrap font-medium text-[var(--ink)]"
+                    : "hidden truncate text-[var(--ink-3)] sm:block",
                 )}
               >
                 {STAGE_LABEL[stage]}
@@ -288,7 +292,7 @@ function Moves({ detail }: { detail: ApplicationDetail }) {
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             placeholder="A note for the record (optional)"
-            className="mt-3 w-full resize-y rounded-[var(--radius-sm)] border border-[var(--rule-strong)] bg-[var(--surface)] px-3 py-2 text-[13px] placeholder:text-[var(--ink-4)] focus:border-[var(--ink)] focus:outline-none"
+            className="mt-3 w-full resize-y rounded-[var(--radius-sm)] border border-[var(--rule-strong)] bg-[var(--surface)] px-3 py-2 text-[13px] placeholder:text-[var(--ink-3)] focus:border-[var(--ink)] focus:outline-none"
           />
           <div className="mt-2.5 flex justify-end gap-2">
             <Button variant="quiet" onClick={() => setRejecting(false)}>
@@ -443,7 +447,7 @@ function ScorecardForm({
                 value={notes[criterion.id] ?? ""}
                 onChange={(e) => setNotes((n) => ({ ...n, [criterion.id]: e.target.value }))}
                 placeholder="What did you hear that supports this? (optional)"
-                className="mt-2 h-8 w-full rounded-[var(--radius-sm)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 text-[12.5px] placeholder:text-[var(--ink-4)] focus:border-[var(--ink)] focus:outline-none"
+                className="mt-2 h-8 w-full rounded-[var(--radius-sm)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 text-[12.5px] placeholder:text-[var(--ink-3)] focus:border-[var(--ink)] focus:outline-none"
               />
             )}
           </li>
@@ -479,7 +483,7 @@ function ScorecardForm({
         onChange={(e) => setSummary(e.target.value)}
         rows={3}
         placeholder="In a sentence or two: why this recommendation?"
-        className="mt-3 w-full resize-y rounded-[var(--radius-sm)] border border-[var(--rule-strong)] bg-[var(--surface)] px-3 py-2 text-[13px] placeholder:text-[var(--ink-4)] focus:border-[var(--ink)] focus:outline-none"
+        className="mt-3 w-full resize-y rounded-[var(--radius-sm)] border border-[var(--rule-strong)] bg-[var(--surface)] px-3 py-2 text-[13px] placeholder:text-[var(--ink-3)] focus:border-[var(--ink)] focus:outline-none"
         aria-label="Summary"
       />
       <div className="mt-2.5 flex justify-end">

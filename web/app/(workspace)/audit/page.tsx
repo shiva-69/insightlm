@@ -126,7 +126,7 @@ function EntryRow({ entry, last }: { entry: AuditEntry; last: boolean }) {
         </div>
         <div className="data mt-1 flex flex-wrap items-center gap-x-2">
           <span title="Hash of the preceding entry">← {entry.prev_hash.slice(0, 10)}</span>
-          <span className="text-[var(--ink-4)]">·</span>
+          <span className="text-[var(--ink-3)]">·</span>
           <span title="This entry's hash">{entry.entry_hash.slice(0, 10)}</span>
         </div>
       </div>

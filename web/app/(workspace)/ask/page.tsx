@@ -93,7 +93,7 @@ export default function AskPage() {
                 className={clsx(
                   "block w-full resize-none rounded-[var(--radius-sm)] border border-[var(--rule-strong)]",
                   "bg-[var(--surface)] py-2 pl-3 pr-24 text-[14px] leading-6 text-[var(--ink)]",
-                  "placeholder:text-[var(--ink-4)]",
+                  "placeholder:text-[var(--ink-3)]",
                   "transition-colors duration-150 hover:border-[var(--ink-4)]",
                   "focus:border-[var(--ink)] focus:outline-none",
                 )}
@@ -115,7 +115,7 @@ export default function AskPage() {
 
           {ready.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-0.5 text-[11.5px] text-[var(--ink-4)]">Search</span>
+              <span className="mr-0.5 text-[11.5px] text-[var(--ink-3)]">Search</span>
               <ScopeChip
                 label={`All ${ready.length} document${ready.length === 1 ? "" : "s"}`}
                 active={!scoped}

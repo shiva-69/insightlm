@@ -39,8 +39,8 @@
 
   --ink: #1c1a18;
   --ink-2: #57524c;
-  --ink-3: #8a837b;
-  --ink-4: #b3aca3;
+  --ink-3: #6f685f;  /* 4.9:1 on --surface-sunk: WCAG AA for body text */
+  --ink-4: #b3aca3;  /* decoration and borders only: 2:1, never text */
 
   --evidence: #b45309;
   --evidence-fill: rgba(245, 158, 11, 0.13);
@@ -65,7 +65,7 @@
 
   --ink: #f2efeb;
   --ink-2: #b9b2a9;
-  --ink-3: #857e75;
+  --ink-3: #8f887f;  /* 5.3:1 on --surface */
   --ink-4: #5c5650;
 
   --evidence: #f0b429;
@@ -90,7 +90,7 @@
     --rule-strong: #38332e;
     --ink: #f2efeb;
     --ink-2: #b9b2a9;
-    --ink-3: #857e75;
+    --ink-3: #8f887f;  /* 5.3:1 on --surface */
     --ink-4: #5c5650;
     --evidence: #f0b429;
     --evidence-fill: rgba(245, 158, 11, 0.11);
