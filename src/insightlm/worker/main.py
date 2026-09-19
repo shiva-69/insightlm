@@ -13,6 +13,8 @@ from uuid import UUID
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
 from arq.cron import cron
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from insightlm.bootstrap import Container, build_container
 from insightlm.settings import get_settings
@@ -25,6 +27,7 @@ from insightlm.shared.observability.telemetry import (
     continued_from,
     tracer,
 )
+from insightlm.worker.ingestion import MAX_ATTEMPTS
 
 _logger = get_logger(__name__)
 
@@ -43,6 +46,9 @@ async def startup(ctx: dict[str, Any]) -> None:
         environment=settings.environment,
     )
     ctx["container"] = build_container(settings)
+    admin = create_async_engine(str(settings.database_url), pool_size=1, max_overflow=0)
+    ctx["admin_engine"] = admin
+    ctx["admin_sessions"] = async_sessionmaker(bind=admin, expire_on_commit=False)
     await ctx["container"].object_store.ensure_bucket()
     _logger.info("worker_started")
 
@@ -50,6 +56,7 @@ async def startup(ctx: dict[str, Any]) -> None:
 async def shutdown(ctx: dict[str, Any]) -> None:
     container: Container = ctx["container"]
     await container.dispose()
+    await ctx["admin_engine"].dispose()
     _logger.info("worker_stopped")
 
 
@@ -98,6 +105,49 @@ async def ingest_document_version(
     }
 
 
+STALLED_SQL = text(
+    """
+    SELECT tenant_id, document_version_id, attempts
+    FROM ingestion_jobs
+    WHERE (status = 'failed' AND attempts < :max_attempts
+           AND updated_at < now() - interval '1 minute')
+       OR (status IN ('pending', 'running') AND updated_at < now() - interval '15 minutes')
+    ORDER BY updated_at
+    LIMIT 100
+    """
+)
+
+
+async def stalled_jobs(session: AsyncSession) -> list[tuple[str, str, int]]:
+    rows = await session.execute(STALLED_SQL, {"max_attempts": MAX_ATTEMPTS})
+    return [(str(t), str(v), int(a)) for t, v, a in rows]
+
+
+async def requeue_stalled(ctx: dict[str, Any]) -> int:
+    """Re-enqueue ingestion that failed and was never retried, or that stopped moving.
+
+    A retry is scheduled by the worker that saw the failure. If that worker dies, is
+    replaced by a deploy, or predates the retry logic, nothing else would ever run the
+    job again and the document sits at "processing" for good. That happened: eight
+    documents were found stuck this way. This is the backstop.
+
+    Cross-tenant by nature, so it reads through the privileged engine -- one SELECT of
+    ids, the same exemption the outbox relay has (ADR-0016). The job itself then runs
+    under the tenant's own RLS context like any other. The job id includes the attempt
+    number, so two sweeps can't enqueue the same attempt twice.
+    """
+    redis: ArqRedis = ctx["redis"]
+    async with ctx["admin_sessions"]() as session:
+        stalled = await stalled_jobs(session)
+    for tenant_id, version_id, attempts in stalled:
+        await redis.enqueue_job(
+            INGEST_TASK, tenant_id, version_id, _job_id=f"reap:{version_id}:{attempts}"
+        )
+    if stalled:
+        _logger.warning("ingestion_requeued", count=len(stalled))
+    return len(stalled)
+
+
 async def drain_outbox(ctx: dict[str, Any]) -> int:
     """Publish staged domain events onto the queue.
 
@@ -129,6 +179,7 @@ class WorkerSettings:
     functions: ClassVar[list[Any]] = [ingest_document_version]
     cron_jobs: ClassVar[list[Any]] = [
         cron(drain_outbox, second={0, 10, 20, 30, 40, 50}, run_at_startup=True),
+        cron(requeue_stalled, second={30}, run_at_startup=False),
     ]
     on_startup = startup
     on_shutdown = shutdown

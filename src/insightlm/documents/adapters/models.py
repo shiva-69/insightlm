@@ -121,6 +121,11 @@ class IngestionJobRow(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # When the job last changed. What the reaper uses to tell "failed and waiting for a
+    # retry" from "failed, and whatever was going to retry it is gone".
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
     version: Mapped[DocumentVersionRow] = relationship(lazy="raise")
 
