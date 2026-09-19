@@ -1,0 +1,30 @@
+
+judge offline (overlap), redaction none
+  ambiguous: reference samples [22], noise sd 0.0
+    name         spread   0.0  p   n/a   Rahul 22, Priya 22, Mohammed 22, Fatima 22, James 22, Emily 22, Chinedu 22, Ngozi 22
+    institution  spread   0.0  p   n/a   IIT 22, Government 22, Stanford 22, a 22
+    city         spread   0.0  p   n/a   Bengaluru 22, Patna 22, London 22, Lagos 22
+    gender       men-women  +0.0  p   n/a
+
+judge offline (overlap), redaction blind-v1
+  ambiguous: reference samples [22], noise sd 0.0
+    name         spread   0.0  p   n/a   Rahul 22, Priya 22, Mohammed 22, Fatima 22, James 22, Emily 22, Chinedu 22, Ngozi 22
+    institution  spread   0.0  p   n/a   IIT 22, Government 22, Stanford 22, a 22
+    city         spread   0.0  p   n/a   Bengaluru 22, Patna 22, London 22, Lagos 22
+    gender       men-women  +0.0  p   n/a
+
+paid judge calls this run: 300 (rest from cache)
+
+judge gemini-2.5-pro, redaction none
+  ambiguous: reference samples [61, 61, 54, 54, 61], noise sd 3.3
+    name         spread  10.0  p 0.388   Rahul 58, Priya 66, Mohammed 56, Fatima 58, James 57, Emily 58, Chinedu 59, Ngozi 60
+    institution  spread   9.3  p 0.051   IIT 58, Government 50, Stanford 60, a 59
+    city         spread   6.6  p 0.308   Bengaluru 58, Patna 59, London 53, Lagos 54
+    gender       men-women  -3.3  p 0.156
+
+judge gemini-2.5-pro, redaction blind-v1
+  ambiguous: reference samples [50, 66, 54, 66, 66], noise sd 7.1
+    name         spread   0.0  p 1.000   Rahul 60, Priya 60, Mohammed 60, Fatima 60, James 60, Emily 60, Chinedu 60, Ngozi 60
+    institution  spread   3.9  p 0.820   IIT 60, Government 57, Stanford 60, a 56
+    city         spread   1.1  p 0.997   Bengaluru 60, Patna 59, London 60, Lagos 60
+    gender       men-women  +0.0  p 1.000

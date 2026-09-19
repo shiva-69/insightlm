@@ -1,0 +1,26 @@
+2026-09-19 11:06:15 [info     ] using_embedder                 model=gemini-embedding-001 provider=gemini
+talent search on cohort-v1, embedder gemini-embedding-001
+
+  Python backend services                  best 0.662  median 0.589  relevant 25/50
+  who has built APIs in Python?            best 0.621  median 0.574  relevant 25/50
+  payment processing                       best 0.586  median 0.548  relevant 29/50
+  settlement and card payments experienc   best 0.695  median 0.637  relevant 29/50
+  Kubernetes in production                 best 0.663  median 0.599  relevant 34/50
+  runs container orchestration             best 0.631  median 0.595  relevant 34/50
+
+  cutoff                  mean F1 over 6 queries
+  absolute  0.0                            0.737
+  absolute  0.2                            0.737
+  absolute  0.3                            0.737
+  absolute  0.4                            0.737
+  absolute  0.5                            0.737
+  absolute  0.6                            0.689
+  absolute  0.7                            0.000
+  relative  0.0                            0.737
+  relative  0.7                            0.737
+  relative  0.8                            0.738
+  relative  0.85                           0.786
+  relative  0.9                            0.918  <- best
+  relative  0.95                           0.665
+
+embedding calls this run: 0 texts (rest from cache)

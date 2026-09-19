@@ -214,7 +214,17 @@
 - **W16:** **Code freeze Wed 14 Jan.** Dissertation assembly; 10-min demo rehearsed to script ×5, including the deliberate failure demos; a recorded backup video (never demo live without one); viva Q&A prep — especially *"why not microservices"*, *"why not a vector DB"*, *"how do you know it works"*, *"what would you do differently"*
 - Final: README with one-command setup, architecture diagram, demo GIF
 
-**Exit:** Milestone **M8** — submission ready.
+**Exit:** Milestone **M8** — submission ready. ◐ *In progress (19 Sep 2026).*
+
+> **Done:** all 18 ADRs; C4 context, container and component diagrams and a generated ER
+> diagram (docs/11, `make diagrams`); the final evaluation re-run on frozen code into
+> `eval/results/`, which surfaced a nondeterministic ranking (fixed, Finding 22) and a
+> fairness claim that didn't replicate (retracted, Finding 21); figures built from
+> results (`make figures`); error states on every data view; the README rewritten to
+> match what exists.
+>
+> **Left, and mostly the author's:** the dissertation text, the recorded demo video and
+> rehearsal, and viva preparation. A demo script to rehearse against is the next item.
 
 ---
 

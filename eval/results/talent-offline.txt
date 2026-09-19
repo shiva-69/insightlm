@@ -1,0 +1,25 @@
+talent search on cohort-v1, embedder hashing-1024-v1
+
+  Python backend services                  best 0.202  median 0.072  relevant 25/50
+  who has built APIs in Python?            best 0.165  median 0.032  relevant 25/50
+  payment processing                       best 0.212  median 0.000  relevant 29/50
+  settlement and card payments experienc   best 0.328  median 0.115  relevant 29/50
+  Kubernetes in production                 best 0.227  median 0.116  relevant 34/50
+  runs container orchestration             best 0.106  median 0.013  relevant 34/50
+
+  cutoff                  mean F1 over 6 queries
+  absolute  0.0                            0.737  <- best
+  absolute  0.2                            0.256
+  absolute  0.3                            0.049
+  absolute  0.4                            0.000
+  absolute  0.5                            0.000
+  absolute  0.6                            0.000
+  absolute  0.7                            0.000
+  relative  0.0                            0.737
+  relative  0.7                            0.511
+  relative  0.8                            0.431
+  relative  0.85                           0.381
+  relative  0.9                            0.236
+  relative  0.95                           0.129
+
+embedding calls this run: 0 texts (rest from cache)

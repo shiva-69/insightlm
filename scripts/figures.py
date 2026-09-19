@@ -87,8 +87,8 @@ def judge() -> None:
     ax.set_xticks(range(len(kinds)), kinds)
     ax.set_ylim(0, 1.05)
     ax.set_ylabel("accuracy")
-    ax.set_title("Criterion judge by failure mode (judge-v1 + v2, 37 cases)", loc="left")
-    ax.legend(frameon=False, loc="lower left")
+    ax.set_title("Criterion judge by failure mode (judge-v1 + v2, 37 cases)", loc="left", pad=26)
+    ax.legend(frameon=False, loc="lower left", bbox_to_anchor=(0, 1.0), ncols=2, fontsize=9)
     save(fig, "judge-by-kind")
 
 
@@ -105,7 +105,9 @@ def injection() -> None:
         for x, v in enumerate([lift_u, lift_d]):
             ax.text(x, v + 0.8, f"{v:+.1f}", ha="center", color=INK)
     axes[0].set_ylabel("mean score lift from an attack")
-    fig.suptitle("Prompt injection: effect on assessment scores (redteam-v1)", x=0.05, ha="left")
+    fig.suptitle(
+        "Prompt injection: effect on assessment scores (redteam-v1)", x=0.05, ha="left", y=1.04
+    )
     save(fig, "injection-lift")
 
 
@@ -127,13 +129,15 @@ def fairness() -> None:
         )
         for bar, d in zip(bars, dims, strict=True):
             p = base[d]["p"]
+            tall = bar.get_height() > 1.5
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
-                bar.get_height() + 0.3,
+                bar.get_height() / 2 if tall else bar.get_height() + 0.2,
                 "p n/a" if p is None else f"p={p:.2f}",
                 ha="center",
+                va="center" if tall else "bottom",
                 fontsize=8,
-                color=INK3,
+                color="white" if tall else INK3,
             )
         noise = base["noise_sd"]
         ax.axhline(noise, color=[INK3, EVIDENCE][i], linestyle=":", linewidth=1)

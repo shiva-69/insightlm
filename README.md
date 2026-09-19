@@ -44,13 +44,13 @@ from `eval/results/` and the harnesses in `src/insightlm/cli/`.
 | Which retrieval? | Dense + contextual enrichment: nDCG 1.00. Hybrid RRF *hurt* (0.80) once phrasing varied | Findings 4–11, ADR-0007 |
 | Is a model judge worth paying for? | 95% on 37 labelled cases vs 43% for a term-overlap baseline (11% vs 89% on negation) | Findings 12, 19 |
 | Does hidden text change scores? | Undefended, a hidden claim lifts a designer from 0 to 76 (mean +27); defended, +0 | Findings 14–15 |
-| Does the candidate's name, college or city move scores? | No effect distinguishable from the judge's own noise; blind screening cut that noise ~4× | Finding 17 |
+| Does the candidate's name, college or city move scores? | Nothing significant after correction. Closest: a regional college ~9 points lower unblinded (p = 0.05), gone with blind screening (p = 0.82) | Findings 17, 21 |
 | Does the shortlist rank people correctly? | 50 CVs of known strength: Spearman ρ 0.86 with the free baseline judge | docs/05, Phase 4 |
 | Does it hold up? | 50 users: p95 58 ms, 0 errors. 200 users: one process saturates; four take p95 1.73 s → 115 ms | docs/09 |
 
 Several of the most useful findings were **negative or corrected**: a fusion result that
 was really a bug, a "bias" that was one lucky sample, a prompt fix that single runs
-couldn't validate. They're reported as such.
+couldn't validate, a noise reduction that didn't replicate. They're reported as such.
 
 ## Run it
 
@@ -123,7 +123,7 @@ Diagrams: [docs/11-diagrams.md](docs/11-diagrams.md). Kubernetes manifests: `dep
 | [04 Recruiting and governance](docs/04-recruiting-and-governance.md) | Domain rules, roles, fairness, candidate rights |
 | [05 Delivery plan](docs/05-delivery-plan.md) | Phases, what each delivered, what was carried forward |
 | [06 Engineering standards](docs/06-engineering-standards.md) | Testing, CI, definition of done |
-| [07 Evaluation findings](docs/07-evaluation-findings.md) | **The results: Findings 1–20** |
+| [07 Evaluation findings](docs/07-evaluation-findings.md) | **The results: Findings 1–22** |
 | [08 Threat model](docs/08-threat-model.md) | STRIDE, each control pointing at its test |
 | [09 SLOs and capacity](docs/09-slos-and-capacity.md) | Objectives, load tests, the bottleneck |
 | [10 Runbook](docs/10-runbook.md) | Deploy, trace a request, one section per symptom |

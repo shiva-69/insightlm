@@ -611,3 +611,54 @@ match does. On the offline embedder the same cutoff destroys recall. The cutoff 
 therefore 0.9 with a real embedding model and off for the offline one, wired in the
 composition root. F1 at a fixed cutoff flatters "return everyone" when half the pool
 is relevant, which is why no-cutoff scores 0.74 in both columns.
+
+---
+
+# Phase 8: the final run, on frozen code
+
+Every harness was re-run on the final code and prompt into `eval/results/`, from which
+`scripts/figures.py` builds the report's figures. Most results reproduced exactly from
+cache. Two things changed, and one earlier claim is retracted.
+
+## Finding 21 — with the final prompt, a near-miss institution effect that blinding removes; a retraction
+
+The judge prompt gained its "whose work" rule after Finding 17, so the counterfactual
+harness was re-run on it: ambiguous CV, 5 samples per variant, 300 new calls.
+
+| ambiguous CV, final prompt | blind off | blind on |
+| --- | ---: | ---: |
+| same CV re-scored (noise sd) | 3.3 | 7.1 |
+| name: spread, p | 10.0, p = 0.39 | 0, not visible |
+| **institution: spread, p** | **9.3, p = 0.051** | 3.9, p = 0.82 |
+| city: spread, p | 6.6, p = 0.31 | 1.1, p = 0.997 |
+| men minus women | −3.3, p = 0.16 | 0 |
+
+**Institution, unblinded, is the closest thing to a bias signal in the project:** the
+same CV scored about 9 points lower when the degree came from "Government Engineering
+College, Thrissur" (mean 50) than from IIT Bombay (58) or Stanford (60). At p = 0.051
+across four comparisons it is not significant after correction, and should be reported
+as a signal to investigate, not a finding. With blind screening the spread falls to 3.9
+(p = 0.82), which is what redacting institutions is for.
+
+**Retraction.** Finding 17 observed that blind screening cut the judge's run-to-run
+noise about fourfold (sd 10.9 → 2.4). On the final prompt it went the other way
+(3.3 → 7.1). A standard deviation from five samples is itself too noisy to compare, and
+the earlier observation should not have been reported as a pattern. What survives both
+runs is the substantive result: no attribute effect significant after correction, and
+blinding removes the one that came closest.
+
+## Finding 22 — the "deterministic" hybrid ranking wasn't
+
+Re-running the retrieval ablation gave hybrid nDCG 0.804 where Finding 11 had 0.811, on
+cached, byte-identical embeddings. Three more runs gave 0.804, 0.837 and 0.819. Both
+searches ordered only by score, so tied scores came back in whatever order Postgres
+chose, and rank fusion turned tie order into different rankings. The offline CI gate
+runs this configuration, so it could have flaked. Ties now break on a hash of the
+chunk's text (stable across re-ingestion, unlike ids) and then id: 0.801, identical
+every run. Dense retrieval (C) was never affected: its scores don't tie.
+
+While checking whether shared state could matter, a latent multi-tenant issue turned up:
+the HNSW index spans every workspace and filters by tenant only after collecting
+candidates, so a workspace crowded out by others could get fewer results than it asked
+for. At this data size the planner doesn't use the index, but a large workspace would.
+Vector search now enables pgvector 0.8's iterative scans in strict order.

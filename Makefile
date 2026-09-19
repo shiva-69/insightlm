@@ -67,6 +67,9 @@ diagrams: ## Regenerate the ER diagram from the models and render every diagram 
 		docker run --rm -u "$$(id -u):$$(id -g)" -v $(PWD)/docs/diagrams:/data minlag/mermaid-cli:11.4.0 \
 			-i /data/$$f.mmd -o /data/svg/$$f.svg -b transparent; done
 
+figures: ## Build the report's figures from eval/results/ into docs/figures/
+	uv run python scripts/figures.py
+
 samples: ## Write sample CVs (strong, weak, paraphrase, attacked) into ./samples
 	uv run insightlm-samples --cohort 50
 
@@ -92,4 +95,4 @@ types: ## mypy --strict
 arch: ## Verify the architecture contracts
 	uv run lint-imports
 
-.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch fuzz load a11y coverage diagrams
+.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch fuzz load a11y coverage diagrams figures
