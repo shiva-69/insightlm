@@ -64,7 +64,8 @@ jobs:
         run: uv run pytest tests/unit tests/architecture -q
 
       - name: Integration and security tests
-        run: uv run pytest tests/integration tests/security -q --cov --cov-report=term-missing
+        # The whole suite, so coverage counts unit tests too; greenlet-aware (pyproject).
+        run: uv run pytest -q --cov --cov-report=term-missing --cov-fail-under=85
 
       # A non-empty autogenerate diff means a model changed without a migration.
       # Unglamorous, and exactly what production experience teaches you to gate on.

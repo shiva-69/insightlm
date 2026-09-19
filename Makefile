@@ -64,6 +64,9 @@ a11y: ## axe-core (WCAG 2.1 AA) on every page + phone-width overflow check (need
 samples: ## Write sample CVs (strong, weak, paraphrase, attacked) into ./samples
 	uv run insightlm-samples --cohort 50
 
+coverage: ## Whole suite with coverage; fails under 85% (as CI does)
+	uv run pytest -q --cov --cov-report=term-missing --cov-fail-under=85
+
 test-fast: ## Unit and architecture tests only (no Docker needed)
 	uv run pytest tests/unit tests/architecture -q
 
@@ -83,4 +86,4 @@ types: ## mypy --strict
 arch: ## Verify the architecture contracts
 	uv run lint-imports
 
-.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch fuzz load a11y
+.PHONY: help install up down logs migrate revision dev worker test eval eval-gate eval-judge eval-injection eval-fairness samples test-fast check lint format types arch fuzz load a11y coverage

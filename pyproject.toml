@@ -165,4 +165,7 @@ filterwarnings = [
 
 [tool.coverage.run]
 source = ["src/insightlm"]
-omit = ["*/migrations/*"]
+omit = ["*/migrations/*", "src/insightlm/cli/*"]  # CLIs are smoke-tested separately
+# SQLAlchemy's asyncio layer runs through greenlets; without this, coverage loses track
+# of code after an awaited database call and under-reports whole use cases.
+concurrency = ["greenlet", "thread"]
