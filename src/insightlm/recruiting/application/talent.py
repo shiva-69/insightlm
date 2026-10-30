@@ -10,12 +10,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from insightlm.recruiting.domain.assessment import Candidate
+from insightlm.recruiting.domain.roles import RecruitingPermission
 from insightlm.recruiting.ports.evidence import EvidenceProvider
 from insightlm.recruiting.ports.repositories import RecruitingUnitOfWorkFactory
 from insightlm.retrieval.domain.evidence import EvidenceQuery, RetrievalStrategy, RetrievedSpan
 from insightlm.shared.domain.errors import ValidationError
 from insightlm.shared.domain.policy import Actor, require
-from insightlm.shared.domain.roles import Permission
 
 # Passages retrieved per search. Several can belong to one candidate, so this is wider
 # than the number of people shown.
@@ -51,7 +51,7 @@ class SearchTalentPool:
 
     async def execute(self, actor: Actor, query: str, *, limit: int = 10) -> list[TalentMatch]:
         # Search crosses requisitions, so it's for people who may see across them.
-        require(actor, Permission.SCORE_VIEW)
+        require(actor, RecruitingPermission.SCORE_VIEW)
         if not query.strip():
             raise ValidationError("say what you're looking for")
 

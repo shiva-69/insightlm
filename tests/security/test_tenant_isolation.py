@@ -22,7 +22,7 @@ pytestmark = [pytest.mark.integration, requires_docker]
 
 
 async def register(container: Container, slug: str) -> TenantId:
-    result = await container.register_owner.execute(
+    result = await container.identity.register_owner.execute(
         RegisterOwnerCommand(
             tenant_name=slug.title(),
             tenant_slug=slug,

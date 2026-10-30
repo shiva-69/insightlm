@@ -126,7 +126,7 @@ async def upload(
     body = response.json()
     # The worker would pick this up from the outbox; here it runs inline.
     claims = container.token_issuer.verify_access_token(token)
-    outcome = await container.ingestion.run(
+    outcome = await container.documents.ingestion.run(
         tenant_id=claims.tenant_id, version_id=DocumentVersionId(UUID(body["version"]["id"]))
     )
     assert outcome.completed, outcome.error

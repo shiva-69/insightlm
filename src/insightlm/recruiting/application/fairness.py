@@ -18,7 +18,7 @@ from insightlm.recruiting.ports.repositories import RecruitingUnitOfWorkFactory
 from insightlm.shared.domain.errors import NotFoundError
 from insightlm.shared.domain.ids import CandidateId, RequisitionId
 from insightlm.shared.domain.policy import Actor, require
-from insightlm.shared.domain.roles import Permission
+from insightlm.shared.domain.roles import PlatformPermission
 from insightlm.shared.ports.clock import Clock
 
 _PAST_SCREENING = frozenset({Stage.SCREENED, Stage.INTERVIEW, Stage.OFFER, Stage.HIRED})
@@ -35,7 +35,7 @@ class RecordSelfIdentification:
     async def execute(
         self, actor: Actor, candidate_id: CandidateId, dimension: Dimension, value: str
     ) -> None:
-        require(actor, Permission.TENANT_MANAGE)
+        require(actor, PlatformPermission.TENANT_MANAGE)
         record = SelfIdentification(
             tenant_id=actor.tenant_id,
             candidate_id=candidate_id,
@@ -72,7 +72,7 @@ class SelectionRates:
         dimension: Dimension = Dimension.GENDER,
         requisition_id: RequisitionId | None = None,
     ) -> SelectionReport:
-        require(actor, Permission.AUDIT_READ)
+        require(actor, PlatformPermission.AUDIT_READ)
         outcomes: list[Outcome] = []
         reasons: dict[str, Counter[str]] = defaultdict(Counter)
         pending = 0

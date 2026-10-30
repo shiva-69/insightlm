@@ -22,7 +22,7 @@ async def test_only_forgotten_jobs_are_requeued(
     container: Container, admin_session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
     actor = await owner_of(container)
-    upload = UploadDocument(container.documents_uow, InMemoryObjectStore(), container.clock)  # type: ignore[arg-type]
+    upload = UploadDocument(container.documents.uow, InMemoryObjectStore(), container.clock)
     versions = []
     for i in range(5):
         result = await upload.execute(

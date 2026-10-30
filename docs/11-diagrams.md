@@ -79,7 +79,7 @@ flowchart TB
 ## Components
 
 Modules and the one direction their dependencies may point, enforced by
-`import-linter` in CI (six contracts, `.importlinter`). `recruiting` sees retrieval only
+`import-linter` in CI (nine contracts, `.importlinter`). `recruiting` sees retrieval only
 through `EvidencePort`; nothing reaches another module's adapters or application layer;
 the composition root is the only place that knows every module.
 

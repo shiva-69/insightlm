@@ -41,13 +41,13 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from insightlm.documents.ports.storage import ObjectStore
-from insightlm.governance.domain.audit import AuditAction
+from insightlm.governance.domain.audit import AuditAction, GovernanceAudit
 from insightlm.recruiting.ports.repositories import RecruitingUnitOfWorkFactory
 from insightlm.shared.adapters.db.base import set_actor_context, set_tenant_context
 from insightlm.shared.domain.errors import NotFoundError
 from insightlm.shared.domain.ids import CandidateId
 from insightlm.shared.domain.policy import Actor, require
-from insightlm.shared.domain.roles import Permission
+from insightlm.shared.domain.roles import PlatformPermission
 from insightlm.shared.observability.logging import get_logger
 
 _logger = get_logger(__name__)
@@ -135,14 +135,14 @@ class EraseCandidate:
         return session
 
     async def execute(self, actor: Actor, candidate_id: CandidateId) -> ErasureReport:
-        require(actor, Permission.TENANT_MANAGE)
+        require(actor, PlatformPermission.TENANT_MANAGE)
         plan = await self._collect(actor, candidate_id)
         report = ErasureReport(
             candidate_id=str(candidate_id), documents_kept_shared=len(plan.shared)
         )
         await self._audit(
             actor,
-            AuditAction.ERASURE_REQUESTED,
+            GovernanceAudit.ERASURE_REQUESTED,
             candidate_id,
             {"documents": len(plan.documents), "shared_documents_kept": len(plan.shared)},
         )
@@ -156,7 +156,7 @@ class EraseCandidate:
 
         await self._audit(
             actor,
-            AuditAction.ERASURE_COMPLETED,
+            GovernanceAudit.ERASURE_COMPLETED,
             candidate_id,
             {
                 "documents_erased": report.documents_erased,

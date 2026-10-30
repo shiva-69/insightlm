@@ -85,7 +85,7 @@ Password for every demo account: `demo-password-change-me`. Owner `priya@`, recr
 ## Check it
 
 ```bash
-make check          # ruff, mypy --strict, import-linter (6 architecture contracts)
+make check          # ruff, mypy --strict, import-linter (9 architecture contracts)
 make test           # 393 tests; real Postgres via testcontainers
 make coverage       # 89%, fails under 85% (as CI does)
 make eval-gate      # retrieval regression gate, offline, deterministic
@@ -128,7 +128,7 @@ Diagrams: [docs/11-diagrams.md](docs/11-diagrams.md). Kubernetes manifests: `dep
 | [09 SLOs and capacity](docs/09-slos-and-capacity.md) | Objectives, load tests, the bottleneck |
 | [10 Runbook](docs/10-runbook.md) | Deploy, trace a request, one section per symptom |
 | [11 Diagrams](docs/11-diagrams.md) | C4 context, containers, components; generated ER diagram |
-| [ADRs](docs/adr/README.md) | 18 decision records, including where the plan was wrong |
+| [ADRs](docs/adr/README.md) | 19 decision records, including where the plan was wrong |
 
 ## Limits, stated
 

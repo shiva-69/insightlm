@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from insightlm.governance.domain.redaction import BLIND, NO_REDACTION, redact
+from insightlm.governance.domain.redaction import NO_REDACTION, redact
+from insightlm.recruiting.domain.screening import BLIND
 
 CV = """Priya Venkatesh
 priya.v@gmail.com | +91 98765 43210 | linkedin.com/in/priyav

@@ -11,11 +11,11 @@ from hypothesis import strategies as st
 
 from insightlm.governance.domain.audit import (
     GENESIS_HASH,
-    AuditAction,
     AuditEntry,
     compute_entry_hash,
     verify_chain,
 )
+from insightlm.identity.domain.audit_actions import IdentityAudit
 from insightlm.shared.domain.errors import InvariantViolationError
 from insightlm.shared.domain.ids import (
     TenantId,
@@ -36,7 +36,7 @@ def build_chain(tenant_id: TenantId, length: int) -> list[AuditEntry]:
             entry_id=new_audit_entry_id(),
             tenant_id=tenant_id,
             actor_id=actor,
-            action=AuditAction.USER_AUTHENTICATED,
+            action=IdentityAudit.USER_AUTHENTICATED,
             subject_type="user",
             subject_id=str(actor),
             payload={"index": i},
@@ -98,7 +98,7 @@ def test_appending_a_forged_entry_is_detected() -> None:
         entry_id=new_audit_entry_id(),
         tenant_id=tenant,
         actor_id=new_user_id(),
-        action=AuditAction.MEMBERSHIP_ROLE_CHANGED,
+        action=IdentityAudit.MEMBERSHIP_ROLE_CHANGED,
         subject_type="membership",
         subject_id="forged",
         payload={"to": "owner"},
@@ -117,7 +117,7 @@ def test_hash_is_deterministic_regardless_of_payload_key_order() -> None:
     common = {
         "tenant_id": new_tenant_id(),
         "actor_id": None,
-        "action": AuditAction.TENANT_CREATED,
+        "action": IdentityAudit.TENANT_CREATED,
         "subject_type": "tenant",
         "subject_id": "t1",
         "occurred_at": BASE_TIME,
@@ -134,7 +134,7 @@ def test_naive_datetime_is_rejected() -> None:
             id=new_audit_entry_id(),
             tenant_id=new_tenant_id(),
             actor_id=None,
-            action=AuditAction.TENANT_CREATED,
+            action=IdentityAudit.TENANT_CREATED,
             subject_type="tenant",
             subject_id=None,
             payload={},

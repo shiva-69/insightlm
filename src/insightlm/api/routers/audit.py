@@ -17,7 +17,9 @@ async def list_entries(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0, le=MAX_OFFSET),
 ) -> list[AuditEntryResponse]:
-    entries = await container.list_audit_entries.execute(actor, limit=limit, offset=offset)
+    entries = await container.governance.list_audit_entries.execute(
+        actor, limit=limit, offset=offset
+    )
     return [AuditEntryResponse.model_validate(entry) for entry in entries]
 
 
@@ -27,5 +29,5 @@ async def list_entries(
     summary="Verify the hash chain is unbroken",
 )
 async def verify_chain(actor: ActorDep, container: ContainerDep) -> ChainVerificationResponse:
-    result = await container.verify_audit_chain.execute(actor)
+    result = await container.governance.verify_audit_chain.execute(actor)
     return ChainVerificationResponse.model_validate(result)

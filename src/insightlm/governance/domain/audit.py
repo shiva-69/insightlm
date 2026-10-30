@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
-from enum import StrEnum
 from typing import Self
 
 from insightlm.shared.domain.errors import InvariantViolationError
@@ -27,31 +27,38 @@ GENESIS_HASH = "0" * 64
 """``prev_hash`` of the first entry in a tenant's chain."""
 
 
-class AuditAction(StrEnum):
-    # identity
-    TENANT_CREATED = "tenant.created"
-    USER_REGISTERED = "user.registered"
-    USER_AUTHENTICATED = "user.authenticated"
-    INVITATION_CREATED = "invitation.created"
-    INVITATION_ACCEPTED = "invitation.accepted"
-    INVITATION_REVOKED = "invitation.revoked"
-    MEMBERSHIP_ROLE_CHANGED = "membership.role_changed"
-    MEMBERSHIP_REVOKED = "membership.revoked"
-    # governance
-    AUDIT_CHAIN_VERIFIED = "audit.chain_verified"
-    # reserved for later phases -- listed here so the vocabulary is designed, not accreted
-    DOCUMENT_UPLOADED = "document.uploaded"
-    REQUISITION_CREATED = "requisition.created"
-    RUBRIC_PROPOSED = "rubric.proposed"
-    RUBRIC_APPROVED = "rubric.approved"
-    CANDIDATE_ADDED = "candidate.added"
-    ASSESSMENT_CREATED = "assessment.created"
-    STAGE_TRANSITIONED = "application.stage_transitioned"
-    INTERVIEWER_ASSIGNED = "application.interviewer_assigned"
-    SCORECARD_SUBMITTED = "scorecard.submitted"
-    CANDIDATE_DATA_ACCESSED = "candidate.data_accessed"
-    ERASURE_REQUESTED = "erasure.requested"
-    ERASURE_COMPLETED = "erasure.completed"
+_ACTION = re.compile(r"^[a-z][a-z_]*\.[a-z][a-z_]*$")
+
+
+@dataclass(frozen=True, slots=True)
+class AuditAction:
+    """What happened, named ``subject.verb`` -- ``rubric.approved``, ``tenant.created``.
+
+    A value, not a closed list. Each module declares the actions it records next to the
+    code that records them (``identity.domain.audit_actions``, ``recruiting.domain.
+    audit_actions``...), so a new vertical audits its own events without editing this
+    module. The string is exactly what is stored and hashed, which is why existing
+    chains still verify: the representation changed, the bytes did not.
+    """
+
+    value: str
+
+    def __post_init__(self) -> None:
+        if not _ACTION.match(self.value):
+            raise InvariantViolationError(
+                f"audit action '{self.value}' must be named 'subject.verb'"
+            )
+
+    def __str__(self) -> str:
+        return self.value
+
+
+class GovernanceAudit:
+    """The actions governance itself records."""
+
+    AUDIT_CHAIN_VERIFIED = AuditAction("audit.chain_verified")
+    ERASURE_REQUESTED = AuditAction("erasure.requested")
+    ERASURE_COMPLETED = AuditAction("erasure.completed")
 
 
 def _canonical(value: object) -> str:

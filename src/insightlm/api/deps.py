@@ -10,7 +10,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from insightlm.bootstrap import Container
 from insightlm.shared.domain.errors import AuthenticationError
 from insightlm.shared.domain.policy import Actor
-from insightlm.shared.domain.roles import Role
 from insightlm.shared.observability.telemetry import bind_tenant
 
 _bearer = HTTPBearer(auto_error=False, description="Access token from POST /auth/login")
@@ -38,14 +37,13 @@ async def get_actor(
         raise AuthenticationError("missing bearer token")
 
     claims = container.token_issuer.verify_access_token(credentials.credentials)
-    try:
-        role = Role(claims.role)
-    except ValueError as exc:
-        raise AuthenticationError("token carries an unknown role") from exc
+    if not container.roles.is_known(claims.role):
+        raise AuthenticationError("token carries an unknown role")
+    role = container.roles.resolve(claims.role)
 
     # Labels model-call metrics with the workspace, so cost per tenant is visible.
     bind_tenant(str(claims.tenant_id))
-    return Actor(user_id=claims.user_id, tenant_id=claims.tenant_id, role=role)
+    return Actor.of(container.roles, user_id=claims.user_id, tenant_id=claims.tenant_id, role=role)
 
 
 ActorDep = Annotated[Actor, Depends(get_actor)]

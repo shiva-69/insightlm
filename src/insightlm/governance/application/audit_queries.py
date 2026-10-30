@@ -10,7 +10,7 @@ from __future__ import annotations
 from insightlm.governance.domain.audit import AuditEntry, ChainVerification
 from insightlm.governance.ports.uow import GovernanceUnitOfWorkFactory
 from insightlm.shared.domain.policy import Actor, require
-from insightlm.shared.domain.roles import Permission
+from insightlm.shared.domain.roles import PlatformPermission
 
 
 class ListAuditEntries:
@@ -18,7 +18,7 @@ class ListAuditEntries:
         self._uow_factory = uow_factory
 
     async def execute(self, actor: Actor, *, limit: int = 100, offset: int = 0) -> list[AuditEntry]:
-        require(actor, Permission.AUDIT_READ)
+        require(actor, PlatformPermission.AUDIT_READ)
         async with self._uow_factory(tenant_id=actor.tenant_id) as uow:
             return await uow.audit.list_for_tenant(
                 actor.tenant_id, limit=min(limit, 500), offset=offset
@@ -36,6 +36,6 @@ class VerifyAuditChain:
         self._uow_factory = uow_factory
 
     async def execute(self, actor: Actor) -> ChainVerification:
-        require(actor, Permission.AUDIT_READ)
+        require(actor, PlatformPermission.AUDIT_READ)
         async with self._uow_factory(tenant_id=actor.tenant_id) as uow:
             return await uow.audit.verify_chain(actor.tenant_id)

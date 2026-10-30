@@ -13,6 +13,7 @@ from insightlm.identity.domain.entities import (
     User,
     normalise_email,
 )
+from insightlm.recruiting.domain.roles import RecruitingRole
 from insightlm.shared.domain.errors import ConflictError, ValidationError
 from insightlm.shared.domain.ids import (
     new_invitation_id,
@@ -20,7 +21,7 @@ from insightlm.shared.domain.ids import (
     new_tenant_id,
     new_user_id,
 )
-from insightlm.shared.domain.roles import Role
+from insightlm.shared.domain.roles import PlatformRole
 
 NOW = datetime(2026, 9, 18, 12, 0, tzinfo=UTC)
 
@@ -30,7 +31,7 @@ def make_invitation(**overrides: object) -> Invitation:
         "id": new_invitation_id(),
         "tenant_id": new_tenant_id(),
         "email": "dev@example.com",
-        "role": Role.RECRUITER,
+        "role": RecruitingRole.RECRUITER,
         "token_hash": "a" * 64,
         "invited_by": new_user_id(),
         "created_at": NOW,
@@ -62,7 +63,7 @@ def test_invalid_slugs_are_rejected(slug: str) -> None:
 def test_invitation_cannot_grant_ownership() -> None:
     """Structural, not procedural: the entity itself refuses to exist."""
     with pytest.raises(ValidationError):
-        make_invitation(role=Role.OWNER)
+        make_invitation(role=PlatformRole.OWNER)
 
 
 def test_invitation_must_expire_after_creation() -> None:
@@ -119,10 +120,10 @@ def test_revoked_membership_cannot_change_role() -> None:
         id=new_membership_id(),
         tenant_id=new_tenant_id(),
         user_id=new_user_id(),
-        role=Role.RECRUITER,
+        role=RecruitingRole.RECRUITER,
         created_at=NOW,
     ).revoked(NOW)
 
     assert not membership.is_active
     with pytest.raises(ConflictError):
-        membership.with_role(Role.INTERVIEWER)
+        membership.with_role(RecruitingRole.INTERVIEWER)

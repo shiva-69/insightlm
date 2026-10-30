@@ -23,10 +23,11 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 from insightlm.documents.domain.spans import PageRect
+from insightlm.shared.domain.errors import InvariantViolationError
 
 RGB = tuple[float, float, float]
 WHITE: RGB = (1.0, 1.0, 1.0)
@@ -108,7 +109,12 @@ def concealment(
 # Phrases addressed to a model rather than a reader. Deliberately specific: "rate" alone
 # would flag "rate limiting", "ignore" alone would flag "ignored flaky tests". Each
 # pattern needs the imperative *and* its object.
-_INSTRUCTION_PATTERNS = [
+#
+# These are the engine's: they are about addressing a model, whatever the document is.
+# A vertical adds the phrases specific to what it judges -- recruiting adds "rate this
+# candidate", a contract vertical would add "approve this clause" -- through
+# ``InstructionScanner.extended``, in the composition root.
+ENGINE_INSTRUCTION_PATTERNS: tuple[str, ...] = (
     r"\bignore\s+(?:all\s+|any\s+|the\s+)?(?:previous|prior|above|earlier|preceding)\s+"
     r"(?:instructions?|prompts?|directions?|rules?|context)",
     r"\b(?:disregard|forget|override)\s+(?:all\s+|any\s+)?(?:previous|prior|above|your|the)\s+"
@@ -116,53 +122,65 @@ _INSTRUCTION_PATTERNS = [
     r"\byou\s+are\s+(?:now\s+)?(?:an?\s+|the\s+)?(?:ai|assistant|language\s+model|llm|"
     r"chatbot|evaluator|screener|grader)\b",
     r"\b(?:system|developer)\s+(?:prompt|message|instructions?)\b",
-    r"\b(?:rate|score|rank|grade|mark|assess|evaluate)\s+(?:this|the)\s+"
-    r"(?:candidate|applicant|resume|résumé|cv)\s+(?:as|at|with|a|an|highly|10|5|top)",
-    r"\b(?:recommend|shortlist|advance|select|hire)\s+(?:this|the)\s+"
-    r"(?:candidate|applicant)\s+(?:immediately|for|as|without)",
-    r"\bthis\s+(?:candidate|applicant)\s+(?:is|has)\s+(?:an?\s+)?(?:perfect|ideal|"
-    r"exceptional|outstanding)\s+(?:match|fit|candidate)",
     r"\bas\s+an?\s+(?:ai|language\s+model|llm)\b",
     r"\bnew\s+instructions?\s*:",
     r"</?\s*(?:source|system|instructions?|assistant|user)\s*>",
     r"\b(?:verdict|output|respond|answer)\s*(?:with|:)\s*[\"']?strong\b",
-]
-_INSTRUCTION = re.compile("|".join(f"(?:{p})" for p in _INSTRUCTION_PATTERNS), re.IGNORECASE)
+)
 
 
-def looks_like_instruction(text: str) -> bool:
-    return bool(_INSTRUCTION.search(" ".join(text.split())))
+@dataclass(frozen=True, slots=True)
+class InstructionScanner:
+    """Finds visible text addressed to a model. Pure; built once, shared freely."""
 
+    patterns: tuple[str, ...]
+    _compiled: re.Pattern[str] = field(init=False, repr=False, compare=False)
 
-def instruction_spans(text: str) -> list[tuple[int, int]]:
-    """Character ranges of instruction-like phrases, widened to their sentence."""
-    ranges: list[tuple[int, int]] = []
-    for match in _INSTRUCTION.finditer(text):
-        start = max(text.rfind(c, 0, match.start()) for c in ".!?\n") + 1
-        ends = [i for c in ".!?\n" if (i := text.find(c, match.end())) != -1]
-        end = min(ends) + 1 if ends else len(text)
-        if ranges and start < ranges[-1][1]:
-            ranges[-1] = (ranges[-1][0], max(end, ranges[-1][1]))
-        else:
-            ranges.append((start, end))
-    return ranges
+    def __post_init__(self) -> None:
+        if not self.patterns:
+            raise InvariantViolationError("an instruction scanner needs at least one pattern")
+        compiled = re.compile("|".join(f"(?:{p})" for p in self.patterns), re.IGNORECASE)
+        object.__setattr__(self, "_compiled", compiled)
 
+    def extended(self, patterns: Sequence[str]) -> InstructionScanner:
+        """This scanner plus a vertical's own phrases."""
+        return InstructionScanner((*self.patterns, *patterns))
 
-def instruction_findings(
-    text: str, char_rects: Sequence[PageRect | None] = ()
-) -> tuple[ContentFinding, ...]:
-    """Visible text addressed to a model: kept in the document, flagged for the reviewer."""
-    found: list[ContentFinding] = []
-    for start, end in instruction_spans(text):
-        rect = next((r for r in char_rects[start:end] if r is not None), None)
-        found.append(
-            ContentFinding(
-                kind=FindingKind.INSTRUCTION,
-                text=" ".join(text[start:end].split()),
-                page=rect.page if rect else None,
-                rect=rect,
-                excluded=False,
-                instruction_like=True,
+    def matches(self, text: str) -> bool:
+        return bool(self._compiled.search(" ".join(text.split())))
+
+    def spans(self, text: str) -> list[tuple[int, int]]:
+        """Character ranges of instruction-like phrases, widened to their sentence."""
+        ranges: list[tuple[int, int]] = []
+        for match in self._compiled.finditer(text):
+            start = max(text.rfind(c, 0, match.start()) for c in ".!?\n") + 1
+            ends = [i for c in ".!?\n" if (i := text.find(c, match.end())) != -1]
+            end = min(ends) + 1 if ends else len(text)
+            if ranges and start < ranges[-1][1]:
+                ranges[-1] = (ranges[-1][0], max(end, ranges[-1][1]))
+            else:
+                ranges.append((start, end))
+        return ranges
+
+    def findings(
+        self, text: str, char_rects: Sequence[PageRect | None] = ()
+    ) -> tuple[ContentFinding, ...]:
+        """Visible text addressed to a model: kept in the document, flagged for the reviewer."""
+        found: list[ContentFinding] = []
+        for start, end in self.spans(text):
+            rect = next((r for r in char_rects[start:end] if r is not None), None)
+            found.append(
+                ContentFinding(
+                    kind=FindingKind.INSTRUCTION,
+                    text=" ".join(text[start:end].split()),
+                    page=rect.page if rect else None,
+                    rect=rect,
+                    excluded=False,
+                    instruction_like=True,
+                )
             )
-        )
-    return tuple(found)
+        return tuple(found)
+
+
+ENGINE_SCANNER = InstructionScanner(ENGINE_INSTRUCTION_PATTERNS)
+"""The engine alone, with no vertical's phrases. Used where no vertical is wired in."""

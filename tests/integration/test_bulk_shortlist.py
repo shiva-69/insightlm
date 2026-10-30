@@ -77,7 +77,7 @@ async def test_fifty_cvs_in_a_ranked_shortlist_out(
                 headers=auth(recruiter),
             )
         ).json()
-        outcome = await container.ingestion.run(
+        outcome = await container.documents.ingestion.run(
             tenant_id=tenant, version_id=DocumentVersionId(UUID(uploaded["version"]["id"]))
         )
         assert outcome.completed, outcome.error

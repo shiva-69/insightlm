@@ -9,13 +9,12 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field, model_validator
 
 from insightlm.shared.domain.errors import ValidationError
-from insightlm.shared.domain.roles import Role
 
 _UNSTORABLE = re.compile(r"[\x00\ud800-\udfff]")
 
@@ -103,11 +102,25 @@ class UserResponse(_FromDomain):
     is_active: bool
 
 
+def _value_of(value: object) -> object:
+    """Roles and audit actions are value objects in the domain and names on the wire."""
+    inner = getattr(value, "value", None)
+    return inner if isinstance(inner, str) else value
+
+
+RoleName = Annotated[str, BeforeValidator(_value_of)]
+"""A role as the API sees it: its name. Which names exist is decided by the role
+catalogue the running system was built with, so it is checked in the router, not by
+an enum here."""
+
+RoleInput = Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[a-z][a-z_]*$")]
+
+
 class MembershipResponse(_FromDomain):
     id: UUID
     tenant_id: UUID
     user_id: UUID
-    role: Role
+    role: RoleName
     created_at: datetime
     revoked_at: datetime | None = None
 
@@ -127,13 +140,13 @@ class InviteMemberRequest(RequestModel):
     model_config = ConfigDict(extra="forbid")
 
     email: EmailStr
-    role: Role
+    role: RoleInput
 
 
 class InvitationResponse(BaseModel):
     id: UUID
     email: str
-    role: Role
+    role: RoleName
     expires_at: datetime
     token: str = Field(
         description=(
@@ -154,13 +167,13 @@ class AcceptInvitationRequest(RequestModel):
 class ChangeRoleRequest(RequestModel):
     model_config = ConfigDict(extra="forbid")
 
-    role: Role
+    role: RoleInput
 
 
 class AuditEntryResponse(_FromDomain):
     id: UUID
     actor_id: UUID | None
-    action: str
+    action: Annotated[str, BeforeValidator(_value_of)]
     subject_type: str
     subject_id: str | None
     payload: dict[str, object]

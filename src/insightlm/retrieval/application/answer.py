@@ -16,6 +16,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
+from insightlm.documents.domain.permissions import DocumentPermission
 from insightlm.retrieval.domain.answer import (
     AnswerOutcome,
     GroundedAnswer,
@@ -30,7 +31,6 @@ from insightlm.retrieval.ports.generation import GroundedGenerator
 from insightlm.shared.domain.errors import ValidationError
 from insightlm.shared.domain.ids import DocumentId
 from insightlm.shared.domain.policy import Actor, require
-from insightlm.shared.domain.roles import Permission
 from insightlm.shared.observability.logging import get_logger
 
 _logger = get_logger(__name__)
@@ -70,7 +70,7 @@ class AnswerQuestion:
         self._embedding_model = embedding_model
 
     async def execute(self, actor: Actor, request: AnswerRequest) -> AnswerOutput:
-        require(actor, Permission.DOCUMENT_READ)
+        require(actor, DocumentPermission.READ)
 
         if not request.question.strip():
             raise ValidationError("ask a question")

@@ -21,10 +21,10 @@ from insightlm.api.routers.recruiting import (
 from insightlm.api.schemas import reject_unstorable
 from insightlm.recruiting.domain.assessment import Stage
 from insightlm.recruiting.domain.pipeline import RejectionReason
+from insightlm.recruiting.domain.roles import RecruitingPermission
 from insightlm.recruiting.domain.scorecard import CriterionRating, Recommendation
 from insightlm.shared.domain.errors import ValidationError
 from insightlm.shared.domain.ids import ApplicationId, CriterionId, ScorecardId, UserId
-from insightlm.shared.domain.roles import ROLE_PERMISSIONS, Permission
 
 router = APIRouter(tags=["pipeline"])
 
@@ -137,7 +137,9 @@ class TalentMatchResponse(_Out):
 async def get_application(
     application_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> ApplicationDetailResponse:
-    detail = await container.get_application.execute(actor, ApplicationId(application_id))
+    detail = await container.recruiting.get_application.execute(
+        actor, ApplicationId(application_id)
+    )
     return ApplicationDetailResponse.model_validate(detail)
 
 
@@ -149,7 +151,7 @@ async def get_application(
 async def move_application(
     application_id: UUID, body: MoveRequest, actor: ActorDep, container: ContainerDep
 ) -> ApplicationResponse:
-    moved = await container.move_application.execute(
+    moved = await container.recruiting.move_application.execute(
         actor, ApplicationId(application_id), body.to, reason=body.reason, note=body.note
     )
     return ApplicationResponse.model_validate(moved)
@@ -166,16 +168,18 @@ async def assign_interviewer(
 ) -> ScorecardResponse:
     # Recruiting records assignments; identity knows who can interview. Checked here,
     # where both are visible.
-    members = await container.list_members.execute(actor)
+    members = await container.identity.list_members.execute(actor)
     member = next(
         (m for m in members if m.user.id == body.user_id and m.membership.is_active), None
     )
     if member is None:
         raise ValidationError("that person is not an active member of this workspace")
-    if Permission.SCORECARD_SUBMIT not in ROLE_PERMISSIONS[member.membership.role]:
+    if RecruitingPermission.SCORECARD_SUBMIT not in container.roles.permissions_for(
+        member.membership.role
+    ):
         raise ValidationError(f"a {member.membership.role.value} cannot submit scorecards")
 
-    card = await container.assign_interviewer.execute(
+    card = await container.recruiting.assign_interviewer.execute(
         actor, ApplicationId(application_id), UserId(body.user_id)
     )
     return ScorecardResponse.model_validate(card)
@@ -189,7 +193,7 @@ async def assign_interviewer(
 async def submit_scorecard(
     scorecard_id: UUID, body: SubmitScorecardRequest, actor: ActorDep, container: ContainerDep
 ) -> ScorecardResponse:
-    card = await container.submit_scorecard.execute(
+    card = await container.recruiting.submit_scorecard.execute(
         actor,
         ScorecardId(scorecard_id),
         ratings=[
@@ -211,7 +215,8 @@ async def submit_scorecard(
 )
 async def my_interviews(actor: ActorDep, container: ContainerDep) -> list[InterviewResponse]:
     return [
-        InterviewResponse.model_validate(i) for i in await container.my_interviews.execute(actor)
+        InterviewResponse.model_validate(i)
+        for i in await container.recruiting.my_interviews.execute(actor)
     ]
 
 
@@ -227,7 +232,7 @@ async def search_talent(
     limit: int = Query(default=10, ge=1, le=50),
 ) -> list[TalentMatchResponse]:
     reject_unstorable(q)
-    matches = await container.search_talent_pool.execute(actor, q, limit=limit)
+    matches = await container.recruiting.search_talent_pool.execute(actor, q, limit=limit)
     return [
         TalentMatchResponse(
             candidate=CandidateResponse.model_validate(m.candidate),

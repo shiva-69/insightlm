@@ -23,7 +23,7 @@ router = APIRouter(tags=["ask"])
     summary="Ask a question; every claim carries a resolvable citation",
 )
 async def ask(request: AskRequest, actor: ActorDep, container: ContainerDep) -> AnswerResponse:
-    output = await container.ask.ask(
+    output = await container.retrieval.ask.ask(
         actor,
         AnswerRequest(
             question=request.question,

@@ -22,8 +22,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, replace
 
-from insightlm.governance.domain.audit import AuditAction
-from insightlm.governance.domain.redaction import BLIND, NO_REDACTION, RedactionProfile, redact
+from insightlm.governance.domain.redaction import NO_REDACTION, RedactionProfile, redact
 from insightlm.recruiting.domain.assessment import (
     Application,
     Assessment,
@@ -34,12 +33,14 @@ from insightlm.recruiting.domain.assessment import (
     Verdict,
     aggregate,
 )
+from insightlm.recruiting.domain.audit_actions import RecruitingAudit
+from insightlm.recruiting.domain.roles import RecruitingPermission
 from insightlm.recruiting.domain.rubric import Criterion
+from insightlm.recruiting.domain.screening import BLIND
 from insightlm.recruiting.ports.evidence import EvidenceProvider
 from insightlm.recruiting.ports.judge import CriterionJudge, JudgeResult
 from insightlm.recruiting.ports.repositories import RecruitingUnitOfWorkFactory
 from insightlm.retrieval.domain.evidence import EvidenceBundle, EvidenceQuery, RetrievalStrategy
-from insightlm.shared.adapters.limits import UnmeteredBudget
 from insightlm.shared.domain.errors import ConflictError, NotFoundError
 from insightlm.shared.domain.ids import (
     ApplicationId,
@@ -50,7 +51,6 @@ from insightlm.shared.domain.ids import (
     new_candidate_id,
 )
 from insightlm.shared.domain.policy import Actor, require
-from insightlm.shared.domain.roles import Permission
 from insightlm.shared.observability.logging import get_logger
 from insightlm.shared.ports.clock import Clock
 from insightlm.shared.ports.limits import ModelBudget
@@ -75,7 +75,7 @@ class AddCandidate:
         email: str | None,
         document_ids: list[DocumentId],
     ) -> tuple[Candidate, Application]:
-        require(actor, Permission.REQUISITION_MANAGE)
+        require(actor, RecruitingPermission.REQUISITION_MANAGE)
         now = self._clock.now()
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             if await uow.requisitions.get(requisition_id) is None:
@@ -102,7 +102,7 @@ class AddCandidate:
             await uow.audit.record(
                 tenant_id=actor.tenant_id,
                 actor_id=actor.user_id,
-                action=AuditAction.CANDIDATE_ADDED,
+                action=RecruitingAudit.CANDIDATE_ADDED,
                 subject_type="application",
                 subject_id=str(application.id),
                 payload={
@@ -175,7 +175,7 @@ def evidence_as_seen_by_judge(
     only the text leaked the name through the section attribute; the integration test
     caught it.
     """
-    if profile is NO_REDACTION:
+    if profile.is_identity:
         return bundle
 
     def clean(value: str) -> str:
@@ -202,16 +202,18 @@ class RunAssessment:
         evidence: EvidenceProvider,
         judge: CriterionJudge,
         clock: Clock,
-        budget: ModelBudget | None = None,
+        budget: ModelBudget,
     ) -> None:
+        # Required, not defaulted: whether model calls are metered is a deployment
+        # decision, made in the composition root, never by the use case.
         self._uow_factory = uow_factory
         self._evidence = evidence
         self._judge = judge
         self._clock = clock
-        self._budget = budget or UnmeteredBudget()
+        self._budget = budget
 
     async def execute(self, actor: Actor, application_id: ApplicationId) -> Assessment:
-        require(actor, Permission.ASSESSMENT_RUN)
+        require(actor, RecruitingPermission.ASSESSMENT_RUN)
 
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             application = await uow.applications.get(application_id)
@@ -288,7 +290,7 @@ class RunAssessment:
             await uow.audit.record(
                 tenant_id=actor.tenant_id,
                 actor_id=actor.user_id,
-                action=AuditAction.ASSESSMENT_CREATED,
+                action=RecruitingAudit.ASSESSMENT_CREATED,
                 subject_type="assessment",
                 subject_id=str(assessment.id),
                 payload={
@@ -324,7 +326,7 @@ class Shortlist:
         self._uow_factory = uow_factory
 
     async def execute(self, actor: Actor, requisition_id: RequisitionId) -> list[ShortlistEntry]:
-        require(actor, Permission.SCORE_VIEW)
+        require(actor, RecruitingPermission.SCORE_VIEW)
         entries: list[ShortlistEntry] = []
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             for application in await uow.applications.list_for_requisition(requisition_id):

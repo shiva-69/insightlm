@@ -11,19 +11,19 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from insightlm.bootstrap import Container
+from insightlm.bootstrap import Container, build_role_catalogue
 from insightlm.identity.application.commands import RegisterOwnerCommand
 from insightlm.shared.adapters.db.base import set_tenant_context
 from insightlm.shared.domain.ids import TenantId
 from insightlm.shared.domain.policy import Actor
-from insightlm.shared.domain.roles import Role
+from insightlm.shared.domain.roles import PlatformRole
 from tests.conftest import requires_docker
 
 pytestmark = [pytest.mark.integration, requires_docker]
 
 
 async def register(container: Container) -> tuple[TenantId, Actor]:
-    result = await container.register_owner.execute(
+    result = await container.identity.register_owner.execute(
         RegisterOwnerCommand(
             tenant_name="Acme",
             tenant_slug="acme",
@@ -32,17 +32,22 @@ async def register(container: Container) -> tuple[TenantId, Actor]:
             password="correct-horse-battery-staple",
         )
     )
-    actor = Actor(user_id=result.user.id, tenant_id=result.tenant.id, role=Role.OWNER)
+    actor = Actor.of(
+        build_role_catalogue(),
+        user_id=result.user.id,
+        tenant_id=result.tenant.id,
+        role=PlatformRole.OWNER,
+    )
     return result.tenant.id, actor
 
 
 async def test_registration_writes_a_verifiable_chain(container: Container) -> None:
     _, actor = await register(container)
 
-    entries = await container.list_audit_entries.execute(actor)
+    entries = await container.governance.list_audit_entries.execute(actor)
     assert len(entries) == 2  # tenant.created, user.registered
 
-    verification = await container.verify_audit_chain.execute(actor)
+    verification = await container.governance.verify_audit_chain.execute(actor)
     assert verification.is_intact
     assert verification.entries_checked == 2
 
@@ -112,7 +117,7 @@ async def test_the_chain_detects_a_tamper_that_bypasses_the_trigger(
     """
     tenant_id, actor = await register(container)
 
-    assert (await container.verify_audit_chain.execute(actor)).is_intact
+    assert (await container.governance.verify_audit_chain.execute(actor)).is_intact
 
     # The attacker here holds owner privileges -- enough to drop the trigger and to
     # bypass RLS. Everything the first layer protects is gone.
@@ -133,7 +138,7 @@ async def test_the_chain_detects_a_tamper_that_bypasses_the_trigger(
         )
         await session.commit()
 
-    verification = await container.verify_audit_chain.execute(actor)
+    verification = await container.governance.verify_audit_chain.execute(actor)
     assert not verification.is_intact
     assert verification.broken_at is not None
     assert "mutated" in (verification.reason or "")
@@ -142,7 +147,7 @@ async def test_the_chain_detects_a_tamper_that_bypasses_the_trigger(
 async def test_audit_log_is_not_readable_across_tenants(container: Container) -> None:
     _, acme_actor = await register(container)
 
-    other = await container.register_owner.execute(
+    other = await container.identity.register_owner.execute(
         RegisterOwnerCommand(
             tenant_name="Globex",
             tenant_slug="globex",
@@ -153,8 +158,13 @@ async def test_audit_log_is_not_readable_across_tenants(container: Container) ->
     )
 
     # An actor holding a *valid* owner role, pointed at someone else's tenant.
-    trespasser = Actor(user_id=other.user.id, tenant_id=acme_actor.tenant_id, role=Role.OWNER)
-    entries = await container.list_audit_entries.execute(trespasser)
+    trespasser = Actor.of(
+        build_role_catalogue(),
+        user_id=other.user.id,
+        tenant_id=acme_actor.tenant_id,
+        role=PlatformRole.OWNER,
+    )
+    entries = await container.governance.list_audit_entries.execute(trespasser)
 
     # RLS scopes the read to the tenant in the actor's context, so the trespasser sees
     # Acme's log only because their context *is* Acme -- they cannot see Globex's here.

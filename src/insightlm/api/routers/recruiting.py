@@ -203,7 +203,7 @@ class ShortlistEntryResponse(BaseModel):
 async def create_requisition(
     body: CreateRequisitionRequest, actor: ActorDep, container: ContainerDep
 ) -> RequisitionResponse:
-    requisition = await container.create_requisition.execute(
+    requisition = await container.recruiting.create_requisition.execute(
         actor, title=body.title, description=body.description, blind_screening=body.blind_screening
     )
     return RequisitionResponse.model_validate(requisition)
@@ -213,7 +213,7 @@ async def create_requisition(
 async def list_requisitions(actor: ActorDep, container: ContainerDep) -> list[RequisitionResponse]:
     return [
         RequisitionResponse.model_validate(r)
-        for r in await container.list_requisitions.execute(actor)
+        for r in await container.recruiting.list_requisitions.execute(actor)
     ]
 
 
@@ -225,7 +225,9 @@ async def list_requisitions(actor: ActorDep, container: ContainerDep) -> list[Re
 async def get_requisition(
     requisition_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> RequisitionDetailResponse:
-    detail = await container.get_requisition.execute(actor, RequisitionId(requisition_id))
+    detail = await container.recruiting.get_requisition.execute(
+        actor, RequisitionId(requisition_id)
+    )
     return RequisitionDetailResponse(
         requisition=RequisitionResponse.model_validate(detail.requisition),
         rubrics=[RubricResponse.model_validate(r) for r in detail.rubrics],
@@ -241,7 +243,7 @@ async def get_requisition(
 async def propose_rubric(
     requisition_id: UUID, body: ProposeRubricRequest, actor: ActorDep, container: ContainerDep
 ) -> RubricResponse:
-    rubric = await container.propose_rubric.execute(
+    rubric = await container.recruiting.propose_rubric.execute(
         actor,
         RequisitionId(requisition_id),
         [
@@ -266,7 +268,7 @@ async def propose_rubric(
 async def approve_rubric(
     rubric_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> RubricResponse:
-    rubric = await container.approve_rubric.execute(actor, RubricId(rubric_id))
+    rubric = await container.recruiting.approve_rubric.execute(actor, RubricId(rubric_id))
     return RubricResponse.model_validate(rubric)
 
 
@@ -280,15 +282,15 @@ async def add_candidate(
     requisition_id: UUID, body: AddCandidateRequest, actor: ActorDep, container: ContainerDep
 ) -> AddCandidateResponse:
     document_ids = [DocumentId(d) for d in body.document_ids]
-    factory = container.documents_uow
-    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:  # type: ignore[operator]
+    factory = container.documents.uow
+    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
         for document_id in document_ids:
             # RLS makes another tenant's document indistinguishable from a missing one,
             # which is the point: the error cannot be used to probe for ids.
             if await uow.documents.get(document_id) is None:
                 raise ValidationError(f"document {document_id} does not exist")
 
-    candidate, application = await container.add_candidate.execute(
+    candidate, application = await container.recruiting.add_candidate.execute(
         actor,
         RequisitionId(requisition_id),
         name=body.name,
@@ -310,7 +312,9 @@ async def add_candidate(
 async def run_assessment(
     application_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> AssessmentResponse:
-    assessment = await container.run_assessment.execute(actor, ApplicationId(application_id))
+    assessment = await container.recruiting.run_assessment.execute(
+        actor, ApplicationId(application_id)
+    )
     return AssessmentResponse.model_validate(assessment)
 
 
@@ -322,7 +326,7 @@ async def run_assessment(
 async def shortlist(
     requisition_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> list[ShortlistEntryResponse]:
-    entries = await container.shortlist.execute(actor, RequisitionId(requisition_id))
+    entries = await container.recruiting.shortlist.execute(actor, RequisitionId(requisition_id))
     now = container.clock.now()
     return [
         ShortlistEntryResponse(
@@ -360,7 +364,7 @@ class ErasureResponse(BaseModel):
 async def erase_candidate(
     candidate_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> ErasureResponse:
-    report = await container.erase_candidate.execute(actor, CandidateId(candidate_id))
+    report = await container.governance.erase_candidate.execute(actor, CandidateId(candidate_id))
     return ErasureResponse(
         candidate_id=report.candidate_id,
         documents_erased=report.documents_erased,
@@ -389,7 +393,7 @@ class SelfIdentificationRequest(_In):
 async def record_self_identification(
     candidate_id: UUID, body: SelfIdentificationRequest, actor: ActorDep, container: ContainerDep
 ) -> None:
-    await container.record_self_identification.execute(
+    await container.recruiting.record_self_identification.execute(
         actor, CandidateId(candidate_id), body.dimension, body.value
     )
 
@@ -425,7 +429,7 @@ async def selection_rates(
     dimension: FairnessDimension = FairnessDimension.GENDER,
     requisition_id: UUID | None = None,
 ) -> SelectionReportResponse:
-    report = await container.selection_rates.execute(
+    report = await container.recruiting.selection_rates.execute(
         actor,
         dimension=dimension,
         requisition_id=RequisitionId(requisition_id) if requisition_id else None,

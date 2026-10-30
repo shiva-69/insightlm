@@ -23,12 +23,13 @@ import pymupdf
 
 from insightlm.documents.domain.entities import MediaType, ParsedDocument
 from insightlm.documents.domain.findings import (
+    ENGINE_SCANNER,
     RGB,
     WHITE,
     ContentFinding,
     FindingKind,
+    InstructionScanner,
     concealment,
-    looks_like_instruction,
 )
 from insightlm.documents.domain.spans import PageRect
 from insightlm.shared.domain.errors import ValidationError
@@ -55,8 +56,11 @@ class PyMuPdfParser:
     in production turns it off.
     """
 
-    def __init__(self, *, exclude_concealed: bool = True) -> None:
+    def __init__(
+        self, *, exclude_concealed: bool = True, scanner: InstructionScanner = ENGINE_SCANNER
+    ) -> None:
         self._exclude_concealed = exclude_concealed
+        self._scanner = scanner
 
     def supports(self, media_type: MediaType) -> bool:
         return media_type in {
@@ -203,16 +207,15 @@ class PyMuPdfParser:
                                     text=text,
                                     page=page_number,
                                     excluded=True,
-                                    instruction_like=looks_like_instruction(text),
+                                    instruction_like=self._scanner.matches(text),
                                 )
                             )
         return found
 
-    @staticmethod
-    def _metadata_findings(doc: pymupdf.Document) -> list[ContentFinding]:
+    def _metadata_findings(self, doc: pymupdf.Document) -> list[ContentFinding]:
         found: list[ContentFinding] = []
         for field, value in (doc.metadata or {}).items():
-            if isinstance(value, str) and looks_like_instruction(value):
+            if isinstance(value, str) and self._scanner.matches(value):
                 found.append(
                     ContentFinding(
                         kind=FindingKind.METADATA,
@@ -274,8 +277,9 @@ class PyMuPdfParser:
                             page=page_number,
                             rect=span_rect,
                             excluded=self._exclude_concealed,
-                            instruction_like=looks_like_instruction(text),
+                            instruction_like=self._scanner.matches(text),
                         ),
+                        self._scanner,
                     )
                 if self._exclude_concealed:
                     continue
@@ -363,7 +367,9 @@ def _line_offsets(body: str) -> list[tuple[int, str]]:
     return offsets
 
 
-def _append_merged(findings: list[ContentFinding], new: ContentFinding) -> None:
+def _append_merged(
+    findings: list[ContentFinding], new: ContentFinding, scanner: InstructionScanner
+) -> None:
     """One hidden sentence wrapped over three lines is one finding, not three.
 
     Merges into the previous finding when it is the same kind, on the same page, and
@@ -392,7 +398,7 @@ def _append_merged(findings: list[ContentFinding], new: ContentFinding) -> None:
                 y1=max(last.rect.y1, new.rect.y1),
             ),
             excluded=last.excluded,
-            instruction_like=looks_like_instruction(text),
+            instruction_like=scanner.matches(text),
         )
         return
     findings.append(new)

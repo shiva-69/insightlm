@@ -77,7 +77,7 @@ async def ingest_document_version(
     with continued_from(trace), tracer.start_as_current_span("ingest_document_version") as span:
         span.set_attribute("insightlm.document_version_id", document_version_id)
         bind_tenant(tenant_id)
-        outcome = await container.ingestion.run(
+        outcome = await container.documents.ingestion.run(
             tenant_id=TenantId(UUID(tenant_id)),
             version_id=DocumentVersionId(UUID(document_version_id)),
         )

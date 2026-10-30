@@ -38,7 +38,7 @@ from insightlm.evaluation.adapters.fairness import (
     variants,
 )
 from insightlm.evaluation.adapters.judge_cache import CachedJudge, JudgmentStore
-from insightlm.governance.domain.redaction import BLIND, NO_REDACTION, RedactionProfile
+from insightlm.governance.domain.redaction import NO_REDACTION, RedactionProfile
 from insightlm.recruiting.adapters.judges import (
     PROMPT_DIR,
     PROMPT_NAME,
@@ -48,6 +48,7 @@ from insightlm.recruiting.adapters.judges import (
 from insightlm.recruiting.application.assess import _resolve, evidence_as_seen_by_judge
 from insightlm.recruiting.domain.assessment import Candidate, CriterionJudgment, aggregate
 from insightlm.recruiting.domain.rubric import Criterion, CriterionKind, Rubric
+from insightlm.recruiting.domain.screening import BLIND
 from insightlm.recruiting.ports.judge import CriterionJudge
 from insightlm.retrieval.domain.evidence import (
     EvidenceBundle,
