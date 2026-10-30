@@ -63,14 +63,16 @@ services:
       retries: 10
 
   minio:
-    # quay.io, not Docker Hub. MinIO no longer publishes `minio/minio` there --
-    # a pull returns "repository does not exist or may require 'docker login'",
-    # which reads like an auth problem and is not one. quay.io is their own registry.
+    # Chainguard's build, not MinIO's. MinIO stopped publishing `minio/minio` on
+    # Docker Hub, then quay.io began answering 401 for every tag and digest (Oct
+    # 2026) -- both read like auth problems and are not. Chainguard's runs as uid
+    # 65532 and ships `mc`, so the healthcheck below still works.
     #
     # Pinned by digest so a clean clone gets exactly the build this was tested
-    # against. Bump deliberately: `docker pull quay.io/minio/minio:latest` then
-    # `docker inspect --format '{{index .RepoDigests 0}}' quay.io/minio/minio:latest`.
-    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    # against. Chainguard's free tier only serves `latest`, so an old digest can
+    # disappear; bump deliberately: `docker pull cgr.dev/chainguard/minio:latest` then
+    # `docker inspect --format '{{index .RepoDigests 0}}' cgr.dev/chainguard/minio:latest`.
+    image: cgr.dev/chainguard/minio@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: minioadmin

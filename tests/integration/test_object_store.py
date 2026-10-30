@@ -24,9 +24,9 @@ from tests.conftest import requires_docker
 
 pytestmark = [pytest.mark.integration, requires_docker]
 
-# quay.io, not Docker Hub: MinIO no longer publishes `minio/minio` there, and the
-# failure reads like an auth error rather than a missing repository. See compose.yaml.
-MINIO_IMAGE = "quay.io/minio/minio:latest"
+# Chainguard's build, pinned to compose.yaml's digest: MinIO's own images are gone
+# from Docker Hub and quay.io. See compose.yaml.
+MINIO_IMAGE = "cgr.dev/chainguard/minio@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82"
 
 
 @pytest.fixture(scope="module")
