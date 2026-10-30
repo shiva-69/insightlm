@@ -128,7 +128,7 @@ Diagrams: [docs/11-diagrams.md](docs/11-diagrams.md). Kubernetes manifests: `dep
 | [09 SLOs and capacity](docs/09-slos-and-capacity.md) | Objectives, load tests, the bottleneck |
 | [10 Runbook](docs/10-runbook.md) | Deploy, trace a request, one section per symptom |
 | [11 Diagrams](docs/11-diagrams.md) | C4 context, containers, components; generated ER diagram |
-| [ADRs](docs/adr/README.md) | 19 decision records, including where the plan was wrong |
+| [ADRs](docs/adr/README.md) | 20 decision records, including where the plan was wrong |
 
 ## Limits, stated
 

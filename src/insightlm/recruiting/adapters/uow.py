@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from insightlm.governance.adapters.uow import SqlAlchemyGovernanceUnitOfWork
 from insightlm.recruiting.adapters.repositories import (
     SqlAlchemyApplicationRepository,
+    SqlAlchemyAssessmentJobRepository,
     SqlAlchemyAssessmentRepository,
     SqlAlchemyCandidateRepository,
     SqlAlchemyRequisitionRepository,
@@ -25,6 +26,7 @@ class SqlAlchemyRecruitingUnitOfWork(SqlAlchemyGovernanceUnitOfWork):
         self.candidates = SqlAlchemyCandidateRepository(session)
         self.applications = SqlAlchemyApplicationRepository(session)
         self.assessments = SqlAlchemyAssessmentRepository(session)
+        self.assessment_jobs = SqlAlchemyAssessmentJobRepository(session)
         self.transitions = SqlAlchemyStageTransitionRepository(session)
         self.scorecards = SqlAlchemyScorecardRepository(session)
         self.self_identification = SqlAlchemySelfIdentificationRepository(session)

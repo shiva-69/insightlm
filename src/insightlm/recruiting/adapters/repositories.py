@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from insightlm.documents.domain.spans import PageRect
 from insightlm.recruiting.adapters.models import (
     ApplicationRow,
+    AssessmentJobRow,
     AssessmentRow,
     CandidateRow,
     RequisitionRow,
@@ -30,6 +31,7 @@ from insightlm.recruiting.domain.assessment import (
     Stage,
     Verdict,
 )
+from insightlm.recruiting.domain.assessment_job import AssessmentJob, JobStatus
 from insightlm.recruiting.domain.fairness import Dimension as FairnessDimension
 from insightlm.recruiting.domain.fairness import SelfIdentification
 from insightlm.recruiting.domain.pipeline import RejectionReason, StageTransition
@@ -46,6 +48,7 @@ from insightlm.shared.domain.errors import NotFoundError
 from insightlm.shared.domain.ids import (
     ApplicationId,
     AssessmentId,
+    AssessmentJobId,
     CandidateId,
     CriterionId,
     DocumentId,
@@ -375,6 +378,106 @@ class SqlAlchemyApplicationRepository:
         return [self._to_domain(r) for r in rows]
 
 
+def _job_from_row(row: AssessmentJobRow) -> AssessmentJob:
+    return AssessmentJob(
+        id=AssessmentJobId(row.id),
+        tenant_id=TenantId(row.tenant_id),
+        application_id=ApplicationId(row.application_id),
+        requested_by=UserId(row.requested_by),
+        requested_role=row.requested_role,
+        status=JobStatus(row.status),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        attempts=row.attempts,
+        assessment_id=AssessmentId(row.assessment_id) if row.assessment_id else None,
+        error=row.error,
+    )
+
+
+class SqlAlchemyAssessmentJobRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, job: AssessmentJob) -> None:
+        self._session.add(
+            AssessmentJobRow(
+                id=job.id,
+                tenant_id=job.tenant_id,
+                application_id=job.application_id,
+                requested_by=job.requested_by,
+                requested_role=job.requested_role,
+                status=job.status.value,
+                attempts=job.attempts,
+                assessment_id=job.assessment_id,
+                error=job.error,
+                created_at=job.created_at,
+                updated_at=job.updated_at,
+            )
+        )
+
+    async def get(self, job_id: AssessmentJobId) -> AssessmentJob | None:
+        row = await self._session.get(AssessmentJobRow, job_id)
+        return _job_from_row(row) if row else None
+
+    async def update(self, job: AssessmentJob) -> None:
+        row = await self._session.get(AssessmentJobRow, job.id)
+        if row is None:
+            raise NotFoundError("assessment job not found")
+        row.status = job.status.value
+        row.attempts = job.attempts
+        row.assessment_id = job.assessment_id
+        row.error = (job.error or "")[:1024] or None
+        row.updated_at = job.updated_at
+
+    async def active_for(self, application_id: ApplicationId) -> AssessmentJob | None:
+        row = (
+            await self._session.execute(
+                select(AssessmentJobRow)
+                .where(
+                    AssessmentJobRow.application_id == application_id,
+                    AssessmentJobRow.status.in_([JobStatus.QUEUED.value, JobStatus.RUNNING.value]),
+                )
+                .order_by(AssessmentJobRow.created_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        return _job_from_row(row) if row else None
+
+    async def latest_for_applications(
+        self, application_ids: list[ApplicationId]
+    ) -> dict[ApplicationId, AssessmentJob]:
+        if not application_ids:
+            return {}
+        rows = (
+            await self._session.execute(
+                select(AssessmentJobRow)
+                .where(AssessmentJobRow.application_id.in_(application_ids))
+                .distinct(AssessmentJobRow.application_id)
+                .order_by(AssessmentJobRow.application_id, AssessmentJobRow.created_at.desc())
+            )
+        ).scalars()
+        return {ApplicationId(r.application_id): _job_from_row(r) for r in rows}
+
+
+def _assessment_from_row(row: AssessmentRow) -> Assessment:
+    return Assessment(
+        id=AssessmentId(row.id),
+        tenant_id=TenantId(row.tenant_id),
+        application_id=ApplicationId(row.application_id),
+        rubric_id=RubricId(row.rubric_id),
+        rubric_version=row.rubric_version,
+        judgments=tuple(_judgment_from_json(j) for j in row.judgments),
+        score=row.score,
+        flags=tuple(AssessmentFlag(f) for f in row.flags),
+        assessed_by=UserId(row.assessed_by),
+        created_at=row.created_at,
+        model_version=row.model_version,
+        prompt_version=row.prompt_version,
+        retrieval_config_hash=row.retrieval_config_hash,
+        redaction_profile=row.redaction_profile,
+    )
+
+
 class SqlAlchemyAssessmentRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -399,6 +502,10 @@ class SqlAlchemyAssessmentRepository:
             )
         )
 
+    async def get(self, assessment_id: AssessmentId) -> Assessment | None:
+        row = await self._session.get(AssessmentRow, assessment_id)
+        return _assessment_from_row(row) if row else None
+
     async def latest_for(self, application_id: ApplicationId) -> Assessment | None:
         row = (
             await self._session.execute(
@@ -410,22 +517,7 @@ class SqlAlchemyAssessmentRepository:
         ).scalar_one_or_none()
         if row is None:
             return None
-        return Assessment(
-            id=AssessmentId(row.id),
-            tenant_id=TenantId(row.tenant_id),
-            application_id=ApplicationId(row.application_id),
-            rubric_id=RubricId(row.rubric_id),
-            rubric_version=row.rubric_version,
-            judgments=tuple(_judgment_from_json(j) for j in row.judgments),
-            score=row.score,
-            flags=tuple(AssessmentFlag(f) for f in row.flags),
-            assessed_by=UserId(row.assessed_by),
-            created_at=row.created_at,
-            model_version=row.model_version,
-            prompt_version=row.prompt_version,
-            retrieval_config_hash=row.retrieval_config_hash,
-            redaction_profile=row.redaction_profile,
-        )
+        return _assessment_from_row(row)
 
 
 class SqlAlchemyStageTransitionRepository:

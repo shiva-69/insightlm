@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 import { Button, Panel, StatusDot } from "@/components/ui/primitives";
 import { api, ApiError } from "@/lib/api";
 
-type Step = "queued" | "uploading" | "processing" | "adding" | "done" | "failed";
+type Step = "queued" | "uploading" | "adding" | "assessing" | "done" | "failed";
 
 interface Row {
   file: File;
@@ -19,8 +19,8 @@ const PARALLEL = 3;
 const LABEL: Record<Step, string> = {
   queued: "Waiting",
   uploading: "Uploading",
-  processing: "Reading the document",
   adding: "Adding candidate",
+  assessing: "Queuing assessment",
   done: "Added",
   failed: "Failed",
 };
@@ -35,19 +35,21 @@ export function nameFromFile(filename: string): string {
   return words.map((w) => w[0]!.toUpperCase() + w.slice(1).toLowerCase()).join(" ") || stem;
 }
 
-async function waitUntilReady(documentId: string): Promise<void> {
-  for (let attempt = 0; attempt < 90; attempt++) {
-    const version = await api.documentStatus(documentId);
-    if (version.status === "ready") return;
-    if (version.status === "failed") throw new Error(version.failure_reason ?? "could not be read");
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-  throw new Error("took too long to process");
-}
-
 /* One bad PDF must not fail the batch: every file runs to its own conclusion, and the
-   failures are listed with their reason rather than swallowed. */
-export function BulkIntake({ requisitionId, onClose }: { requisitionId: string; onClose: () => void }) {
+   failures are listed with their reason rather than swallowed.
+
+   The browser only uploads. Reading each CV and assessing it happen on the server: an
+   assessment queued before its CV is read waits for it there, so once the uploads
+   finish this page can be closed and the shortlist fills in on its own. */
+export function BulkIntake({
+  requisitionId,
+  assessOnAdd,
+  onClose,
+}: {
+  requisitionId: string;
+  assessOnAdd: boolean;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<Row[]>([]);
@@ -69,10 +71,15 @@ export function BulkIntake({ requisitionId, onClose }: { requisitionId: string; 
     try {
       update(index, { step: "uploading" });
       const uploaded = await api.upload(row.file);
-      update(index, { step: "processing" });
-      await waitUntilReady(uploaded.document.id);
       update(index, { step: "adding" });
-      await api.addCandidate(requisitionId, { name: row.name.trim(), document_ids: [uploaded.document.id] });
+      const added = await api.addCandidate(requisitionId, {
+        name: row.name.trim(),
+        document_ids: [uploaded.document.id],
+      });
+      if (assessOnAdd) {
+        update(index, { step: "assessing" });
+        await api.assess(added.application.id);
+      }
       update(index, { step: "done" });
     } catch (error) {
       update(index, { step: "failed", error: (error as ApiError).message || "failed" });
@@ -104,7 +111,10 @@ export function BulkIntake({ requisitionId, onClose }: { requisitionId: string; 
     <Panel className="mb-3 p-4">
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-[13.5px] font-medium">Add candidates from CVs</h3>
-        <span className="text-[12px] text-[var(--ink-3)]">One candidate per file, named from the filename.</span>
+        <span className="text-[12px] text-[var(--ink-3)]">
+          One candidate per file, named from the filename.
+          {assessOnAdd && " Each is assessed as soon as its CV is read."}
+        </span>
       </div>
 
       <button
@@ -163,6 +173,7 @@ export function BulkIntake({ requisitionId, onClose }: { requisitionId: string; 
       <div className="mt-3 flex items-center justify-between gap-2">
         <span className="text-[12px] text-[var(--ink-3)]">
           {rows.length > 0 && `${done} added${failed ? `, ${failed} failed` : ""}${queued ? `, ${queued} ready to add` : ""}`}
+          {done > 0 && !running && assessOnAdd && " · assessments continue in the background; you can close this."}
         </span>
         <div className="flex gap-2">
           <Button variant="quiet" onClick={onClose} disabled={running}>

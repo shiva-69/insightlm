@@ -89,7 +89,8 @@ async def test_fifty_cvs_in_a_ranked_shortlist_out(
             )
         ).json()
         assessed = await client.post(
-            f"/applications/{added['application']['id']}/assessments", headers=auth(recruiter)
+            f"/applications/{added['application']['id']}/assessments?wait=true",
+            headers=auth(recruiter),
         )
         assert assessed.status_code == 201, assessed.text
         truth[applicant.name] = applicant.true_score

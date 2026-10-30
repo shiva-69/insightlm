@@ -127,7 +127,8 @@ async def test_over_budget_assessment_is_refused_before_any_model_call(
     use_case._budget = MeteredBudget(MemorySpendMeter(), calls_per_day=2)
     try:
         response = await client.post(
-            f"/applications/{added['application']['id']}/assessments", headers=auth(recruiter)
+            f"/applications/{added['application']['id']}/assessments?wait=true",
+            headers=auth(recruiter),
         )
     finally:
         use_case._judge, use_case._budget = original_judge, original_budget

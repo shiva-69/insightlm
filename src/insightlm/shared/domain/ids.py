@@ -28,6 +28,7 @@ CriterionId = NewType("CriterionId", UUID)
 CandidateId = NewType("CandidateId", UUID)
 ApplicationId = NewType("ApplicationId", UUID)
 AssessmentId = NewType("AssessmentId", UUID)
+AssessmentJobId = NewType("AssessmentJobId", UUID)
 ScorecardId = NewType("ScorecardId", UUID)
 CorrelationId = NewType("CorrelationId", str)
 
@@ -102,6 +103,10 @@ def new_application_id() -> ApplicationId:
 
 def new_assessment_id() -> AssessmentId:
     return AssessmentId(uuid4())
+
+
+def new_assessment_job_id() -> AssessmentJobId:
+    return AssessmentJobId(uuid4())
 
 
 def new_scorecard_id() -> ScorecardId:

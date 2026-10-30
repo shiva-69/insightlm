@@ -12,7 +12,9 @@ import type {
   UploadResult,
   ApiErrorBody,
   Application,
-  Assessment,
+  AssessmentJob,
+  BatchAssessResult,
+  BatchScope,
   Candidate,
   CriterionInput,
   Requisition,
@@ -162,8 +164,16 @@ export const api = {
       { method: "POST", json: input },
     ),
 
+  /* Queues the assessment and returns at once; the worker runs it and the shortlist
+     shows its progress. */
   assess: (applicationId: string) =>
-    request<Assessment>(`/applications/${applicationId}/assessments`, { method: "POST" }),
+    request<AssessmentJob>(`/applications/${applicationId}/assessments`, { method: "POST" }),
+
+  assessRequisition: (requisitionId: string, scope: BatchScope) =>
+    request<BatchAssessResult>(`/requisitions/${requisitionId}/assessments`, {
+      method: "POST",
+      json: { scope },
+    }),
 
   shortlist: (requisitionId: string) =>
     request<ShortlistEntry[]>(`/requisitions/${requisitionId}/shortlist`),

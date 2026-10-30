@@ -10,13 +10,19 @@ import { Button, Empty, Field, Input, Panel, Spinner, Tag } from "@/components/u
 import { api, ApiError } from "@/lib/api";
 import { STAGE_LABEL } from "@/lib/labels";
 import { BulkIntake } from "./bulk-intake";
-import type { AssessmentFlag, ShortlistEntry } from "@/lib/types";
+import type { AssessmentFlag, BatchScope, ShortlistEntry } from "@/lib/types";
 
 export const FLAG_LABEL: Record<AssessmentFlag, string> = {
   missing_must_have: "Must-have not found",
   disqualifying_absent: "Flagged criterion absent",
   low_confidence: "Low confidence",
 };
+
+const CLOSED = new Set(["hired", "rejected"]);
+
+function isActive(entry: ShortlistEntry): boolean {
+  return entry.job?.status === "queued" || entry.job?.status === "running";
+}
 
 export function CandidatesPanel({
   requisitionId,
@@ -35,28 +41,47 @@ export function CandidatesPanel({
   const shortlist = useQuery({
     queryKey: ["shortlist", requisitionId],
     queryFn: () => api.shortlist(requisitionId),
+    // Assessments run in the worker. While any is queued or running, keep the list
+    // fresh so scores appear as they land; stop polling once everything has settled.
+    refetchInterval: (query) =>
+      (query.state.data ?? []).some((e) => isActive(e)) ? 2000 : false,
   });
+
+  const failed = (error: unknown, fallback: string) => {
+    const failure = error as ApiError;
+    notify(failure.message || fallback, {
+      tone: "error",
+      detail: failure.correlationId ? `ref ${failure.correlationId}` : undefined,
+    });
+  };
 
   const assess = useMutation({
     mutationFn: (applicationId: string) => api.assess(applicationId),
-    onSuccess: (assessment) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shortlist", requisitionId] });
-      notify(`Assessed: ${assessment.score.toFixed(0)} / 100`, {
-        detail: assessment.needs_human_review
-          ? "Flagged for a person to review — see why."
-          : `${assessment.judgments.length} criteria, each with its evidence.`,
+      notify("Assessment queued", { detail: "The score appears here when it is ready." });
+    },
+    onError: (error) => failed(error, "Could not queue the assessment"),
+  });
+
+  const batch = useMutation({
+    mutationFn: (scope: BatchScope) => api.assessRequisition(requisitionId, scope),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["shortlist", requisitionId] });
+      const n = result.queued.length;
+      notify(n ? `${n} assessment${n === 1 ? "" : "s"} queued` : "Nothing to assess", {
+        detail: n
+          ? "They run in the background; you can leave this page."
+          : "Every open candidate is already assessed under the current rubric.",
       });
     },
-    onError: (error) => {
-      const failure = error as ApiError;
-      notify(failure.message || "Assessment failed", {
-        tone: "error",
-        detail: failure.correlationId ? `ref ${failure.correlationId}` : undefined,
-      });
-    },
+    onError: (error) => failed(error, "Could not queue assessments"),
   });
 
   const entries = shortlist.data ?? [];
+  const open = entries.filter((e) => !CLOSED.has(e.application.stage) && !isActive(e));
+  const unassessed = open.filter((e) => !e.assessment).length;
+  const stale = open.filter((e) => e.stale).length;
 
   return (
     <div>
@@ -66,6 +91,27 @@ export function CandidatesPanel({
         </h2>
         {!adding && !bulk && (
           <div className="flex gap-1">
+            {hasApprovedRubric && unassessed > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={batch.isPending && batch.variables === "unassessed"}
+                onClick={() => batch.mutate("unassessed")}
+              >
+                Assess {unassessed} new
+              </Button>
+            )}
+            {hasApprovedRubric && stale > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={batch.isPending && batch.variables === "stale"}
+                onClick={() => batch.mutate("stale")}
+                title="Assessed under an older version of the rubric"
+              >
+                Re-assess {stale} stale
+              </Button>
+            )}
             <Button variant="quiet" size="sm" onClick={() => setBulk(true)}>
               Upload CVs
             </Button>
@@ -76,7 +122,13 @@ export function CandidatesPanel({
         )}
       </div>
 
-      {bulk && <BulkIntake requisitionId={requisitionId} onClose={() => setBulk(false)} />}
+      {bulk && (
+        <BulkIntake
+          requisitionId={requisitionId}
+          assessOnAdd={hasApprovedRubric}
+          onClose={() => setBulk(false)}
+        />
+      )}
 
       {adding && (
         <AddCandidate
@@ -114,7 +166,7 @@ export function CandidatesPanel({
               entry={entry}
               rank={entry.assessment ? index + 1 : null}
               canAssess={hasApprovedRubric}
-              assessing={assess.isPending && assess.variables === entry.application.id}
+              assessing={(assess.isPending && assess.variables === entry.application.id) || isActive(entry)}
               onAssess={() => assess.mutate(entry.application.id)}
               onOpen={() => onOpen(entry.application.id)}
             />
@@ -146,7 +198,10 @@ function CandidateRow({
   onAssess: () => void;
   onOpen: () => void;
 }) {
-  const { candidate, assessment } = entry;
+  const { candidate, assessment, job } = entry;
+  // A failure only matters if it is newer than the assessment on show.
+  const lastFailed =
+    job?.status === "failed" && (!assessment || job.updated_at > assessment.created_at) ? job : null;
   return (
     <li className="grid grid-cols-[1.5rem_minmax(0,1fr)_9rem_auto] items-center gap-4 px-4 py-3">
       <span className="data text-right">{rank ?? "—"}</span>
@@ -161,6 +216,18 @@ function CandidateRow({
         <span className="mt-1 flex flex-wrap items-center gap-1">
           <Tag>{STAGE_LABEL[entry.application.stage]}</Tag>
           {entry.overdue && <Tag tone="caution">Overdue</Tag>}
+          {job && isActive(entry) && (
+            <span className="inline-flex items-center gap-1 text-[12px] text-[var(--ink-3)]" title={job.error ?? undefined}>
+              <Spinner className="size-3" />
+              {job.status === "running" ? "Assessing…" : job.error ? "Waiting for the CV" : "Queued"}
+            </span>
+          )}
+          {lastFailed && (
+            <Tag tone="caution">
+              <span title={lastFailed.error ?? undefined}>Assessment failed</span>
+            </Tag>
+          )}
+          {entry.stale && <Tag>Older rubric</Tag>}
           {assessment ? (
             assessment.flags.length > 0 ? (
               assessment.flags.map((flag) => (

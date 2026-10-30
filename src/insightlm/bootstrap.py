@@ -15,6 +15,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from insightlm.ask_service import AskService, EvidenceProviderAdapter
+from insightlm.document_readiness import DocumentReadinessAdapter
 from insightlm.documents.adapters.pymupdf_parser import PyMuPdfParser
 from insightlm.documents.adapters.s3_store import S3ObjectStore
 from insightlm.documents.adapters.uow import SqlAlchemyDocumentsUnitOfWork
@@ -45,6 +46,13 @@ from insightlm.recruiting.adapters.judges import (
 )
 from insightlm.recruiting.adapters.uow import SqlAlchemyRecruitingUnitOfWork
 from insightlm.recruiting.application.assess import AddCandidate, RunAssessment, Shortlist
+from insightlm.recruiting.application.assessment_jobs import (
+    GetAssessment,
+    GetAssessmentJob,
+    ProcessAssessmentJob,
+    RequestAssessment,
+    RequestAssessments,
+)
 from insightlm.recruiting.application.fairness import RecordSelfIdentification, SelectionRates
 from insightlm.recruiting.application.pipeline import (
     AssignInterviewer,
@@ -156,6 +164,11 @@ class RecruitingServices:
     approve_rubric: ApproveRubric
     add_candidate: AddCandidate
     run_assessment: RunAssessment
+    request_assessment: RequestAssessment
+    request_assessments: RequestAssessments
+    get_assessment: GetAssessment
+    get_assessment_job: GetAssessmentJob
+    process_assessment_job: ProcessAssessmentJob
     shortlist: Shortlist
     move_application: MoveApplication
     get_application: GetApplication
@@ -289,6 +302,9 @@ def build_container(settings: Settings, *, object_store: ObjectStore | None = No
         rrf_k=settings.rrf_k,
         budget=budget,
     )
+    run_assessment = RunAssessment(
+        recruiting_uow, EvidenceProviderAdapter(ask), judge, clock, budget
+    )
 
     return Container(
         settings=settings,
@@ -351,8 +367,17 @@ def build_container(settings: Settings, *, object_store: ObjectStore | None = No
             propose_rubric=ProposeRubric(recruiting_uow, clock),
             approve_rubric=ApproveRubric(recruiting_uow, clock),
             add_candidate=AddCandidate(recruiting_uow, clock),
-            run_assessment=RunAssessment(
-                recruiting_uow, EvidenceProviderAdapter(ask), judge, clock, budget
+            run_assessment=run_assessment,
+            request_assessment=RequestAssessment(recruiting_uow, clock),
+            request_assessments=RequestAssessments(recruiting_uow, clock),
+            get_assessment=GetAssessment(recruiting_uow),
+            get_assessment_job=GetAssessmentJob(recruiting_uow),
+            process_assessment_job=ProcessAssessmentJob(
+                recruiting_uow,
+                run_assessment,
+                DocumentReadinessAdapter(documents_uow),
+                roles,
+                clock,
             ),
             shortlist=Shortlist(recruiting_uow),
             move_application=MoveApplication(recruiting_uow, clock),

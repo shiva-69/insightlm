@@ -38,7 +38,9 @@ async def _used_candidate(client: AsyncClient, container: Container) -> dict[str
     added = await add_candidate(client, recruiter, requisition_id, "Asha Rao", document_id)
     application_id = added["application"]["id"]
     assert (
-        await client.post(f"/applications/{application_id}/assessments", headers=auth(recruiter))
+        await client.post(
+            f"/applications/{application_id}/assessments?wait=true", headers=auth(recruiter)
+        )
     ).status_code == 201
     await client.post(
         f"/applications/{application_id}/stage", json={"to": "screened"}, headers=auth(recruiter)

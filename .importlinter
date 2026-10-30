@@ -182,7 +182,8 @@ forbidden_modules =
     insightlm.shared.adapters
 
 # ----------------------------------------------- composition sits on top
-# bootstrap, ask_service, erasure and instrumented are the composition layer: the
+# bootstrap, ask_service, erasure, instrumented and document_readiness are the
+# composition layer: the
 # only code that knows every module. Nothing inside a module may depend on them, or
 # the wiring would leak back into what it wires.
 [importlinter:contract:composition-is-on-top]
@@ -201,3 +202,4 @@ forbidden_modules =
     insightlm.ask_service
     insightlm.erasure
     insightlm.instrumented
+    insightlm.document_readiness

@@ -34,7 +34,7 @@ async def test_the_record_holds_everything_about_the_person(
     await client.post(f"/rubrics/{rubric_id}/approve", headers=auth(tokens["hiring_manager"]))
     added = await add_candidate(client, recruiter, requisition_id, "Asha Rao", document_id)
     app_id = added["application"]["id"]
-    await client.post(f"/applications/{app_id}/assessments", headers=auth(recruiter))
+    await client.post(f"/applications/{app_id}/assessments?wait=true", headers=auth(recruiter))
     await client.post(
         f"/applications/{app_id}/stage", json={"to": "screened"}, headers=auth(recruiter)
     )

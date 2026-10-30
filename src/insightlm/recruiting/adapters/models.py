@@ -19,6 +19,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Index,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -118,6 +119,32 @@ class ApplicationRow(Base):
         ),
         Index("ix_applications_requisition", "tenant_id", "requisition_id"),
     )
+
+
+class AssessmentJobRow(Base):
+    """A requested assessment and where it has got to. See domain/assessment_job."""
+
+    __tablename__ = "assessment_jobs"
+    __table_args__ = (
+        Index("ix_assessment_jobs_application_created", "application_id", "created_at"),
+        Index("ix_assessment_jobs_status_updated", "status", "updated_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    application_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False
+    )
+    requested_by: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    requested_role: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    assessment_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("assessments.id", ondelete="SET NULL"), nullable=True
+    )
+    error: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class AssessmentRow(Base):

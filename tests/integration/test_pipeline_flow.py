@@ -59,7 +59,7 @@ async def ready_application(
     added = await add_candidate(client, recruiter, requisition_id, name, document_id)
     application_id: str = added["application"]["id"]
     assessed = await client.post(
-        f"/applications/{application_id}/assessments", headers=auth(recruiter)
+        f"/applications/{application_id}/assessments?wait=true", headers=auth(recruiter)
     )
     assert assessed.status_code == 201, assessed.text
     return requisition_id, application_id

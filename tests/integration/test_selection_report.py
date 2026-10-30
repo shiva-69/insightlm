@@ -42,7 +42,9 @@ async def test_the_report_counts_screening_decisions_by_self_identified_group(
         )
         assert put.status_code == 204, put.text
         if advanced is True:
-            await client.post(f"/applications/{app_id}/assessments", headers=auth(recruiter))
+            await client.post(
+                f"/applications/{app_id}/assessments?wait=true", headers=auth(recruiter)
+            )
             moved = await client.post(
                 f"/applications/{app_id}/stage", json={"to": "screened"}, headers=auth(recruiter)
             )

@@ -262,10 +262,36 @@ export interface Assessment {
   created_at: string;
 }
 
+export type JobStatus = "queued" | "running" | "succeeded" | "failed";
+
+/* An assessment requested and run by the worker. `error` on a queued job is why it is
+   waiting (usually: the CV is still being read); on a failed one, why it stopped. */
+export interface AssessmentJob {
+  id: string;
+  application_id: string;
+  status: JobStatus;
+  attempts: number;
+  assessment_id: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BatchScope = "unassessed" | "stale" | "all";
+
+export interface BatchAssessResult {
+  queued: AssessmentJob[];
+  skipped_current: number;
+  skipped_closed: number;
+}
+
 export interface ShortlistEntry {
   application: Application;
   candidate: Candidate;
   assessment: Assessment | null;
+  job: AssessmentJob | null;
+  /* Assessed under an older version of the rubric than the one now in force. */
+  stale: boolean;
   overdue: boolean;
 }
 

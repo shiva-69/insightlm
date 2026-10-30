@@ -48,5 +48,6 @@ made — listed so the vocabulary is designed rather than accreted.
 | [0017](0017-direct-sdks-behind-ports.md) | Provider SDKs directly, behind ports, not an LLM framework | 1 |
 | [0018](0018-synthetic-only-data.md) | Synthetic data only, as an ethics position with a method | 2 |
 | [0019](0019-verticals-declare-their-own-vocabulary.md) | Verticals declare their own roles, audit actions and screening rules | 9 |
+| [0020](0020-assessments-run-as-jobs.md) | Assessments run as jobs in the worker | 9 |
 
 Add records as real decisions arise. Superseded ADRs stay in the repo with their status updated — **the trail of a changed mind is evidence of engineering judgment, not of error.**

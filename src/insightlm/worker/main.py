@@ -17,9 +17,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from insightlm.bootstrap import Container, build_container
+from insightlm.recruiting.application.assessment_jobs import ASSESSMENT_REQUESTED, Outcome
 from insightlm.settings import get_settings
 from insightlm.shared.adapters.db.relay import OutboxRelay
-from insightlm.shared.domain.ids import DocumentVersionId, TenantId
+from insightlm.shared.domain.ids import AssessmentJobId, DocumentVersionId, TenantId
 from insightlm.shared.observability.logging import configure_logging, get_logger
 from insightlm.shared.observability.telemetry import (
     bind_tenant,
@@ -32,8 +33,13 @@ from insightlm.worker.ingestion import MAX_ATTEMPTS
 _logger = get_logger(__name__)
 
 INGEST_TASK = "ingest_document_version"
+ASSESS_TASK = "run_assessment_job"
 
-_EVENT_TASKS = {"document.ingest_requested": INGEST_TASK}
+# Event type -> (task, the payload field the task is called with).
+_EVENT_TASKS: dict[str, tuple[str, str]] = {
+    "document.ingest_requested": (INGEST_TASK, "document_version_id"),
+    ASSESSMENT_REQUESTED: (ASSESS_TASK, "assessment_job_id"),
+}
 
 
 async def startup(ctx: dict[str, Any]) -> None:
@@ -105,6 +111,41 @@ async def ingest_document_version(
     }
 
 
+async def run_assessment_job(
+    ctx: dict[str, Any],
+    tenant_id: str,
+    assessment_job_id: str,
+    trace: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Run one assessment job. Safe to deliver twice: only a QUEUED job is claimed."""
+    container: Container = ctx["container"]
+    with continued_from(trace), tracer.start_as_current_span("run_assessment_job") as span:
+        span.set_attribute("insightlm.assessment_job_id", assessment_job_id)
+        bind_tenant(tenant_id)
+        result = await container.recruiting.process_assessment_job.execute(
+            TenantId(UUID(tenant_id)), AssessmentJobId(UUID(assessment_job_id))
+        )
+    if result.retry_in is not None:
+        # Waiting for the CV, or backing off after a provider error: the use case
+        # decided when to look again, the queue only schedules it.
+        redis: ArqRedis = ctx["redis"]
+        await redis.enqueue_job(
+            ASSESS_TASK, tenant_id, assessment_job_id, _defer_by=result.retry_in, trace=trace
+        )
+    if result.outcome in (Outcome.FAILED, Outcome.RETRYING):
+        _logger.warning(
+            "assessment_job_not_done",
+            job_id=assessment_job_id,
+            outcome=result.outcome.value,
+            error=result.job.error if result.job else None,
+        )
+    return {
+        "outcome": result.outcome.value,
+        "assessment_id": str(result.assessment_id) if result.assessment_id else None,
+        "retry_in": result.retry_in.total_seconds() if result.retry_in else None,
+    }
+
+
 STALLED_SQL = text(
     """
     SELECT tenant_id, document_version_id, attempts
@@ -123,6 +164,26 @@ async def stalled_jobs(session: AsyncSession) -> list[tuple[str, str, int]]:
     return [(str(t), str(v), int(a)) for t, v, a in rows]
 
 
+# A queued assessment is normally picked up within one outbox cycle (10 s), and a
+# deferred retry within a minute. Queued for five minutes means the message was lost;
+# running for fifteen means the worker running it died. Either way, put it back.
+STALLED_ASSESSMENTS_SQL = text(
+    """
+    UPDATE assessment_jobs SET status = 'queued', updated_at = now()
+    WHERE (status = 'queued' AND updated_at < now() - interval '5 minutes')
+       OR (status = 'running' AND updated_at < now() - interval '15 minutes')
+    RETURNING tenant_id, id, attempts
+    """
+)
+
+
+async def stalled_assessments(session: AsyncSession) -> list[tuple[str, str, int]]:
+    rows = await session.execute(STALLED_ASSESSMENTS_SQL)
+    found = [(str(t), str(j), int(a)) for t, j, a in rows]
+    await session.commit()
+    return found
+
+
 async def requeue_stalled(ctx: dict[str, Any]) -> int:
     """Re-enqueue ingestion that failed and was never retried, or that stopped moving.
 
@@ -139,13 +200,18 @@ async def requeue_stalled(ctx: dict[str, Any]) -> int:
     redis: ArqRedis = ctx["redis"]
     async with ctx["admin_sessions"]() as session:
         stalled = await stalled_jobs(session)
+        assessments = await stalled_assessments(session)
     for tenant_id, version_id, attempts in stalled:
         await redis.enqueue_job(
             INGEST_TASK, tenant_id, version_id, _job_id=f"reap:{version_id}:{attempts}"
         )
+    for tenant_id, job_id, attempts in assessments:
+        await redis.enqueue_job(ASSESS_TASK, tenant_id, job_id, _job_id=f"reap:{job_id}:{attempts}")
     if stalled:
         _logger.warning("ingestion_requeued", count=len(stalled))
-    return len(stalled)
+    if assessments:
+        _logger.warning("assessments_requeued", count=len(assessments))
+    return len(stalled) + len(assessments)
 
 
 async def drain_outbox(ctx: dict[str, Any]) -> int:
@@ -160,12 +226,11 @@ async def drain_outbox(ctx: dict[str, Any]) -> int:
     async def publish(
         event_type: str, payload: dict[str, Any], tenant_id: str, attributes: dict[str, Any]
     ) -> None:
-        task = _EVENT_TASKS.get(event_type)
-        if task is None:
+        route = _EVENT_TASKS.get(event_type)
+        if route is None:
             return  # nothing consumes this event type yet
-        await redis.enqueue_job(
-            task, tenant_id, payload["document_version_id"], trace=attributes.get("trace")
-        )
+        task, key = route
+        await redis.enqueue_job(task, tenant_id, payload[key], trace=attributes.get("trace"))
 
     published = await OutboxRelay(container.session_factory, publisher=publish).drain()
     if published:
@@ -176,7 +241,7 @@ async def drain_outbox(ctx: dict[str, Any]) -> int:
 class WorkerSettings:
     """ARQ reads these attributes off the class, so they are ClassVars by contract."""
 
-    functions: ClassVar[list[Any]] = [ingest_document_version]
+    functions: ClassVar[list[Any]] = [ingest_document_version, run_assessment_job]
     cron_jobs: ClassVar[list[Any]] = [
         cron(drain_outbox, second={0, 10, 20, 30, 40, 50}, run_at_startup=True),
         cron(requeue_stalled, second={30}, run_at_startup=False),

@@ -10,6 +10,7 @@ class RecruitingAudit:
     RUBRIC_PROPOSED = AuditAction("rubric.proposed")
     RUBRIC_APPROVED = AuditAction("rubric.approved")
     CANDIDATE_ADDED = AuditAction("candidate.added")
+    ASSESSMENT_REQUESTED = AuditAction("assessment.requested")
     ASSESSMENT_CREATED = AuditAction("assessment.created")
     STAGE_TRANSITIONED = AuditAction("application.stage_transitioned")
     INTERVIEWER_ASSIGNED = AuditAction("application.interviewer_assigned")
