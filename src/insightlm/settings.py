@@ -117,6 +117,9 @@ class Settings(BaseSettings):
     # Keep text a reader can't see (white-on-white, 1pt, transparent) out of the index.
     # Off only to measure or demonstrate the undefended baseline.
     exclude_concealed_text: bool = True
+    # With a Gemini key, also flag sentences whose embedding sits near known attempts to
+    # steer a model (Finding 25). Advisory: flagged text stays in the document.
+    instruction_classifier: bool = True
     # Rejected candidates are erased (with verification) after this long without activity.
     candidate_retention_days: int = 365
     # Talent search returns people within this fraction of the best match. Applies to

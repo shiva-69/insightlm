@@ -13,6 +13,7 @@ const HOW: Record<FindingKind, string> = {
   off_page_text: "placed outside the page",
   metadata_instruction: "in the file's metadata",
   instruction_like_text: "visible, addressed to an AI",
+  resembles_instruction_text: "visible, reads like an attempt to steer an AI",
 };
 
 /* Shown wherever a person is about to trust a model's reading of these documents.

@@ -109,8 +109,11 @@ Stated so they are decisions, not surprises:
   (`documents/adapters/pymupdf_parser.py`, `tests/unit/test_ocr.py`). OCR'd documents
   are labelled for reviewers. Recognition confidence is not recorded.
 - **Text hidden under a shape drawn on top of it** isn't detected.
-- **Paraphrased instructions** evade the pattern scan (2 of 24 red-team cases). They're
-  harmless in the measured cases, but nothing flags them.
+- **Partly closed:** paraphrased instructions used to evade the pattern scan entirely.
+  A shape detector now flags 36% of a held-out set of reworded attacks with no false
+  flags, and with a Gemini key an embedding classifier flags 89% as an advisory second
+  opinion (Finding 25). Instructions that steer by insinuation still pass; CV text is
+  still only ever quoted as data, which is the control that holds regardless.
 - **Secrets come from environment variables,** not a secret manager.
 - **The API port is published in `compose.yaml`** for local development, which is why
   trusting the proxy's IP header there is a development convenience only.

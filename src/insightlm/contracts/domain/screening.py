@@ -15,3 +15,9 @@ CONTRACT_INSTRUCTION_PATTERNS: tuple[str, ...] = (
     r"\bthis\s+(?:clause|contract|agreement)\s+(?:is|meets)\s+(?:fully\s+)?(?:compliant|"
     r"standard|acceptable|the\s+playbook)",
 )
+
+CONTRACT_SUBJECTS: tuple[str, ...] = (
+    r"\bthis\s+(?:clause|contract|agreement|indemnity|limitation|provision|term|"
+    r"schedule|annex|warranty|cap|carve[\s-]out|exclusion|obligation)\b",
+)
+"""What a contract judgment is about, for the reworded-instruction detector."""

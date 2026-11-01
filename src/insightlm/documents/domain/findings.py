@@ -26,6 +26,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from insightlm.documents.domain.directives import DirectiveDetector
 from insightlm.documents.domain.spans import PageRect
 from insightlm.shared.domain.errors import InvariantViolationError
 
@@ -51,6 +52,8 @@ class FindingKind(StrEnum):
     OFF_PAGE = "off_page_text"
     METADATA = "metadata_instruction"
     INSTRUCTION = "instruction_like_text"
+    RESEMBLES_INSTRUCTION = "resembles_instruction_text"
+    """Not matched by any rule, but close to known attempts to steer a model."""
 
 
 CONCEALMENT = frozenset(
@@ -131,9 +134,14 @@ ENGINE_INSTRUCTION_PATTERNS: tuple[str, ...] = (
 
 @dataclass(frozen=True, slots=True)
 class InstructionScanner:
-    """Finds visible text addressed to a model. Pure; built once, shared freely."""
+    """Finds visible text addressed to a model. Pure; built once, shared freely.
+
+    Two layers: ``patterns`` for stock phrasing, and ``directives`` for sentences
+    reworded to avoid it (see `directives`). Either one flags a passage.
+    """
 
     patterns: tuple[str, ...]
+    directives: DirectiveDetector = field(default_factory=DirectiveDetector)
     _compiled: re.Pattern[str] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -142,20 +150,28 @@ class InstructionScanner:
         compiled = re.compile("|".join(f"(?:{p})" for p in self.patterns), re.IGNORECASE)
         object.__setattr__(self, "_compiled", compiled)
 
-    def extended(self, patterns: Sequence[str]) -> InstructionScanner:
-        """This scanner plus a vertical's own phrases."""
-        return InstructionScanner((*self.patterns, *patterns))
+    def extended(
+        self, patterns: Sequence[str], *, subjects: Sequence[str] = ()
+    ) -> InstructionScanner:
+        """This scanner plus a vertical's own phrases, and the words for what it judges."""
+        return InstructionScanner((*self.patterns, *patterns), self.directives.extended(subjects))
 
     def matches(self, text: str) -> bool:
-        return bool(self._compiled.search(" ".join(text.split())))
+        return bool(self._compiled.search(" ".join(text.split()))) or bool(
+            self.directives.spans(text)
+        )
 
     def spans(self, text: str) -> list[tuple[int, int]]:
         """Character ranges of instruction-like phrases, widened to their sentence."""
-        ranges: list[tuple[int, int]] = []
+        found: list[tuple[int, int]] = []
         for match in self._compiled.finditer(text):
             start = max(text.rfind(c, 0, match.start()) for c in ".!?\n") + 1
             ends = [i for c in ".!?\n" if (i := text.find(c, match.end())) != -1]
-            end = min(ends) + 1 if ends else len(text)
+            found.append((start, min(ends) + 1 if ends else len(text)))
+        found.extend(self.directives.spans(text))
+
+        ranges: list[tuple[int, int]] = []
+        for start, end in sorted(found):
             if ranges and start < ranges[-1][1]:
                 ranges[-1] = (ranges[-1][0], max(end, ranges[-1][1]))
             else:

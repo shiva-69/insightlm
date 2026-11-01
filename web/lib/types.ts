@@ -387,7 +387,8 @@ export type FindingKind =
   | "micro_text"
   | "off_page_text"
   | "metadata_instruction"
-  | "instruction_like_text";
+  | "instruction_like_text"
+  | "resembles_instruction_text";
 
 export interface ContentFinding {
   kind: FindingKind;

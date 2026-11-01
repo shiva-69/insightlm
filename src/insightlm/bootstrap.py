@@ -28,10 +28,17 @@ from insightlm.contracts.application.review import (
     ReviewContract,
 )
 from insightlm.contracts.domain.roles import CONTRACT_PERMISSIONS, CONTRACT_ROLES
-from insightlm.contracts.domain.screening import CONTRACT_INSTRUCTION_PATTERNS
+from insightlm.contracts.domain.screening import (
+    CONTRACT_INSTRUCTION_PATTERNS,
+    CONTRACT_SUBJECTS,
+)
 from insightlm.contracts.ports.judge import ClauseJudge
 from insightlm.contracts.ports.repositories import ContractsUnitOfWork
 from insightlm.document_readiness import DocumentReadinessAdapter
+from insightlm.documents.adapters.directive_classifier import (
+    FITTED_MODEL,
+    NearestExemplarClassifier,
+)
 from insightlm.documents.adapters.pymupdf_parser import PyMuPdfParser
 from insightlm.documents.adapters.s3_store import S3ObjectStore
 from insightlm.documents.adapters.uow import SqlAlchemyDocumentsUnitOfWork
@@ -39,6 +46,7 @@ from insightlm.documents.application.upload import UploadDocument
 from insightlm.documents.domain.findings import ENGINE_SCANNER, InstructionScanner
 from insightlm.documents.domain.permissions import DOCUMENT_PERMISSIONS
 from insightlm.documents.ports.repositories import DocumentsUnitOfWork, DocumentsUnitOfWorkFactory
+from insightlm.documents.ports.screening import SentenceClassifier
 from insightlm.documents.ports.storage import ObjectStore
 from insightlm.erasure import EraseCandidate
 from insightlm.governance.application.audit_queries import ListAuditEntries, VerifyAuditChain
@@ -102,7 +110,10 @@ from insightlm.recruiting.application.requisitions import (
 from insightlm.recruiting.application.talent import SearchTalentPool
 from insightlm.recruiting.application.transparency import FindExpiredCandidates, GetCandidateRecord
 from insightlm.recruiting.domain.roles import RECRUITING_PERMISSIONS, RECRUITING_ROLES
-from insightlm.recruiting.domain.screening import RECRUITING_INSTRUCTION_PATTERNS
+from insightlm.recruiting.domain.screening import (
+    RECRUITING_INSTRUCTION_PATTERNS,
+    RECRUITING_SUBJECTS,
+)
 from insightlm.recruiting.ports.judge import CriterionJudge
 from insightlm.recruiting.ports.repositories import RecruitingUnitOfWork
 from insightlm.retrieval.adapters.anthropic_generator import AnthropicGroundedGenerator
@@ -141,9 +152,22 @@ _logger = get_logger(__name__)
 
 def build_instruction_scanner() -> InstructionScanner:
     """The engine's scanner plus every vertical's phrases."""
-    return ENGINE_SCANNER.extended(RECRUITING_INSTRUCTION_PATTERNS).extended(
-        CONTRACT_INSTRUCTION_PATTERNS
+    return ENGINE_SCANNER.extended(
+        RECRUITING_INSTRUCTION_PATTERNS, subjects=RECRUITING_SUBJECTS
+    ).extended(CONTRACT_INSTRUCTION_PATTERNS, subjects=CONTRACT_SUBJECTS)
+
+
+def _build_instruction_classifier(settings: Settings) -> SentenceClassifier | None:
+    """The embedding second opinion on reworded instructions, when Gemini is configured."""
+    if not settings.instruction_classifier or settings.gemini_api_key is None:
+        return None
+    embedder = GeminiEmbedder(
+        settings.gemini_api_key.get_secret_value(), model=settings.gemini_embedding_model
     )
+    if embedder.model_id != FITTED_MODEL:
+        _logger.warning("instruction_classifier_off", reason="model is not the fitted one")
+        return None
+    return NearestExemplarClassifier(embedder.embed_documents, model_id=embedder.model_id)
 
 
 def build_role_catalogue() -> RoleCatalogue:
@@ -424,6 +448,7 @@ def build_container(settings: Settings, *, object_store: ObjectStore | None = No
                 embedder=embedder,
                 clock=clock,
                 scanner=scanner,
+                classifier=_build_instruction_classifier(settings),
             ),
             uow=documents_uow,
         ),

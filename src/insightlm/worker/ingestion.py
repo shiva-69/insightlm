@@ -27,14 +27,22 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from insightlm.documents.adapters.models import DeadLetterRow
 from insightlm.documents.adapters.uow import SqlAlchemyDocumentsUnitOfWork
+from insightlm.documents.domain.directives import sentence_spans
 from insightlm.documents.domain.entities import (
     ExtractedText,
     IngestionJob,
     IngestionStep,
     MediaType,
+    ParsedDocument,
 )
-from insightlm.documents.domain.findings import ENGINE_SCANNER, InstructionScanner
+from insightlm.documents.domain.findings import (
+    ENGINE_SCANNER,
+    ContentFinding,
+    FindingKind,
+    InstructionScanner,
+)
 from insightlm.documents.ports.parsing import DocumentParser
+from insightlm.documents.ports.screening import SentenceClassifier
 from insightlm.documents.ports.storage import ObjectStore
 from insightlm.retrieval.adapters.index import PostgresChunkIndex
 from insightlm.retrieval.ports.indexing import Chunker, Embedder
@@ -87,8 +95,10 @@ class IngestionPipeline:
         embedder: Embedder,
         clock: Clock,
         scanner: InstructionScanner = ENGINE_SCANNER,
+        classifier: SentenceClassifier | None = None,
     ) -> None:
         self._scanner = scanner
+        self._classifier = classifier
         self._session_factory = session_factory
         self._store = store
         self._parser = parser
@@ -173,6 +183,7 @@ class IngestionPipeline:
         # Visible text addressed to a model is kept -- it's what the document says, and
         # a reviewer can read it -- but recorded, so the reviewer is told to.
         instructions = self._scanner.findings(parsed.text, parsed.char_rects)
+        instructions += await self._resembling(parsed)
         async with self._uow(tenant_id) as uow:
             await uow.versions.save_text(
                 ExtractedText(
@@ -192,6 +203,44 @@ class IngestionPipeline:
                 version_id=str(version_id),
                 warnings=list(parsed.warnings),
             )
+
+    async def _resembling(self, parsed: ParsedDocument) -> tuple[ContentFinding, ...]:
+        """Sentences no rule matched that the classifier says resemble an attempt to steer.
+
+        Advisory, so a provider failure costs the second opinion, never the document.
+        """
+        if self._classifier is None:
+            return ()
+        text = parsed.text
+        covered = self._scanner.spans(text)
+        candidates = [
+            (a, b)
+            for a, b in sentence_spans(text)
+            if not any(a < end and start < b for start, end in covered)
+        ]
+        try:
+            verdicts = await self._classifier.resembles_instruction(
+                [text[a:b] for a, b in candidates]
+            )
+        except Exception as exc:
+            _logger.warning("instruction_classifier_unavailable", error=type(exc).__name__)
+            return ()
+        found: list[ContentFinding] = []
+        for (a, b), flagged in zip(candidates, verdicts, strict=True):
+            if not flagged:
+                continue
+            rect = next((r for r in parsed.char_rects[a:b] if r is not None), None)
+            found.append(
+                ContentFinding(
+                    kind=FindingKind.RESEMBLES_INSTRUCTION,
+                    text=" ".join(text[a:b].split()),
+                    page=rect.page if rect else None,
+                    rect=rect,
+                    excluded=False,
+                    instruction_like=True,
+                )
+            )
+        return tuple(found)
 
     async def _step_sanitise(self, tenant_id: TenantId, version_id: DocumentVersionId) -> None:
         """Placeholder for the Phase 6 defences, wired now so the shape is fixed.
