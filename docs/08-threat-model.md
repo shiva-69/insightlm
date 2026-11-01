@@ -93,6 +93,9 @@ Stated so they are decisions, not surprises:
   cookie-authenticated writes must echo a CSRF cookie in `X-CSRF-Token`
   (`api/session.py`, `tests/security/test_session_cookies.py`). Bearer tokens remain
   for API clients.
+- **Closed:** there was no Content Security Policy. Pages now carry a strict per-request
+  nonce policy (`web/proxy.ts`): only nonce-bearing scripts run, data goes only to this
+  origin, and nothing may frame the app. API responses forbid all content and framing.
 - **No MFA and no account lockout** beyond the per-IP rate limit.
 - **Text hidden under a shape drawn on top of it** isn't detected; scanned CVs skip the
   hidden-text check until OCR exists.

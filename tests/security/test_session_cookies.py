@@ -105,3 +105,14 @@ async def test_logout_ends_the_browser_session(browser: AsyncClient) -> None:
     assert SESSION_COOKIE not in browser.cookies
     after = await browser.get("/auth/session")
     assert after.status_code == 401, after.text
+
+
+async def test_api_responses_forbid_content_and_framing(browser: AsyncClient) -> None:
+    """JSON is data: opened directly in a browser it cannot run script or be framed."""
+    response = await browser.get("/health")
+    assert (
+        response.headers["content-security-policy"] == "default-src 'none'; frame-ancestors 'none'"
+    )
+    assert response.headers["x-content-type-options"] == "nosniff"
+    docs = await browser.get("/docs")
+    assert "default-src 'none'" not in docs.headers.get("content-security-policy", "")

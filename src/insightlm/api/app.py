@@ -14,7 +14,7 @@ from fastapi.responses import HTMLResponse
 from insightlm import __version__
 from insightlm.api.errors import register_exception_handlers
 from insightlm.api.limits import LimitsMiddleware
-from insightlm.api.middleware import CorrelationMiddleware
+from insightlm.api.middleware import CorrelationMiddleware, SecurityHeadersMiddleware
 from insightlm.api.routers import (
     ask,
     audit,
@@ -93,6 +93,7 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
     # Added first so it runs inside correlation: a 429 still carries a correlation id.
     app.add_middleware(LimitsMiddleware)
     app.add_middleware(CorrelationMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     register_exception_handlers(app)
 
     app.include_router(health.router)
