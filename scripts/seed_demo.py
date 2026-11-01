@@ -191,7 +191,11 @@ def main() -> int:
         )
         application_ids.append(added["application"]["id"])
         if not args.no_assess:
-            api.call("POST", f"/applications/{added['application']['id']}/assessments", recruiter)
+            api.call(
+                "POST",
+                f"/applications/{added['application']['id']}/assessments?wait=true",
+                recruiter,
+            )
     log(f"{len(application_ids)} candidates added{'' if args.no_assess else ' and assessed'}")
 
     # Some pipeline movement, so every page has something on it.

@@ -20,9 +20,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from insightlm.bootstrap import build_instruction_scanner
 from insightlm.documents.adapters.pymupdf_parser import PyMuPdfParser
 from insightlm.documents.domain.entities import MediaType, ParsedDocument
-from insightlm.documents.domain.findings import ContentFinding, instruction_findings
+from insightlm.documents.domain.findings import ContentFinding
 from insightlm.evaluation.adapters.judge_cache import CachedJudge, JudgmentStore
 from insightlm.evaluation.adapters.redteam import Expectation, RedTeamDoc, build_redteam_v1
 from insightlm.recruiting.adapters.judges import (
@@ -54,6 +55,9 @@ from insightlm.shared.domain.ids import (
     new_user_id,
 )
 
+# Production's scanner: the engine's phrases plus recruiting's.
+SCANNER = build_instruction_scanner()
+
 
 def _normal(text: str) -> str:
     return " ".join(text.split()).lower()
@@ -84,14 +88,14 @@ class Outcome:
 
 async def _outcome(doc: RedTeamDoc, parser: PyMuPdfParser) -> Outcome:
     parsed = await parser.parse(doc.pdf, media_type=MediaType.PDF)
-    findings = parsed.findings + instruction_findings(parsed.text, parsed.char_rects)
+    findings = parsed.findings + SCANNER.findings(parsed.text, parsed.char_rects)
     # A payload counts as present if a telling fragment of it survived into the text.
     probe = _normal(doc.payload)[:40]
     return Outcome(doc, findings, bool(probe) and probe in _normal(parsed.text))
 
 
 async def _run(defended: bool) -> list[Outcome]:
-    parser = PyMuPdfParser(exclude_concealed=defended)
+    parser = PyMuPdfParser(exclude_concealed=defended, scanner=SCANNER)
     return [await _outcome(doc, parser) for doc in build_redteam_v1()]
 
 
@@ -163,7 +167,7 @@ async def _assess(judge: CriterionJudge) -> dict[str, dict[str, float]]:
     clean = next(d for d in build_redteam_v1() if d.id == "c-plain")
     results: dict[str, dict[str, float]] = {}
     for defended in (False, True):
-        parser = PyMuPdfParser(exclude_concealed=defended)
+        parser = PyMuPdfParser(exclude_concealed=defended, scanner=SCANNER)
         mode = "defended" if defended else "undefended"
         baseline = await parser.parse(clean.pdf, media_type=MediaType.PDF)
         results.setdefault("clean CV", {})[mode] = await _score(baseline, rubric, judge)

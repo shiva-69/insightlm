@@ -50,8 +50,9 @@ from insightlm.identity.application.commands import RegisterOwnerCommand
 from insightlm.retrieval.application.answer import AnswerRequest
 from insightlm.retrieval.domain.evidence import RetrievalStrategy
 from insightlm.settings import Settings, get_settings
+from insightlm.shared.adapters.db.base import set_tenant_context
 from insightlm.shared.domain.policy import Actor
-from insightlm.shared.domain.roles import Role
+from insightlm.shared.domain.roles import PlatformRole
 from insightlm.shared.observability.logging import configure_logging, get_logger
 from insightlm.worker.ingestion import IngestionPipeline
 
@@ -63,7 +64,7 @@ EVAL_PASSWORD = "evaluation-harness-not-a-real-account"  # noqa: S105
 
 
 async def _provision(container: Container, slug: str) -> Actor:
-    result = await container.register_owner.execute(
+    result = await container.identity.register_owner.execute(
         RegisterOwnerCommand(
             tenant_name=f"Eval {slug}",
             tenant_slug=slug,
@@ -72,7 +73,9 @@ async def _provision(container: Container, slug: str) -> Actor:
             password=EVAL_PASSWORD,
         )
     )
-    return Actor(user_id=result.user.id, tenant_id=result.tenant.id, role=Role.OWNER)
+    return Actor.of(
+        container.roles, user_id=result.user.id, tenant_id=result.tenant.id, role=PlatformRole.OWNER
+    )
 
 
 async def _ingest_corpus(
@@ -85,8 +88,8 @@ async def _ingest_corpus(
     harness should exercise the failure path, and because a corpus in which every
     document parses cleanly is not the corpus anyone has.
     """
-    upload = UploadDocument(container.documents_uow, container.object_store, container.clock)  # type: ignore[arg-type]
-    pipeline: IngestionPipeline = container.ingestion
+    upload = UploadDocument(container.documents.uow, container.object_store, container.clock)
+    pipeline: IngestionPipeline = container.documents.ingestion
 
     ingested: dict[str, str] = {}
     for document in documents:
@@ -106,8 +109,9 @@ async def _ingest_corpus(
 
 async def _load_chunks(container: Container, actor: Actor) -> list[tuple[str, str]]:
     """Every chunk in the tenant, as (id, text), for quote resolution."""
-    async with container.documents_uow(tenant_id=actor.tenant_id) as uow:  # type: ignore[operator]
-        rows = await uow.session.execute(
+    async with container.session_factory() as session, session.begin():
+        await set_tenant_context(session, actor.tenant_id)
+        rows = await session.execute(
             text("SELECT id, body FROM chunks WHERE tenant_id = CAST(:t AS uuid)"),
             {"t": str(actor.tenant_id)},
         )
@@ -153,7 +157,7 @@ async def run_config(
 
             if not generate:
                 try:
-                    bundle = await container.ask.retrieve(actor, request)
+                    bundle = await container.retrieval.ask.retrieve(actor, request)
                 except Exception as cause:
                     outcomes.append(
                         ItemOutcome(
@@ -181,7 +185,7 @@ async def run_config(
                 continue
 
             try:
-                output = await container.ask.ask(actor, request)
+                output = await container.retrieval.ask.ask(actor, request)
             except Exception as cause:
                 outcomes.append(
                     ItemOutcome(

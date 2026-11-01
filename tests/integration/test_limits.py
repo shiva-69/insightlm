@@ -121,13 +121,14 @@ async def test_over_budget_assessment_is_refused_before_any_model_call(
     await client.post(f"/rubrics/{rubric_id}/approve", headers=auth(tokens["hiring_manager"]))
     added = await add_candidate(client, recruiter, requisition_id, "Asha", document_id)
 
-    use_case = container.run_assessment
+    use_case = container.recruiting.run_assessment
     spy, original_judge, original_budget = SpyJudge(), use_case._judge, use_case._budget
     use_case._judge = spy
     use_case._budget = MeteredBudget(MemorySpendMeter(), calls_per_day=2)
     try:
         response = await client.post(
-            f"/applications/{added['application']['id']}/assessments", headers=auth(recruiter)
+            f"/applications/{added['application']['id']}/assessments?wait=true",
+            headers=auth(recruiter),
         )
     finally:
         use_case._judge, use_case._budget = original_judge, original_budget

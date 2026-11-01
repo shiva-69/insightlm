@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from insightlm.governance.domain.audit import AuditAction
 from insightlm.identity.application.commands import (
     AcceptInvitationCommand,
     AcceptInvitationResult,
@@ -17,6 +16,7 @@ from insightlm.identity.application.commands import (
     InviteMemberResult,
 )
 from insightlm.identity.domain import invitation_token
+from insightlm.identity.domain.audit_actions import IdentityAudit
 from insightlm.identity.domain.entities import (
     Invitation,
     Membership,
@@ -36,7 +36,7 @@ from insightlm.shared.domain.ids import (
     new_user_id,
 )
 from insightlm.shared.domain.policy import Actor, require
-from insightlm.shared.domain.roles import ASSIGNABLE_BY_INVITATION, Permission
+from insightlm.shared.domain.roles import PlatformPermission, RoleCatalogue
 from insightlm.shared.ports.clock import Clock
 from insightlm.shared.ports.outbox import OutboxEvent
 from insightlm.shared.ports.password import PasswordHasher
@@ -47,17 +47,19 @@ class InviteMember:
         self,
         uow_factory: IdentityUnitOfWorkFactory,
         clock: Clock,
+        roles: RoleCatalogue,
         *,
         invitation_ttl_seconds: int,
     ) -> None:
         self._uow_factory = uow_factory
         self._clock = clock
+        self._roles = roles
         self._ttl = timedelta(seconds=invitation_ttl_seconds)
 
     async def execute(self, actor: Actor, command: InviteMemberCommand) -> InviteMemberResult:
-        require(actor, Permission.MEMBER_INVITE)
+        require(actor, PlatformPermission.MEMBER_INVITE)
 
-        if command.role not in ASSIGNABLE_BY_INVITATION:
+        if command.role not in self._roles.assignable:
             raise ValidationError(
                 "this role cannot be granted by invitation",
                 detail={"role": command.role.value},
@@ -92,7 +94,7 @@ class InviteMember:
             await uow.audit.record(
                 tenant_id=actor.tenant_id,
                 actor_id=actor.user_id,
-                action=AuditAction.INVITATION_CREATED,
+                action=IdentityAudit.INVITATION_CREATED,
                 subject_type="invitation",
                 subject_id=str(invitation.id),
                 # The email is the subject of the invitation, so recording it is the
@@ -177,7 +179,7 @@ class AcceptInvitation:
             await uow.audit.record(
                 tenant_id=tenant.id,
                 actor_id=user.id,
-                action=AuditAction.INVITATION_ACCEPTED,
+                action=IdentityAudit.INVITATION_ACCEPTED,
                 subject_type="invitation",
                 subject_id=str(invitation.id),
                 payload={"role": membership.role.value, "user_id": str(user.id)},

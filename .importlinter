@@ -141,3 +141,65 @@ forbidden_modules =
     insightlm.evaluation
     insightlm.api
     insightlm.worker
+
+# ------------------------------------------- the shared kernel is layered too
+# The kernel offers adapters (Redis limits, the SQLAlchemy unit of work) as well as
+# domain types and ports. Its own layering keeps those apart, exactly as in a module.
+[importlinter:contract:shared-kernel-layers]
+name = The shared kernel is layered like a module
+type = layers
+layers =
+    insightlm.shared.adapters
+    insightlm.shared.ports
+    insightlm.shared.domain
+
+# --------------------------------------- only composition picks implementations
+# A use case that imports a kernel adapter has chosen its own infrastructure -- the
+# decision belongs to the composition root. (An `UnmeteredBudget` default in
+# RunAssessment did exactly this; it is now a required dependency.)
+[importlinter:contract:no-adapters-below-composition]
+name = Domain, ports and use cases never import kernel adapters
+type = forbidden
+source_modules =
+    insightlm.identity.domain
+    insightlm.identity.ports
+    insightlm.identity.application
+    insightlm.documents.domain
+    insightlm.documents.ports
+    insightlm.documents.application
+    insightlm.retrieval.domain
+    insightlm.retrieval.ports
+    insightlm.retrieval.application
+    insightlm.recruiting.domain
+    insightlm.recruiting.ports
+    insightlm.recruiting.application
+    insightlm.governance.domain
+    insightlm.governance.ports
+    insightlm.governance.application
+    insightlm.evaluation.domain
+    insightlm.evaluation.ports
+forbidden_modules =
+    insightlm.shared.adapters
+
+# ----------------------------------------------- composition sits on top
+# bootstrap, ask_service, erasure, instrumented and document_readiness are the
+# composition layer: the
+# only code that knows every module. Nothing inside a module may depend on them, or
+# the wiring would leak back into what it wires.
+[importlinter:contract:composition-is-on-top]
+name = No module depends on the composition layer
+type = forbidden
+source_modules =
+    insightlm.identity
+    insightlm.documents
+    insightlm.retrieval
+    insightlm.recruiting
+    insightlm.governance
+    insightlm.evaluation
+    insightlm.shared
+forbidden_modules =
+    insightlm.bootstrap
+    insightlm.ask_service
+    insightlm.erasure
+    insightlm.instrumented
+    insightlm.document_readiness

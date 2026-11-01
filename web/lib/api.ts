@@ -1,5 +1,7 @@
 import type {
   Answer,
+  Citation,
+  Claim,
   AuditEntry,
   ChainVerification,
   DocumentSummary,
@@ -12,7 +14,9 @@ import type {
   UploadResult,
   ApiErrorBody,
   Application,
-  Assessment,
+  AssessmentJob,
+  BatchAssessResult,
+  BatchScope,
   Candidate,
   CriterionInput,
   Requisition,
@@ -70,19 +74,72 @@ async function request<T>(
     clearSession();
   }
 
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
-    throw new ApiError(
-      response.status,
-      body?.code ?? "unknown",
-      body?.message ?? response.statusText,
-      body?.correlation_id ?? response.headers.get("X-Correlation-ID"),
-      body?.detail ?? {},
-    );
-  }
+  if (!response.ok) throw await errorFrom(response);
 
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+async function errorFrom(response: Response): Promise<ApiError> {
+  const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
+  return new ApiError(
+    response.status,
+    body?.code ?? "unknown",
+    body?.message ?? response.statusText,
+    body?.correlation_id ?? response.headers.get("X-Correlation-ID"),
+    body?.detail ?? {},
+  );
+}
+
+export interface AnswerStreamHandlers {
+  /* The passages the answer may cite, before any claim is written. */
+  onEvidence: (passages: Citation[]) => void;
+  /* A claim the server has validated: safe to show. */
+  onClaim: (claim: Claim) => void;
+  /* Discard every claim shown so far; a corrected attempt follows. */
+  onWithdrawn: (reason: string) => void;
+}
+
+/* Ask, and receive each validated claim as it is written. Resolves with the final
+   answer -- the same body `/ask` returns -- once the server sends it. */
+async function askStream(
+  input: { question: string; top_k?: number; document_ids?: string[] },
+  handlers: AnswerStreamHandlers,
+): Promise<Answer> {
+  const headers = new Headers({ "Content-Type": "application/json", Accept: "text/event-stream" });
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch("/api/ask/stream", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(input),
+  });
+  if (response.status === 401 && token) clearSession();
+  if (!response.ok || !response.body) throw await errorFrom(response);
+
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    let boundary: number;
+    while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const event = /^event: (.*)$/m.exec(block)?.[1];
+      const data = JSON.parse(/^data: (.*)$/m.exec(block)?.[1] ?? "null");
+      if (event === "evidence") handlers.onEvidence(data as Citation[]);
+      else if (event === "claim") handlers.onClaim(data as Claim);
+      else if (event === "withdrawn") handlers.onWithdrawn((data as { reason: string }).reason);
+      else if (event === "done") return data as Answer;
+      else if (event === "error") {
+        const failure = data as { code: string; message: string };
+        throw new ApiError(500, failure.code, failure.message);
+      }
+    }
+  }
+  throw new ApiError(502, "stream_ended", "The answer stopped before it was finished.");
 }
 
 export const api = {
@@ -133,6 +190,8 @@ export const api = {
   ask: (input: { question: string; top_k?: number; document_ids?: string[] }) =>
     request<Answer>("/ask", { method: "POST", json: input }),
 
+  askStream,
+
   auditEntries: (limit = 100) => request<AuditEntry[]>(`/audit/entries?limit=${limit}`),
 
   verifyChain: () => request<ChainVerification>("/audit/verify", { method: "POST" }),
@@ -162,8 +221,16 @@ export const api = {
       { method: "POST", json: input },
     ),
 
+  /* Queues the assessment and returns at once; the worker runs it and the shortlist
+     shows its progress. */
   assess: (applicationId: string) =>
-    request<Assessment>(`/applications/${applicationId}/assessments`, { method: "POST" }),
+    request<AssessmentJob>(`/applications/${applicationId}/assessments`, { method: "POST" }),
+
+  assessRequisition: (requisitionId: string, scope: BatchScope) =>
+    request<BatchAssessResult>(`/requisitions/${requisitionId}/assessments`, {
+      method: "POST",
+      json: { scope },
+    }),
 
   shortlist: (requisitionId: string) =>
     request<ShortlistEntry[]>(`/requisitions/${requisitionId}/shortlist`),

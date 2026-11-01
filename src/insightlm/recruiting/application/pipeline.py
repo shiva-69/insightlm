@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from insightlm.governance.domain.audit import AuditAction
 from insightlm.recruiting.domain.assessment import Application, Assessment, Candidate, Stage
+from insightlm.recruiting.domain.audit_actions import RecruitingAudit
 from insightlm.recruiting.domain.pipeline import (
     GateFacts,
     RejectionReason,
@@ -15,6 +15,7 @@ from insightlm.recruiting.domain.pipeline import (
     next_stage,
     transition,
 )
+from insightlm.recruiting.domain.roles import RecruitingPermission, RecruitingRole
 from insightlm.recruiting.domain.rubric import Requisition, Rubric
 from insightlm.recruiting.domain.scorecard import (
     CriterionRating,
@@ -30,12 +31,11 @@ from insightlm.recruiting.ports.repositories import (
 from insightlm.shared.domain.errors import ConflictError, NotFoundError
 from insightlm.shared.domain.ids import ApplicationId, ScorecardId, UserId, new_scorecard_id
 from insightlm.shared.domain.policy import Actor, can, require
-from insightlm.shared.domain.roles import Permission, Role
 from insightlm.shared.ports.clock import Clock
 
 # Roles whose view of recruiting is limited to what they have been assigned to. An
 # interviewer invited for one role sees that role's candidates and nothing else.
-ASSIGNMENT_SCOPED = frozenset({Role.INTERVIEWER})
+ASSIGNMENT_SCOPED = frozenset({RecruitingRole.INTERVIEWER})
 
 
 def is_assignment_scoped(actor: Actor) -> bool:
@@ -83,7 +83,7 @@ class MoveApplication:
         reason: RejectionReason | None = None,
         note: str = "",
     ) -> Application:
-        require(actor, Permission.STAGE_ADVANCE)
+        require(actor, RecruitingPermission.STAGE_ADVANCE)
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             application = await _visible_application(uow, actor, application_id)
             moved, record = transition(
@@ -100,7 +100,7 @@ class MoveApplication:
             await uow.audit.record(
                 tenant_id=actor.tenant_id,
                 actor_id=actor.user_id,
-                action=AuditAction.STAGE_TRANSITIONED,
+                action=RecruitingAudit.STAGE_TRANSITIONED,
                 subject_type="application",
                 subject_id=str(application_id),
                 payload={
@@ -127,7 +127,7 @@ class AssignInterviewer:
     async def execute(
         self, actor: Actor, application_id: ApplicationId, interviewer_id: UserId
     ) -> Scorecard:
-        require(actor, Permission.STAGE_ADVANCE)
+        require(actor, RecruitingPermission.STAGE_ADVANCE)
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             application = await _visible_application(uow, actor, application_id)
             if application.stage in (Stage.HIRED, Stage.REJECTED):
@@ -148,7 +148,7 @@ class AssignInterviewer:
             await uow.audit.record(
                 tenant_id=actor.tenant_id,
                 actor_id=actor.user_id,
-                action=AuditAction.INTERVIEWER_ASSIGNED,
+                action=RecruitingAudit.INTERVIEWER_ASSIGNED,
                 subject_type="application",
                 subject_id=str(application_id),
                 payload={"interviewer_id": str(interviewer_id)},
@@ -171,7 +171,7 @@ class SubmitScorecard:
         recommendation: Recommendation,
         summary: str,
     ) -> Scorecard:
-        require(actor, Permission.SCORECARD_SUBMIT)
+        require(actor, RecruitingPermission.SCORECARD_SUBMIT)
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             card = await uow.scorecards.get(scorecard_id)
             # Someone else's scorecard is not found, not forbidden: its existence is
@@ -197,7 +197,7 @@ class SubmitScorecard:
             await uow.audit.record(
                 tenant_id=actor.tenant_id,
                 actor_id=actor.user_id,
-                action=AuditAction.SCORECARD_SUBMITTED,
+                action=RecruitingAudit.SCORECARD_SUBMITTED,
                 subject_type="scorecard",
                 subject_id=str(scorecard_id),
                 payload={
@@ -230,14 +230,14 @@ class GetApplication:
         self._clock = clock
 
     async def execute(self, actor: Actor, application_id: ApplicationId) -> ApplicationDetail:
-        require(actor, Permission.CANDIDATE_VIEW)
+        require(actor, RecruitingPermission.CANDIDATE_VIEW)
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             application = await _visible_application(uow, actor, application_id)
             candidate = await uow.candidates.get(application.candidate_id)
             requisition = await uow.requisitions.get(application.requisition_id)
             if candidate is None or requisition is None:
                 raise NotFoundError("application not found")
-            can_view_scores = can(actor, Permission.SCORE_VIEW)
+            can_view_scores = can(actor, RecruitingPermission.SCORE_VIEW)
             cards = await uow.scorecards.list_for_application(application_id)
             facts = await _gate_facts(uow, application_id)
             following = next_stage(application.stage)
@@ -272,7 +272,7 @@ class MyInterviews:
         self._uow_factory = uow_factory
 
     async def execute(self, actor: Actor) -> list[Interview]:
-        require(actor, Permission.SCORECARD_SUBMIT)
+        require(actor, RecruitingPermission.SCORECARD_SUBMIT)
         interviews: list[Interview] = []
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             for card in await uow.scorecards.list_for_interviewer(actor.user_id):

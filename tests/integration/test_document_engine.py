@@ -11,7 +11,7 @@ from __future__ import annotations
 import pymupdf
 import pytest
 
-from insightlm.bootstrap import Container
+from insightlm.bootstrap import Container, build_role_catalogue
 from insightlm.documents.application.upload import UploadDocument
 from insightlm.documents.domain.entities import DocumentStatus, IngestionStep
 from insightlm.identity.application.commands import RegisterOwnerCommand
@@ -20,7 +20,7 @@ from insightlm.retrieval.adapters.extractive_generator import ExtractiveGenerato
 from insightlm.retrieval.application.answer import AnswerRequest
 from insightlm.retrieval.domain.answer import AnswerOutcome
 from insightlm.shared.domain.policy import Actor
-from insightlm.shared.domain.roles import Role
+from insightlm.shared.domain.roles import PlatformRole
 from insightlm.worker.ingestion import IngestionPipeline
 from tests.conftest import requires_docker
 from tests.fakes import FlakyObjectStore, InMemoryObjectStore
@@ -58,7 +58,7 @@ def build_resume_pdf() -> bytes:
 
 
 async def owner_of(container: Container, slug: str = "acme") -> Actor:
-    result = await container.register_owner.execute(
+    result = await container.identity.register_owner.execute(
         RegisterOwnerCommand(
             tenant_name=slug.title(),
             tenant_slug=slug,
@@ -67,7 +67,12 @@ async def owner_of(container: Container, slug: str = "acme") -> Actor:
             password=PASSWORD,
         )
     )
-    return Actor(user_id=result.user.id, tenant_id=result.tenant.id, role=Role.OWNER)
+    return Actor.of(
+        build_role_catalogue(),
+        user_id=result.user.id,
+        tenant_id=result.tenant.id,
+        role=PlatformRole.OWNER,
+    )
 
 
 def pipeline_with(container: Container, store: InMemoryObjectStore) -> IngestionPipeline:
@@ -84,7 +89,7 @@ def pipeline_with(container: Container, store: InMemoryObjectStore) -> Ingestion
 
 
 async def ingest(container: Container, actor: Actor, store: InMemoryObjectStore) -> object:
-    upload = UploadDocument(container.documents_uow, store, container.clock)  # type: ignore[arg-type]
+    upload = UploadDocument(container.documents.uow, store, container.clock)
     result = await upload.execute(
         actor, filename="candidate.pdf", payload=build_resume_pdf(), title="Candidate CV"
     )
@@ -100,7 +105,7 @@ async def test_upload_ingest_ask_yields_a_resolvable_citation(container: Contain
     store = InMemoryObjectStore()
     await ingest(container, actor, store)
 
-    output = await container.ask.ask(
+    output = await container.retrieval.ask.ask(
         actor, AnswerRequest(question="What payment systems experience is there?")
     )
     answer = output.answer
@@ -143,11 +148,11 @@ async def test_the_answer_quotes_text_that_exists_in_the_document(
     store = InMemoryObjectStore()
     result = await ingest(container, actor, store)
 
-    async with container.documents_uow(tenant_id=actor.tenant_id) as uow:  # type: ignore[operator]
+    async with container.documents.uow(tenant_id=actor.tenant_id) as uow:
         extracted = await uow.versions.load_text(result.version.id)  # type: ignore[attr-defined]
     assert extracted is not None
 
-    output = await container.ask.ask(
+    output = await container.retrieval.ask.ask(
         actor, AnswerRequest(question="What was reduced by batching ledger writes?")
     )
 
@@ -165,7 +170,7 @@ async def test_an_unanswerable_question_is_refused_not_invented(
     store = InMemoryObjectStore()
     await ingest(container, actor, store)
 
-    output = await container.ask.ask(
+    output = await container.retrieval.ask.ask(
         actor,
         AnswerRequest(question="What is the candidate's favourite restaurant in Lisbon?"),
     )
@@ -182,7 +187,7 @@ async def test_ingestion_records_every_step_and_marks_the_version_ready(
     store = InMemoryObjectStore()
     result = await ingest(container, actor, store)
 
-    async with container.documents_uow(tenant_id=actor.tenant_id) as uow:  # type: ignore[operator]
+    async with container.documents.uow(tenant_id=actor.tenant_id) as uow:
         version = await uow.versions.get(result.version.id)  # type: ignore[attr-defined]
         job = await uow.jobs.for_version(result.version.id)  # type: ignore[attr-defined]
 
@@ -203,7 +208,7 @@ async def test_a_failed_step_resumes_rather_than_restarts(container: Container) 
     actor = await owner_of(container)
     store = FlakyObjectStore(fail_times=1)
     store._remaining_failures = 0  # let the upload write succeed
-    upload = UploadDocument(container.documents_uow, store, container.clock)  # type: ignore[arg-type]
+    upload = UploadDocument(container.documents.uow, store, container.clock)
     result = await upload.execute(actor, filename="candidate.pdf", payload=build_resume_pdf())
 
     store._remaining_failures = 1  # now fail the first read, inside `parse`
@@ -227,7 +232,7 @@ async def test_exhausted_retries_land_in_the_dead_letter_table(
 
     actor = await owner_of(container)
     store = FlakyObjectStore(fail_times=0)
-    upload = UploadDocument(container.documents_uow, store, container.clock)  # type: ignore[arg-type]
+    upload = UploadDocument(container.documents.uow, store, container.clock)
     result = await upload.execute(actor, filename="candidate.pdf", payload=build_resume_pdf())
 
     store._remaining_failures = 99  # permanently broken
@@ -239,7 +244,7 @@ async def test_exhausted_retries_land_in_the_dead_letter_table(
     assert outcome is not None
     assert outcome.dead_lettered
 
-    async with container.documents_uow(tenant_id=actor.tenant_id) as uow:  # type: ignore[operator]
+    async with container.documents.uow(tenant_id=actor.tenant_id) as uow:
         version = await uow.versions.get(result.version.id)  # type: ignore[attr-defined]
         rows = (
             await uow.session.execute(text("SELECT failed_step, attempts FROM dead_letters"))
@@ -253,7 +258,7 @@ async def test_exhausted_retries_land_in_the_dead_letter_table(
 async def test_reuploading_identical_bytes_is_deduplicated(container: Container) -> None:
     actor = await owner_of(container)
     store = InMemoryObjectStore()
-    upload = UploadDocument(container.documents_uow, store, container.clock)  # type: ignore[arg-type]
+    upload = UploadDocument(container.documents.uow, store, container.clock)
     payload = build_resume_pdf()
 
     first = await upload.execute(actor, filename="cv.pdf", payload=payload)
@@ -273,7 +278,7 @@ async def test_retrieval_is_scoped_to_the_asking_tenant(container: Container) ->
     store = InMemoryObjectStore()
     await ingest(container, acme, store)
 
-    output = await container.ask.ask(
+    output = await container.retrieval.ask.ask(
         globex, AnswerRequest(question="What payment systems experience is there?")
     )
 
@@ -350,7 +355,7 @@ async def test_the_api_returns_citations_with_highlight_geometry(
 
     from insightlm.shared.domain.ids import DocumentVersionId, TenantId
 
-    outcome = await container.ingestion.run(
+    outcome = await container.documents.ingestion.run(
         tenant_id=TenantId(UUID(register.json()["tenant"]["id"])),
         version_id=DocumentVersionId(UUID(upload.json()["version"]["id"])),
     )

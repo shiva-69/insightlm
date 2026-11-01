@@ -28,7 +28,7 @@ async def test_the_relay_hands_each_upload_to_the_worker_with_its_trace(
     container: Container,
 ) -> None:
     actor = await owner_of(container)
-    upload = UploadDocument(container.documents_uow, InMemoryObjectStore(), container.clock)  # type: ignore[arg-type]
+    upload = UploadDocument(container.documents.uow, InMemoryObjectStore(), container.clock)
     result = await upload.execute(actor, filename="cv.pdf", payload=build_resume_pdf())
 
     queue = RecordingQueue()
@@ -45,14 +45,17 @@ async def test_the_relay_hands_each_upload_to_the_worker_with_its_trace(
 async def test_the_ingest_task_completes_or_schedules_its_own_retry(container: Container) -> None:
     actor = await owner_of(container)
     store = FlakyObjectStore(fail_times=0)
-    upload = UploadDocument(container.documents_uow, store, container.clock)  # type: ignore[arg-type]
+    upload = UploadDocument(container.documents.uow, store, container.clock)
     result = await upload.execute(actor, filename="cv.pdf", payload=build_resume_pdf())
 
     # First run: storage fails once, so the task must schedule the retry itself.
     store._remaining_failures = 1
     from dataclasses import replace
 
-    flaky = replace(container, ingestion=pipeline_with(container, store))
+    flaky = replace(
+        container,
+        documents=replace(container.documents, ingestion=pipeline_with(container, store)),
+    )
     queue = RecordingQueue()
     ctx = {"container": flaky, "redis": queue}
     first = await worker.ingest_document_version(ctx, str(actor.tenant_id), str(result.version.id))

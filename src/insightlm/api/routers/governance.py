@@ -56,10 +56,10 @@ class CandidateRecordResponse(BaseModel):
 async def candidate_record(
     candidate_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> CandidateRecordResponse:
-    record = await container.candidate_record.execute(actor, CandidateId(candidate_id))
+    record = await container.recruiting.candidate_record.execute(actor, CandidateId(candidate_id))
     documents: list[DocumentHeld] = []
-    factory = container.documents_uow
-    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:  # type: ignore[operator]
+    factory = container.documents.uow
+    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
         for document_id in record.candidate.document_ids:
             document = await uow.documents.get(DocumentId(document_id))
             version = await uow.versions.latest_for_document(DocumentId(document_id))
@@ -102,11 +102,11 @@ class RetentionRunResponse(BaseModel):
 async def run_retention(
     actor: ActorDep, container: ContainerDep, dry_run: bool = True
 ) -> RetentionRunResponse:
-    expired = await container.find_expired_candidates.execute(actor)
+    expired = await container.recruiting.find_expired_candidates.execute(actor)
     erased: list[Any] = []
     if not dry_run:
         for item in expired:
-            report = await container.erase_candidate.execute(actor, item.candidate_id)
+            report = await container.governance.erase_candidate.execute(actor, item.candidate_id)
             erased.append(
                 ErasureResponse(
                     candidate_id=report.candidate_id,

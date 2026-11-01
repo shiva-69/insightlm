@@ -143,7 +143,7 @@ async def test_tenant_context_does_not_leak_between_pooled_connections(
 
 
 async def test_audit_and_domain_write_commit_together(container: Container) -> None:
-    result = await container.register_owner.execute(
+    result = await container.identity.register_owner.execute(
         RegisterOwnerCommand(
             tenant_name="Atomic",
             tenant_slug="atomic",
@@ -163,7 +163,7 @@ async def test_audit_and_domain_write_commit_together(container: Container) -> N
 async def test_outbox_events_are_written_in_the_same_transaction(
     container: Container, admin_session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
-    result = await container.register_owner.execute(
+    result = await container.identity.register_owner.execute(
         RegisterOwnerCommand(
             tenant_name="Outboxed",
             tenant_slug="outboxed",
@@ -184,7 +184,7 @@ async def test_outbox_events_are_written_in_the_same_transaction(
 async def test_the_relay_drains_pending_events(container: Container) -> None:
     from insightlm.shared.adapters.db.relay import OutboxRelay
 
-    await container.register_owner.execute(
+    await container.identity.register_owner.execute(
         RegisterOwnerCommand(
             tenant_name="Relayed",
             tenant_slug="relayed",

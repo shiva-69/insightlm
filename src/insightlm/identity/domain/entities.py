@@ -18,7 +18,7 @@ from insightlm.shared.domain.ids import (
     TenantId,
     UserId,
 )
-from insightlm.shared.domain.roles import Role
+from insightlm.shared.domain.roles import PlatformRole, Role
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$")
@@ -118,7 +118,7 @@ class Invitation:
             raise ValidationError("invitation email must be stored normalised")
         if self.expires_at <= self.created_at:
             raise ValidationError("invitation must expire after it is created")
-        if self.role is Role.OWNER:
+        if self.role == PlatformRole.OWNER:
             raise ValidationError("ownership is transferred explicitly, never invited")
 
     def is_redeemable(self, *, now: datetime) -> bool:

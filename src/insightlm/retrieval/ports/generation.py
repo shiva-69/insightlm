@@ -12,6 +12,7 @@ cannot be skipped by a careless adapter.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -66,3 +67,35 @@ class GroundedGenerator(Protocol):
         generator that hallucinates when the evidence runs out.
         """
         ...
+
+
+# -- streaming -----------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimProposed:
+    """One claim, complete, as soon as the model has finished writing it."""
+
+    claim: ProposedClaim
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationFinished:
+    """The whole result, with every claim and the usage. Always the last event."""
+
+    result: GenerationResult
+
+
+GenerationEvent = ClaimProposed | GenerationFinished
+
+
+class StreamingGenerator(Protocol):
+    """A generator that can hand over claims one at a time while it writes.
+
+    Optional. A generator without ``stream`` is wrapped by the answering use case,
+    which emits its claims once ``generate`` returns -- same events, no early display.
+    """
+
+    def stream(
+        self, question: str, evidence: EvidenceBundle, *, feedback: str | None = None
+    ) -> AsyncIterator[GenerationEvent]: ...

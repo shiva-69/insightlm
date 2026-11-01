@@ -21,7 +21,7 @@ pytestmark = [pytest.mark.integration, requires_docker]
 async def test_an_unreadable_file_fails_at_once_with_its_reason(container: Container) -> None:
     actor = await owner_of(container)
     store = InMemoryObjectStore()
-    upload = UploadDocument(container.documents_uow, store, container.clock)  # type: ignore[arg-type]
+    upload = UploadDocument(container.documents.uow, store, container.clock)
     result = await upload.execute(
         actor, filename="broken.pdf", payload=b"%PDF-1.4 not really a pdf", title="broken"
     )
@@ -32,7 +32,7 @@ async def test_an_unreadable_file_fails_at_once_with_its_reason(container: Conta
 
     assert outcome.dead_lettered, "retrying a corrupt file only delays telling the user"
     assert outcome.retry_in is None
-    async with container.documents_uow(tenant_id=actor.tenant_id) as uow:  # type: ignore[operator]
+    async with container.documents.uow(tenant_id=actor.tenant_id) as uow:
         version = await uow.versions.get(result.version.id)
     assert version.status is DocumentStatus.FAILED
     assert "could not be opened" in (version.failure_reason or "")
@@ -41,7 +41,7 @@ async def test_an_unreadable_file_fails_at_once_with_its_reason(container: Conta
 async def test_a_transient_failure_is_scheduled_for_retry(container: Container) -> None:
     actor = await owner_of(container)
     store = FlakyObjectStore(fail_times=1)
-    upload = UploadDocument(container.documents_uow, store, container.clock)  # type: ignore[arg-type]
+    upload = UploadDocument(container.documents.uow, store, container.clock)
     result = await upload.execute(actor, filename="cv.pdf", payload=build_resume_pdf(), title="CV")
 
     first = await pipeline_with(container, store).run(

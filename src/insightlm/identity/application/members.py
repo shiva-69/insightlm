@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from insightlm.governance.domain.audit import AuditAction
+from insightlm.identity.domain.audit_actions import IdentityAudit
 from insightlm.identity.domain.entities import Membership, User
 from insightlm.identity.ports.uow import IdentityUnitOfWorkFactory
 from insightlm.shared.domain.errors import ConflictError, NotFoundError, ValidationError
 from insightlm.shared.domain.ids import MembershipId
 from insightlm.shared.domain.policy import Actor, require
-from insightlm.shared.domain.roles import ASSIGNABLE_BY_INVITATION, Permission, Role
+from insightlm.shared.domain.roles import PlatformPermission, PlatformRole, Role, RoleCatalogue
 from insightlm.shared.ports.clock import Clock
 
 
@@ -36,16 +36,19 @@ class ListMembers:
 
 
 class ChangeMemberRole:
-    def __init__(self, uow_factory: IdentityUnitOfWorkFactory, clock: Clock) -> None:
+    def __init__(
+        self, uow_factory: IdentityUnitOfWorkFactory, clock: Clock, roles: RoleCatalogue
+    ) -> None:
         self._uow_factory = uow_factory
         self._clock = clock
+        self._roles = roles
 
     async def execute(
         self, actor: Actor, membership_id: MembershipId, new_role: Role
     ) -> Membership:
-        require(actor, Permission.MEMBER_MANAGE)
+        require(actor, PlatformPermission.MEMBER_MANAGE)
 
-        if new_role not in ASSIGNABLE_BY_INVITATION:
+        if new_role not in self._roles.assignable:
             raise ValidationError(
                 "ownership is transferred through a dedicated flow, not a role change",
                 detail={"role": new_role.value},
@@ -57,7 +60,7 @@ class ChangeMemberRole:
             # the intent and survives anyone later querying without a tenant context.
             if membership is None or membership.tenant_id != actor.tenant_id:
                 raise NotFoundError("membership not found")
-            if membership.role is Role.OWNER:
+            if membership.role == PlatformRole.OWNER:
                 raise ConflictError("the owner's role cannot be changed here")
 
             previous = membership.role
@@ -67,7 +70,7 @@ class ChangeMemberRole:
             await uow.audit.record(
                 tenant_id=actor.tenant_id,
                 actor_id=actor.user_id,
-                action=AuditAction.MEMBERSHIP_ROLE_CHANGED,
+                action=IdentityAudit.MEMBERSHIP_ROLE_CHANGED,
                 subject_type="membership",
                 subject_id=str(membership_id),
                 payload={"from": previous.value, "to": new_role.value},
@@ -82,13 +85,13 @@ class RevokeMembership:
         self._clock = clock
 
     async def execute(self, actor: Actor, membership_id: MembershipId) -> Membership:
-        require(actor, Permission.MEMBER_MANAGE)
+        require(actor, PlatformPermission.MEMBER_MANAGE)
 
         async with self._uow_factory(tenant_id=actor.tenant_id) as uow:
             membership = await uow.memberships.get(membership_id)
             if membership is None or membership.tenant_id != actor.tenant_id:
                 raise NotFoundError("membership not found")
-            if membership.role is Role.OWNER:
+            if membership.role == PlatformRole.OWNER:
                 raise ConflictError("the workspace owner cannot be removed")
             if membership.user_id == actor.user_id:
                 raise ConflictError("you cannot remove your own membership")
@@ -99,7 +102,7 @@ class RevokeMembership:
             await uow.audit.record(
                 tenant_id=actor.tenant_id,
                 actor_id=actor.user_id,
-                action=AuditAction.MEMBERSHIP_REVOKED,
+                action=IdentityAudit.MEMBERSHIP_REVOKED,
                 subject_type="membership",
                 subject_id=str(membership_id),
                 payload={"user_id": str(membership.user_id), "role": membership.role.value},

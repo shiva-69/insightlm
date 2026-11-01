@@ -8,20 +8,23 @@ exactly like a right one. So the delivery layer, which may see both, checks firs
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, Response, status
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from insightlm.api.deps import ActorDep, ContainerDep
 from insightlm.api.schemas import RequestModel
+from insightlm.recruiting.application.assessment_jobs import BatchScope, JobOutcome, Outcome
 from insightlm.recruiting.application.requisitions import CriterionDraft
 from insightlm.recruiting.domain.assessment import (
     AssessmentFlag,
     Stage,
     Verdict,
 )
+from insightlm.recruiting.domain.assessment_job import JobStatus
 from insightlm.recruiting.domain.fairness import FOUR_FIFTHS, MIN_GROUP_SIZE
 from insightlm.recruiting.domain.fairness import Dimension as FairnessDimension
 from insightlm.recruiting.domain.pipeline import is_overdue
@@ -30,9 +33,10 @@ from insightlm.recruiting.domain.rubric import (
     RequisitionStatus,
     RubricStatus,
 )
-from insightlm.shared.domain.errors import ValidationError
+from insightlm.shared.domain.errors import ConflictError, ValidationError
 from insightlm.shared.domain.ids import (
     ApplicationId,
+    AssessmentJobId,
     CandidateId,
     DocumentId,
     RequisitionId,
@@ -184,14 +188,48 @@ class AddCandidateResponse(BaseModel):
     application: ApplicationResponse
 
 
+class AssessmentJobResponse(_Out):
+    id: UUID
+    application_id: UUID
+    status: str = Field(description="queued, running, succeeded or failed")
+    attempts: int
+    assessment_id: UUID | None
+    error: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class ShortlistEntryResponse(BaseModel):
     application: ApplicationResponse
     candidate: CandidateResponse
     assessment: AssessmentResponse | None
+    job: AssessmentJobResponse | None = Field(
+        default=None, description="The latest assessment job, to show progress."
+    )
+    stale: bool = Field(
+        default=False, description="Assessed under an older rubric than the one in force."
+    )
     overdue: bool = Field(description="In the current stage longer than its SLA allows.")
 
 
+class BatchAssessRequest(BaseModel):
+    scope: BatchScope = Field(
+        default=BatchScope.UNASSESSED,
+        description="unassessed, stale (unassessed or under an older rubric), or all",
+    )
+
+
+class BatchAssessResponse(BaseModel):
+    queued: list[AssessmentJobResponse]
+    skipped_current: int
+    skipped_closed: int
+
+
 # -- routes --------------------------------------------------------------------------
+
+# With wait=true, how long to wait for a job the worker claimed first: 60 s in all.
+_WAIT_POLLS = 120
+_WAIT_INTERVAL_S = 0.5
 
 
 @router.post(
@@ -203,7 +241,7 @@ class ShortlistEntryResponse(BaseModel):
 async def create_requisition(
     body: CreateRequisitionRequest, actor: ActorDep, container: ContainerDep
 ) -> RequisitionResponse:
-    requisition = await container.create_requisition.execute(
+    requisition = await container.recruiting.create_requisition.execute(
         actor, title=body.title, description=body.description, blind_screening=body.blind_screening
     )
     return RequisitionResponse.model_validate(requisition)
@@ -213,7 +251,7 @@ async def create_requisition(
 async def list_requisitions(actor: ActorDep, container: ContainerDep) -> list[RequisitionResponse]:
     return [
         RequisitionResponse.model_validate(r)
-        for r in await container.list_requisitions.execute(actor)
+        for r in await container.recruiting.list_requisitions.execute(actor)
     ]
 
 
@@ -225,7 +263,9 @@ async def list_requisitions(actor: ActorDep, container: ContainerDep) -> list[Re
 async def get_requisition(
     requisition_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> RequisitionDetailResponse:
-    detail = await container.get_requisition.execute(actor, RequisitionId(requisition_id))
+    detail = await container.recruiting.get_requisition.execute(
+        actor, RequisitionId(requisition_id)
+    )
     return RequisitionDetailResponse(
         requisition=RequisitionResponse.model_validate(detail.requisition),
         rubrics=[RubricResponse.model_validate(r) for r in detail.rubrics],
@@ -241,7 +281,7 @@ async def get_requisition(
 async def propose_rubric(
     requisition_id: UUID, body: ProposeRubricRequest, actor: ActorDep, container: ContainerDep
 ) -> RubricResponse:
-    rubric = await container.propose_rubric.execute(
+    rubric = await container.recruiting.propose_rubric.execute(
         actor,
         RequisitionId(requisition_id),
         [
@@ -266,7 +306,7 @@ async def propose_rubric(
 async def approve_rubric(
     rubric_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> RubricResponse:
-    rubric = await container.approve_rubric.execute(actor, RubricId(rubric_id))
+    rubric = await container.recruiting.approve_rubric.execute(actor, RubricId(rubric_id))
     return RubricResponse.model_validate(rubric)
 
 
@@ -280,15 +320,15 @@ async def add_candidate(
     requisition_id: UUID, body: AddCandidateRequest, actor: ActorDep, container: ContainerDep
 ) -> AddCandidateResponse:
     document_ids = [DocumentId(d) for d in body.document_ids]
-    factory = container.documents_uow
-    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:  # type: ignore[operator]
+    factory = container.documents.uow
+    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
         for document_id in document_ids:
             # RLS makes another tenant's document indistinguishable from a missing one,
             # which is the point: the error cannot be used to probe for ids.
             if await uow.documents.get(document_id) is None:
                 raise ValidationError(f"document {document_id} does not exist")
 
-    candidate, application = await container.add_candidate.execute(
+    candidate, application = await container.recruiting.add_candidate.execute(
         actor,
         RequisitionId(requisition_id),
         name=body.name,
@@ -303,15 +343,95 @@ async def add_candidate(
 
 @router.post(
     "/applications/{application_id}/assessments",
-    response_model=AssessmentResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        202: {"model": AssessmentJobResponse, "description": "Queued; the worker runs it."},
+        201: {
+            "model": AssessmentResponse,
+            "description": "With wait=true: the finished assessment.",
+        },
+    },
     summary="Assess an application against the approved rubric; every verdict is cited",
 )
 async def run_assessment(
-    application_id: UUID, actor: ActorDep, container: ContainerDep
-) -> AssessmentResponse:
-    assessment = await container.run_assessment.execute(actor, ApplicationId(application_id))
-    return AssessmentResponse.model_validate(assessment)
+    application_id: UUID,
+    actor: ActorDep,
+    container: ContainerDep,
+    response: Response,
+    wait: bool = Query(
+        default=False,
+        description=(
+            "Run the job in this request and return the assessment. For scripts and "
+            "small batches; the default queues it and returns at once."
+        ),
+    ),
+) -> AssessmentJobResponse | AssessmentResponse:
+    job = await container.recruiting.request_assessment.execute(
+        actor, ApplicationId(application_id)
+    )
+    if not wait:
+        return AssessmentJobResponse.model_validate(job)
+
+    outcome = await container.recruiting.process_assessment_job.execute(actor.tenant_id, job.id)
+    if outcome.outcome is Outcome.SKIPPED:
+        # Claimed by the worker first (or joined a job already running): wait for it.
+        for _ in range(_WAIT_POLLS):
+            current = await container.recruiting.get_assessment_job.execute(actor, job.id)
+            if not current.is_active:
+                outcome = JobOutcome(
+                    Outcome.SUCCEEDED if current.status is JobStatus.SUCCEEDED else Outcome.FAILED,
+                    current,
+                    assessment_id=current.assessment_id,
+                )
+                break
+            await asyncio.sleep(_WAIT_INTERVAL_S)
+    if outcome.outcome is Outcome.WAITING:
+        raise ConflictError(
+            "the candidate's documents are still being processed; the assessment is queued "
+            "and will run when they are ready",
+            detail={"assessment_job_id": str(job.id)},
+        )
+    if outcome.error is not None:
+        raise outcome.error
+    if outcome.assessment_id is None:
+        raise ConflictError(
+            (outcome.job.error if outcome.job else None) or "the assessment did not finish",
+            detail={"assessment_job_id": str(job.id)},
+        )
+    entry = await container.recruiting.get_assessment.execute(actor, outcome.assessment_id)
+    response.status_code = status.HTTP_201_CREATED
+    return AssessmentResponse.model_validate(entry)
+
+
+@router.post(
+    "/requisitions/{requisition_id}/assessments",
+    response_model=BatchAssessResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Queue assessments for a requisition: the unassessed, the stale, or all",
+)
+async def assess_requisition(
+    requisition_id: UUID, body: BatchAssessRequest, actor: ActorDep, container: ContainerDep
+) -> BatchAssessResponse:
+    result = await container.recruiting.request_assessments.execute(
+        actor, RequisitionId(requisition_id), body.scope
+    )
+    return BatchAssessResponse(
+        queued=[AssessmentJobResponse.model_validate(j) for j in result.jobs],
+        skipped_current=result.skipped_current,
+        skipped_closed=result.skipped_closed,
+    )
+
+
+@router.get(
+    "/assessment-jobs/{job_id}",
+    response_model=AssessmentJobResponse,
+    summary="Where a requested assessment has got to",
+)
+async def get_assessment_job(
+    job_id: UUID, actor: ActorDep, container: ContainerDep
+) -> AssessmentJobResponse:
+    job = await container.recruiting.get_assessment_job.execute(actor, AssessmentJobId(job_id))
+    return AssessmentJobResponse.model_validate(job)
 
 
 @router.get(
@@ -322,13 +442,15 @@ async def run_assessment(
 async def shortlist(
     requisition_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> list[ShortlistEntryResponse]:
-    entries = await container.shortlist.execute(actor, RequisitionId(requisition_id))
+    entries = await container.recruiting.shortlist.execute(actor, RequisitionId(requisition_id))
     now = container.clock.now()
     return [
         ShortlistEntryResponse(
             application=ApplicationResponse.model_validate(e.application),
             candidate=CandidateResponse.model_validate(e.candidate),
             assessment=(AssessmentResponse.model_validate(e.assessment) if e.assessment else None),
+            job=AssessmentJobResponse.model_validate(e.job) if e.job else None,
+            stale=e.stale,
             overdue=is_overdue(e.application, now),
         )
         for e in entries
@@ -360,7 +482,7 @@ class ErasureResponse(BaseModel):
 async def erase_candidate(
     candidate_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> ErasureResponse:
-    report = await container.erase_candidate.execute(actor, CandidateId(candidate_id))
+    report = await container.governance.erase_candidate.execute(actor, CandidateId(candidate_id))
     return ErasureResponse(
         candidate_id=report.candidate_id,
         documents_erased=report.documents_erased,
@@ -389,7 +511,7 @@ class SelfIdentificationRequest(_In):
 async def record_self_identification(
     candidate_id: UUID, body: SelfIdentificationRequest, actor: ActorDep, container: ContainerDep
 ) -> None:
-    await container.record_self_identification.execute(
+    await container.recruiting.record_self_identification.execute(
         actor, CandidateId(candidate_id), body.dimension, body.value
     )
 
@@ -425,7 +547,7 @@ async def selection_rates(
     dimension: FairnessDimension = FairnessDimension.GENDER,
     requisition_id: UUID | None = None,
 ) -> SelectionReportResponse:
-    report = await container.selection_rates.execute(
+    report = await container.recruiting.selection_rates.execute(
         actor,
         dimension=dimension,
         requisition_id=RequisitionId(requisition_id) if requisition_id else None,

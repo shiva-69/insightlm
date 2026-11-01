@@ -31,7 +31,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     summary="Create a workspace and its owner",
 )
 async def register(request: RegisterOwnerRequest, container: ContainerDep) -> RegistrationResponse:
-    result = await container.register_owner.execute(
+    result = await container.identity.register_owner.execute(
         RegisterOwnerCommand(
             tenant_name=request.tenant_name,
             tenant_slug=request.tenant_slug,
@@ -49,7 +49,7 @@ async def register(request: RegisterOwnerRequest, container: ContainerDep) -> Re
 
 @router.post("/login", response_model=TokenResponse, summary="Exchange credentials for a token")
 async def login(request: LoginRequest, container: ContainerDep) -> TokenResponse:
-    result = await container.authenticate.execute(
+    result = await container.identity.authenticate.execute(
         AuthenticateCommand(
             email=str(request.email),
             password=request.password,
@@ -68,7 +68,7 @@ async def login(request: LoginRequest, container: ContainerDep) -> TokenResponse
 async def accept_invitation(
     request: AcceptInvitationRequest, container: ContainerDep
 ) -> RegistrationResponse:
-    result = await container.accept_invitation.execute(
+    result = await container.identity.accept_invitation.execute(
         AcceptInvitationCommand(
             token=request.token,
             display_name=request.display_name,

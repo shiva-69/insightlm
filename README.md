@@ -85,7 +85,7 @@ Password for every demo account: `demo-password-change-me`. Owner `priya@`, recr
 ## Check it
 
 ```bash
-make check          # ruff, mypy --strict, import-linter (6 architecture contracts)
+make check          # ruff, mypy --strict, import-linter (9 architecture contracts)
 make test           # 393 tests; real Postgres via testcontainers
 make coverage       # 89%, fails under 85% (as CI does)
 make eval-gate      # retrieval regression gate, offline, deterministic
@@ -123,12 +123,12 @@ Diagrams: [docs/11-diagrams.md](docs/11-diagrams.md). Kubernetes manifests: `dep
 | [04 Recruiting and governance](docs/04-recruiting-and-governance.md) | Domain rules, roles, fairness, candidate rights |
 | [05 Delivery plan](docs/05-delivery-plan.md) | Phases, what each delivered, what was carried forward |
 | [06 Engineering standards](docs/06-engineering-standards.md) | Testing, CI, definition of done |
-| [07 Evaluation findings](docs/07-evaluation-findings.md) | **The results: Findings 1–22** |
+| [07 Evaluation findings](docs/07-evaluation-findings.md) | **The results: Findings 1–23** |
 | [08 Threat model](docs/08-threat-model.md) | STRIDE, each control pointing at its test |
 | [09 SLOs and capacity](docs/09-slos-and-capacity.md) | Objectives, load tests, the bottleneck |
 | [10 Runbook](docs/10-runbook.md) | Deploy, trace a request, one section per symptom |
 | [11 Diagrams](docs/11-diagrams.md) | C4 context, containers, components; generated ER diagram |
-| [ADRs](docs/adr/README.md) | 18 decision records, including where the plan was wrong |
+| [ADRs](docs/adr/README.md) | 21 decision records, including where the plan was wrong |
 
 ## Limits, stated
 

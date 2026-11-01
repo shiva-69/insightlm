@@ -6,6 +6,7 @@ from typing import Protocol
 
 from insightlm.governance.ports.audit import AuditLog
 from insightlm.recruiting.domain.assessment import Application, Assessment, Candidate
+from insightlm.recruiting.domain.assessment_job import AssessmentJob
 from insightlm.recruiting.domain.fairness import Dimension as FairnessDimension
 from insightlm.recruiting.domain.fairness import SelfIdentification
 from insightlm.recruiting.domain.pipeline import StageTransition
@@ -13,6 +14,8 @@ from insightlm.recruiting.domain.rubric import Requisition, Rubric
 from insightlm.recruiting.domain.scorecard import Scorecard
 from insightlm.shared.domain.ids import (
     ApplicationId,
+    AssessmentId,
+    AssessmentJobId,
     CandidateId,
     DocumentId,
     RequisitionId,
@@ -59,7 +62,27 @@ class ApplicationRepository(Protocol):
 
 class AssessmentRepository(Protocol):
     async def add(self, assessment: Assessment) -> None: ...
+
+    async def get(self, assessment_id: AssessmentId) -> Assessment | None: ...
     async def latest_for(self, application_id: ApplicationId) -> Assessment | None: ...
+
+
+class AssessmentJobRepository(Protocol):
+    async def add(self, job: AssessmentJob) -> None: ...
+
+    async def get(self, job_id: AssessmentJobId) -> AssessmentJob | None: ...
+
+    async def update(self, job: AssessmentJob) -> None: ...
+
+    async def active_for(self, application_id: ApplicationId) -> AssessmentJob | None:
+        """The queued or running job for an application, if there is one."""
+        ...
+
+    async def latest_for_applications(
+        self, application_ids: list[ApplicationId]
+    ) -> dict[ApplicationId, AssessmentJob]:
+        """Each application's most recent job, for showing progress on a shortlist."""
+        ...
 
 
 class StageTransitionRepository(Protocol):
@@ -96,6 +119,9 @@ class RecruitingUnitOfWork(UnitOfWork, Protocol):
     def applications(self) -> ApplicationRepository: ...
     @property
     def assessments(self) -> AssessmentRepository: ...
+    @property
+    def assessment_jobs(self) -> AssessmentJobRepository: ...
+
     @property
     def transitions(self) -> StageTransitionRepository: ...
     @property

@@ -73,12 +73,13 @@ async def _assess(
     added = await add_candidate(client, recruiter, requisition_id, "Asha Rao", document_id)
 
     spy = SpyJudge()
-    use_case = container.run_assessment
+    use_case = container.recruiting.run_assessment
     original_judge = use_case._judge
     use_case._judge = spy  # the container is frozen; the use case's port is swappable
     try:
         response = await client.post(
-            f"/applications/{added['application']['id']}/assessments", headers=auth(recruiter)
+            f"/applications/{added['application']['id']}/assessments?wait=true",
+            headers=auth(recruiter),
         )
     finally:
         use_case._judge = original_judge

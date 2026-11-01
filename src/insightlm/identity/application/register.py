@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from insightlm.governance.domain.audit import AuditAction
 from insightlm.identity.application.commands import RegisterOwnerCommand, RegisterOwnerResult
+from insightlm.identity.domain.audit_actions import IdentityAudit
 from insightlm.identity.domain.entities import Membership, Tenant, User, normalise_email
 from insightlm.identity.ports.uow import IdentityUnitOfWorkFactory
 from insightlm.shared.domain.errors import ConflictError
@@ -13,7 +13,7 @@ from insightlm.shared.domain.ids import (
     new_tenant_id,
     new_user_id,
 )
-from insightlm.shared.domain.roles import Role
+from insightlm.shared.domain.roles import PlatformRole
 from insightlm.shared.ports.clock import Clock
 from insightlm.shared.ports.outbox import OutboxEvent
 from insightlm.shared.ports.password import PasswordHasher
@@ -62,7 +62,7 @@ class RegisterOwner:
                 id=new_membership_id(),
                 tenant_id=tenant.id,
                 user_id=user.id,
-                role=Role.OWNER,
+                role=PlatformRole.OWNER,
                 created_at=now,
             )
 
@@ -73,7 +73,7 @@ class RegisterOwner:
             await uow.audit.record(
                 tenant_id=tenant.id,
                 actor_id=user.id,
-                action=AuditAction.TENANT_CREATED,
+                action=IdentityAudit.TENANT_CREATED,
                 subject_type="tenant",
                 subject_id=str(tenant.id),
                 payload={"slug": tenant.slug, "name": tenant.name},
@@ -81,10 +81,10 @@ class RegisterOwner:
             await uow.audit.record(
                 tenant_id=tenant.id,
                 actor_id=user.id,
-                action=AuditAction.USER_REGISTERED,
+                action=IdentityAudit.USER_REGISTERED,
                 subject_type="user",
                 subject_id=str(user.id),
-                payload={"role": Role.OWNER.value},
+                payload={"role": PlatformRole.OWNER.value},
             )
 
             uow.outbox.add(

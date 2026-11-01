@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from insightlm.documents.domain.audit_actions import DocumentAudit
 from insightlm.documents.domain.entities import (
     PIPELINE_VERSION,
     Document,
@@ -13,10 +14,10 @@ from insightlm.documents.domain.entities import (
     MediaType,
     content_checksum,
 )
+from insightlm.documents.domain.permissions import DocumentPermission
 from insightlm.documents.domain.storage import storage_key
 from insightlm.documents.ports.repositories import DocumentsUnitOfWorkFactory
 from insightlm.documents.ports.storage import ObjectStore
-from insightlm.governance.domain.audit import AuditAction
 from insightlm.shared.domain.errors import ValidationError
 from insightlm.shared.domain.ids import (
     new_document_id,
@@ -25,7 +26,6 @@ from insightlm.shared.domain.ids import (
     new_outbox_event_id,
 )
 from insightlm.shared.domain.policy import Actor, require
-from insightlm.shared.domain.roles import Permission
 from insightlm.shared.observability.logging import get_logger
 from insightlm.shared.ports.clock import Clock
 from insightlm.shared.ports.outbox import OutboxEvent
@@ -58,7 +58,7 @@ class UploadDocument:
     async def execute(
         self, actor: Actor, *, filename: str, payload: bytes, title: str | None = None
     ) -> UploadResult:
-        require(actor, Permission.DOCUMENT_UPLOAD)
+        require(actor, DocumentPermission.UPLOAD)
 
         if not payload:
             raise ValidationError("the uploaded file is empty")
@@ -124,7 +124,7 @@ class UploadDocument:
             await uow.audit.record(
                 tenant_id=actor.tenant_id,
                 actor_id=actor.user_id,
-                action=AuditAction.DOCUMENT_UPLOADED,
+                action=DocumentAudit.DOCUMENT_UPLOADED,
                 subject_type="document",
                 subject_id=str(document.id),
                 # No title: it is often the person's name ("Asha Rao CV"), and the audit

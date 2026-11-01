@@ -39,6 +39,7 @@ from insightlm.shared.domain.ids import (
     new_tenant_id,
     new_user_id,
 )
+from insightlm.shared.domain.roles import PlatformRole
 from tests.unit.test_citation_contract import bundle, span
 
 NOW = datetime(2026, 9, 1, tzinfo=UTC)
@@ -297,10 +298,10 @@ async def test_talent_search_drops_people_far_below_the_best_match() -> None:
     from datetime import UTC, datetime
     from typing import Any
 
+    from insightlm.bootstrap import build_role_catalogue
     from insightlm.recruiting.application.talent import SearchTalentPool
     from insightlm.recruiting.domain.assessment import Candidate
     from insightlm.shared.domain.policy import Actor
-    from insightlm.shared.domain.roles import Role
     from tests.unit.test_citation_contract import bundle, span
 
     strong, close, far = (
@@ -342,7 +343,12 @@ async def test_talent_search_drops_people_far_below_the_best_match() -> None:
         async def __aexit__(self, *exc: object) -> None:
             return None
 
-    actor = Actor(user_id=new_user_id(), tenant_id=new_tenant_id(), role=Role.OWNER)
+    actor = Actor.of(
+        build_role_catalogue(),
+        user_id=new_user_id(),
+        tenant_id=new_tenant_id(),
+        role=PlatformRole.OWNER,
+    )
     search = SearchTalentPool(lambda **_: Uow(), Provider(), min_relative_score=0.9)  # type: ignore[arg-type]
     names = [m.candidate.name for m in await search.execute(actor, "payments")]
     assert names == ["A", "B"]  # 0.55 < 0.9 * 0.70

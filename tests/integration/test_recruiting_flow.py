@@ -126,7 +126,7 @@ async def upload(
     body = response.json()
     # The worker would pick this up from the outbox; here it runs inline.
     claims = container.token_issuer.verify_access_token(token)
-    outcome = await container.ingestion.run(
+    outcome = await container.documents.ingestion.run(
         tenant_id=claims.tenant_id, version_id=DocumentVersionId(UUID(body["version"]["id"]))
     )
     assert outcome.completed, outcome.error
@@ -184,7 +184,7 @@ async def test_assessment_is_refused_until_someone_else_approves_the_rubric(
 
     # No approved rubric: refused, and nothing is written.
     refused = await client.post(
-        f"/applications/{application_id}/assessments", headers=auth(recruiter)
+        f"/applications/{application_id}/assessments?wait=true", headers=auth(recruiter)
     )
     assert refused.status_code == 409, refused.text
     assert "approved rubric" in refused.json()["message"]
@@ -198,7 +198,7 @@ async def test_assessment_is_refused_until_someone_else_approves_the_rubric(
     assert approved.json()["status"] == "approved"
 
     assessed = await client.post(
-        f"/applications/{application_id}/assessments", headers=auth(recruiter)
+        f"/applications/{application_id}/assessments?wait=true", headers=auth(recruiter)
     )
     assert assessed.status_code == 201, assessed.text
 
@@ -220,7 +220,8 @@ async def test_every_verdict_cites_the_candidates_own_documents(
     results = {}
     for name, added in (("asha", asha), ("ben", ben)):
         response = await client.post(
-            f"/applications/{added['application']['id']}/assessments", headers=auth(recruiter)
+            f"/applications/{added['application']['id']}/assessments?wait=true",
+            headers=auth(recruiter),
         )
         assert response.status_code == 201, response.text
         results[name] = response.json()
@@ -357,6 +358,7 @@ async def test_an_interviewer_cannot_run_an_assessment(
     added = await add_candidate(client, tokens["recruiter"], requisition_id, "Asha", document_id)
 
     response = await client.post(
-        f"/applications/{added['application']['id']}/assessments", headers=auth(interviewer)
+        f"/applications/{added['application']['id']}/assessments?wait=true",
+        headers=auth(interviewer),
     )
     assert response.status_code == 403

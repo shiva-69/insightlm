@@ -15,11 +15,14 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from insightlm.ask_service import AskService, EvidenceProviderAdapter
+from insightlm.document_readiness import DocumentReadinessAdapter
 from insightlm.documents.adapters.pymupdf_parser import PyMuPdfParser
 from insightlm.documents.adapters.s3_store import S3ObjectStore
 from insightlm.documents.adapters.uow import SqlAlchemyDocumentsUnitOfWork
 from insightlm.documents.application.upload import UploadDocument
-from insightlm.documents.ports.repositories import DocumentsUnitOfWork
+from insightlm.documents.domain.findings import ENGINE_SCANNER, InstructionScanner
+from insightlm.documents.domain.permissions import DOCUMENT_PERMISSIONS
+from insightlm.documents.ports.repositories import DocumentsUnitOfWork, DocumentsUnitOfWorkFactory
 from insightlm.documents.ports.storage import ObjectStore
 from insightlm.erasure import EraseCandidate
 from insightlm.governance.application.audit_queries import ListAuditEntries, VerifyAuditChain
@@ -43,6 +46,13 @@ from insightlm.recruiting.adapters.judges import (
 )
 from insightlm.recruiting.adapters.uow import SqlAlchemyRecruitingUnitOfWork
 from insightlm.recruiting.application.assess import AddCandidate, RunAssessment, Shortlist
+from insightlm.recruiting.application.assessment_jobs import (
+    GetAssessment,
+    GetAssessmentJob,
+    ProcessAssessmentJob,
+    RequestAssessment,
+    RequestAssessments,
+)
 from insightlm.recruiting.application.fairness import RecordSelfIdentification, SelectionRates
 from insightlm.recruiting.application.pipeline import (
     AssignInterviewer,
@@ -60,6 +70,8 @@ from insightlm.recruiting.application.requisitions import (
 )
 from insightlm.recruiting.application.talent import SearchTalentPool
 from insightlm.recruiting.application.transparency import FindExpiredCandidates, GetCandidateRecord
+from insightlm.recruiting.domain.roles import RECRUITING_PERMISSIONS, RECRUITING_ROLES
+from insightlm.recruiting.domain.screening import RECRUITING_INSTRUCTION_PATTERNS
 from insightlm.recruiting.ports.judge import CriterionJudge
 from insightlm.recruiting.ports.repositories import RecruitingUnitOfWork
 from insightlm.retrieval.adapters.anthropic_generator import AnthropicGroundedGenerator
@@ -84,6 +96,7 @@ from insightlm.shared.adapters.limits import (
 )
 from insightlm.shared.domain.errors import InvariantViolationError
 from insightlm.shared.domain.ids import TenantId, UserId
+from insightlm.shared.domain.roles import PLATFORM_PERMISSIONS, PLATFORM_ROLES, RoleCatalogue
 from insightlm.shared.observability.logging import get_logger
 from insightlm.shared.observability.telemetry import instrument_engine
 from insightlm.shared.ports.clock import Clock
@@ -95,11 +108,90 @@ from insightlm.worker.ingestion import IngestionPipeline
 _logger = get_logger(__name__)
 
 
+def build_instruction_scanner() -> InstructionScanner:
+    """The engine's scanner plus every vertical's phrases."""
+    return ENGINE_SCANNER.extended(RECRUITING_INSTRUCTION_PATTERNS)
+
+
+def build_role_catalogue() -> RoleCatalogue:
+    """Every role and permission, assembled from the modules that declare them.
+
+    Adding a vertical means adding its declarations here -- the one place that knows
+    every module -- and nowhere else.
+    """
+    return RoleCatalogue(
+        roles=(*PLATFORM_ROLES, *RECRUITING_ROLES),
+        permissions=(*PLATFORM_PERMISSIONS, *DOCUMENT_PERMISSIONS, *RECRUITING_PERMISSIONS),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class IdentityServices:
+    register_owner: RegisterOwner
+    authenticate: Authenticate
+    invite_member: InviteMember
+    accept_invitation: AcceptInvitation
+    list_members: ListMembers
+    change_member_role: ChangeMemberRole
+    revoke_membership: RevokeMembership
+
+
+@dataclass(frozen=True, slots=True)
+class GovernanceServices:
+    list_audit_entries: ListAuditEntries
+    verify_audit_chain: VerifyAuditChain
+    erase_candidate: EraseCandidate
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentServices:
+    upload_document: UploadDocument
+    ingestion: IngestionPipeline
+    uow: DocumentsUnitOfWorkFactory
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalServices:
+    ask: AskService
+
+
+@dataclass(frozen=True, slots=True)
+class RecruitingServices:
+    create_requisition: CreateRequisition
+    list_requisitions: ListRequisitions
+    get_requisition: GetRequisition
+    propose_rubric: ProposeRubric
+    approve_rubric: ApproveRubric
+    add_candidate: AddCandidate
+    run_assessment: RunAssessment
+    request_assessment: RequestAssessment
+    request_assessments: RequestAssessments
+    get_assessment: GetAssessment
+    get_assessment_job: GetAssessmentJob
+    process_assessment_job: ProcessAssessmentJob
+    shortlist: Shortlist
+    move_application: MoveApplication
+    get_application: GetApplication
+    assign_interviewer: AssignInterviewer
+    submit_scorecard: SubmitScorecard
+    my_interviews: MyInterviews
+    search_talent_pool: SearchTalentPool
+    record_self_identification: RecordSelfIdentification
+    selection_rates: SelectionRates
+    candidate_record: GetCandidateRecord
+    find_expired_candidates: FindExpiredCandidates
+
+
 @dataclass(frozen=True, slots=True)
 class Container:
-    """Everything the delivery layers need, already wired."""
+    """Everything the delivery layers need, already wired.
+
+    Shared infrastructure sits at the top; each module's use cases sit in a group of
+    their own, so adding a vertical adds one field here rather than twenty.
+    """
 
     settings: Settings
+    roles: RoleCatalogue
     engine: AsyncEngine
     session_factory: async_sessionmaker[AsyncSession]
     clock: Clock
@@ -108,42 +200,15 @@ class Container:
     object_store: ObjectStore
     embedder: Embedder
     generator: GroundedGenerator
-
-    register_owner: RegisterOwner
-    authenticate: Authenticate
-    invite_member: InviteMember
-    accept_invitation: AcceptInvitation
-    list_members: ListMembers
-    change_member_role: ChangeMemberRole
-    revoke_membership: RevokeMembership
-    list_audit_entries: ListAuditEntries
-    verify_audit_chain: VerifyAuditChain
-    upload_document: UploadDocument
-    ask: AskService
-    ingestion: IngestionPipeline
-    documents_uow: object
-    create_requisition: CreateRequisition
-    list_requisitions: ListRequisitions
-    get_requisition: GetRequisition
-    propose_rubric: ProposeRubric
-    approve_rubric: ApproveRubric
-    add_candidate: AddCandidate
-    run_assessment: RunAssessment
-    shortlist: Shortlist
-    move_application: MoveApplication
-    get_application: GetApplication
-    assign_interviewer: AssignInterviewer
-    submit_scorecard: SubmitScorecard
-    my_interviews: MyInterviews
-    search_talent_pool: SearchTalentPool
-    erase_candidate: EraseCandidate
     rate_limiter: RateLimiter
     idempotency: IdempotencyStore
     budget: ModelBudget
-    record_self_identification: RecordSelfIdentification
-    selection_rates: SelectionRates
-    candidate_record: GetCandidateRecord
-    find_expired_candidates: FindExpiredCandidates
+
+    identity: IdentityServices
+    governance: GovernanceServices
+    documents: DocumentServices
+    retrieval: RetrievalServices
+    recruiting: RecruitingServices
 
     async def dispose(self) -> None:
         await self.engine.dispose()
@@ -162,6 +227,8 @@ def build_container(settings: Settings, *, object_store: ObjectStore | None = No
     session_factory = create_session_factory(engine)
 
     clock: Clock = SystemClock()
+    roles = build_role_catalogue()
+    scanner = build_instruction_scanner()
     hasher: PasswordHasher = Argon2PasswordHasher()
     tokens: TokenIssuer = JwtTokenIssuer(
         settings.jwt_secret.get_secret_value(),
@@ -201,7 +268,7 @@ def build_container(settings: Settings, *, object_store: ObjectStore | None = No
     if not isinstance(_unwrap(embedder), HashingEmbedder):
         embedder = ObservedEmbedder(embedder)
     if not isinstance(generator, ExtractiveGenerator):
-        generator = ObservedGenerator(generator, _generation_model(settings))
+        generator = ObservedGenerator(generator, _ask_model(settings))
 
     def documents_uow(
         *, tenant_id: TenantId | None = None, user_id: UserId | None = None
@@ -235,81 +302,107 @@ def build_container(settings: Settings, *, object_store: ObjectStore | None = No
         rrf_k=settings.rrf_k,
         budget=budget,
     )
+    run_assessment = RunAssessment(
+        recruiting_uow, EvidenceProviderAdapter(ask), judge, clock, budget
+    )
 
     return Container(
         settings=settings,
+        roles=roles,
         engine=engine,
         session_factory=session_factory,
         clock=clock,
         password_hasher=hasher,
         token_issuer=tokens,
-        register_owner=RegisterOwner(uow_factory, hasher, clock),
-        authenticate=Authenticate(
-            uow_factory,
-            hasher,
-            tokens,
-            clock,
-            access_token_ttl_seconds=settings.access_token_ttl_seconds,
-        ),
-        invite_member=InviteMember(
-            uow_factory, clock, invitation_ttl_seconds=settings.invitation_ttl_seconds
-        ),
-        accept_invitation=AcceptInvitation(uow_factory, hasher, clock),
-        list_members=ListMembers(uow_factory),
-        change_member_role=ChangeMemberRole(uow_factory, clock),
-        revoke_membership=RevokeMembership(uow_factory, clock),
-        list_audit_entries=ListAuditEntries(governance_uow_factory),
-        verify_audit_chain=VerifyAuditChain(governance_uow_factory),
         object_store=store,
         embedder=embedder,
         generator=generator,
-        upload_document=UploadDocument(documents_uow, store, clock),
-        ask=ask,
-        create_requisition=CreateRequisition(recruiting_uow, clock),
-        list_requisitions=ListRequisitions(recruiting_uow),
-        get_requisition=GetRequisition(recruiting_uow),
-        propose_rubric=ProposeRubric(recruiting_uow, clock),
-        approve_rubric=ApproveRubric(recruiting_uow, clock),
-        add_candidate=AddCandidate(recruiting_uow, clock),
-        run_assessment=RunAssessment(
-            recruiting_uow, EvidenceProviderAdapter(ask), judge, clock, budget
-        ),
         rate_limiter=RedisRateLimiter(redis),
         idempotency=RedisIdempotencyStore(redis),
         budget=budget,
-        shortlist=Shortlist(recruiting_uow),
-        move_application=MoveApplication(recruiting_uow, clock),
-        get_application=GetApplication(recruiting_uow, clock),
-        assign_interviewer=AssignInterviewer(recruiting_uow, clock),
-        submit_scorecard=SubmitScorecard(recruiting_uow, clock),
-        my_interviews=MyInterviews(recruiting_uow),
-        search_talent_pool=SearchTalentPool(
-            recruiting_uow,
-            EvidenceProviderAdapter(ask),
-            # Calibrated for real embeddings; the offline embedder's scores are on a
-            # different scale, and the same cutoff would hide nearly everyone.
-            min_relative_score=(
-                0.0
-                if isinstance(_unwrap(embedder), HashingEmbedder)
-                else settings.talent_min_relative_score
+        identity=IdentityServices(
+            register_owner=RegisterOwner(uow_factory, hasher, clock),
+            authenticate=Authenticate(
+                uow_factory,
+                hasher,
+                tokens,
+                clock,
+                access_token_ttl_seconds=settings.access_token_ttl_seconds,
+            ),
+            invite_member=InviteMember(
+                uow_factory, clock, roles, invitation_ttl_seconds=settings.invitation_ttl_seconds
+            ),
+            accept_invitation=AcceptInvitation(uow_factory, hasher, clock),
+            list_members=ListMembers(uow_factory),
+            change_member_role=ChangeMemberRole(uow_factory, clock, roles),
+            revoke_membership=RevokeMembership(uow_factory, clock),
+        ),
+        governance=GovernanceServices(
+            list_audit_entries=ListAuditEntries(governance_uow_factory),
+            verify_audit_chain=VerifyAuditChain(governance_uow_factory),
+            erase_candidate=EraseCandidate(session_factory, recruiting_uow, store),
+        ),
+        documents=DocumentServices(
+            upload_document=UploadDocument(documents_uow, store, clock),
+            ingestion=IngestionPipeline(
+                session_factory,
+                store=store,
+                parser=PyMuPdfParser(
+                    exclude_concealed=settings.exclude_concealed_text, scanner=scanner
+                ),
+                chunker=StructureAwareChunker(enrich_with_title=settings.chunk_enrich_with_title),
+                embedder=embedder,
+                clock=clock,
+                scanner=scanner,
+            ),
+            uow=documents_uow,
+        ),
+        retrieval=RetrievalServices(
+            ask=ask,
+        ),
+        recruiting=RecruitingServices(
+            create_requisition=CreateRequisition(recruiting_uow, clock),
+            list_requisitions=ListRequisitions(recruiting_uow),
+            get_requisition=GetRequisition(recruiting_uow),
+            propose_rubric=ProposeRubric(recruiting_uow, clock),
+            approve_rubric=ApproveRubric(recruiting_uow, clock),
+            add_candidate=AddCandidate(recruiting_uow, clock),
+            run_assessment=run_assessment,
+            request_assessment=RequestAssessment(recruiting_uow, clock),
+            request_assessments=RequestAssessments(recruiting_uow, clock),
+            get_assessment=GetAssessment(recruiting_uow),
+            get_assessment_job=GetAssessmentJob(recruiting_uow),
+            process_assessment_job=ProcessAssessmentJob(
+                recruiting_uow,
+                run_assessment,
+                DocumentReadinessAdapter(documents_uow),
+                roles,
+                clock,
+            ),
+            shortlist=Shortlist(recruiting_uow),
+            move_application=MoveApplication(recruiting_uow, clock),
+            get_application=GetApplication(recruiting_uow, clock),
+            assign_interviewer=AssignInterviewer(recruiting_uow, clock),
+            submit_scorecard=SubmitScorecard(recruiting_uow, clock),
+            my_interviews=MyInterviews(recruiting_uow),
+            search_talent_pool=SearchTalentPool(
+                recruiting_uow,
+                EvidenceProviderAdapter(ask),
+                # Calibrated for real embeddings; the offline embedder's scores are on a
+                # different scale, and the same cutoff would hide nearly everyone.
+                min_relative_score=(
+                    0.0
+                    if isinstance(_unwrap(embedder), HashingEmbedder)
+                    else settings.talent_min_relative_score
+                ),
+            ),
+            record_self_identification=RecordSelfIdentification(recruiting_uow, clock),
+            selection_rates=SelectionRates(recruiting_uow),
+            candidate_record=GetCandidateRecord(recruiting_uow),
+            find_expired_candidates=FindExpiredCandidates(
+                recruiting_uow, clock, timedelta(days=settings.candidate_retention_days)
             ),
         ),
-        erase_candidate=EraseCandidate(session_factory, recruiting_uow, store),
-        record_self_identification=RecordSelfIdentification(recruiting_uow, clock),
-        selection_rates=SelectionRates(recruiting_uow),
-        candidate_record=GetCandidateRecord(recruiting_uow),
-        find_expired_candidates=FindExpiredCandidates(
-            recruiting_uow, clock, timedelta(days=settings.candidate_retention_days)
-        ),
-        ingestion=IngestionPipeline(
-            session_factory,
-            store=store,
-            parser=PyMuPdfParser(exclude_concealed=settings.exclude_concealed_text),
-            chunker=StructureAwareChunker(enrich_with_title=settings.chunk_enrich_with_title),
-            embedder=embedder,
-            clock=clock,
-        ),
-        documents_uow=documents_uow,
     )
 
 
@@ -372,9 +465,17 @@ def _build_generator(settings: Settings) -> GroundedGenerator:
     if provider in ("auto", "gemini") and settings.gemini_api_key is not None:
         from insightlm.retrieval.adapters.gemini_generator import GeminiGroundedGenerator
 
-        _logger.info("using_generator", provider="gemini", model=settings.gemini_model)
+        model = settings.gemini_ask_model or settings.gemini_model
+        _logger.info(
+            "using_generator",
+            provider="gemini",
+            model=model,
+            thinking_budget=settings.gemini_ask_thinking_budget,
+        )
         return GeminiGroundedGenerator(
-            settings.gemini_api_key.get_secret_value(), model=settings.gemini_model
+            settings.gemini_api_key.get_secret_value(),
+            model=model,
+            thinking_budget=settings.gemini_ask_thinking_budget,
         )
 
     if provider != "auto":
@@ -416,6 +517,13 @@ def _unwrap(embedder: Embedder) -> Embedder:
     """The provider behind any caching wrapper."""
     inner = getattr(embedder, "_inner", None)
     return _unwrap(inner) if inner is not None else embedder
+
+
+def _ask_model(settings: Settings) -> str:
+    """The model answers use, for labelling their telemetry."""
+    if _generation_model(settings) == settings.gemini_model:
+        return settings.gemini_ask_model or settings.gemini_model
+    return settings.generation_model
 
 
 def _generation_model(settings: Settings) -> str:

@@ -37,7 +37,7 @@ async def upload(
     reject_unstorable(file.filename or "")
     reject_unstorable(title or "")
     payload = await file.read()
-    result = await container.upload_document.execute(
+    result = await container.documents.upload_document.execute(
         actor,
         filename=file.filename or "upload",
         payload=payload,
@@ -57,8 +57,8 @@ async def list_documents(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0, le=MAX_OFFSET),
 ) -> list[DocumentResponse]:
-    factory = container.documents_uow
-    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:  # type: ignore[operator]
+    factory = container.documents.uow
+    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
         documents = await uow.documents.list_for_tenant(
             actor.tenant_id, limit=min(limit, 200), offset=offset
         )
@@ -73,8 +73,8 @@ async def list_documents(
 async def document_status(
     document_id: UUID, actor: ActorDep, container: ContainerDep
 ) -> DocumentVersionResponse:
-    factory = container.documents_uow
-    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:  # type: ignore[operator]
+    factory = container.documents.uow
+    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
         version = await uow.versions.latest_for_document(DocumentId(document_id))
         if version is None:
             # 404 rather than 403: another tenant's document must not be distinguishable
@@ -95,8 +95,8 @@ async def document_file(
     The viewer streams the PDF straight from object storage, so range requests work
     and the API never becomes a file server.
     """
-    factory = container.documents_uow
-    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:  # type: ignore[operator]
+    factory = container.documents.uow
+    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
         version = await uow.versions.latest_for_document(DocumentId(document_id))
         if version is None:
             raise NotFoundError("document not found")
@@ -116,8 +116,8 @@ async def document_raw(document_id: UUID, actor: ActorDep, container: ContainerD
     on the bucket to fetch a cross-origin URL. It is the pragmatic choice for a demo,
     and the honest note is that it does not belong on a hot path.
     """
-    factory = container.documents_uow
-    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:  # type: ignore[operator]
+    factory = container.documents.uow
+    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
         version = await uow.versions.latest_for_document(DocumentId(document_id))
         if version is None:
             raise NotFoundError("document not found")
@@ -154,8 +154,8 @@ async def document_findings(
     Concealed text is listed with its location so it can be drawn on the page: the point
     is to show a person what was hidden from them, not merely that something was.
     """
-    factory = container.documents_uow
-    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:  # type: ignore[operator]
+    factory = container.documents.uow
+    async with factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
         version = await uow.versions.latest_for_document(DocumentId(document_id))
         if version is None:
             raise NotFoundError("document not found")

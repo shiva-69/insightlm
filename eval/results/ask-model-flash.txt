@@ -1,0 +1,21 @@
+corpus: 40 documents   dataset: generated-40 (30 items)   runs: 2   mode: retrieval + generation
+running C-dense-enriched (1/2) ...
+running C-dense-enriched (2/2) ...
+written to eval/.cache/ask-model/flash.json
+
+  ablation
+  config                   n  R@k             nDCG            MRR             cite-P          refuse  over-ref  p50 ms
+  --------------------------------------------------------------------------------------------------------------------
+  C - dense + context     30  1.000+-0.000    1.000+-0.000    1.000+-0.000    1.000+-0.000    1.000   0.114       1403
+
+  C - dense + context -- dense+ctx/k=8/configured/configured
+    citation contract held: yes   (0 violation(s) across 2 run(s))
+    tokens: 61544 in / 5035 out   texts embedded: 0 paid, 0 cached
+    by kind:
+      factual        n=12  R@k=1.000+-0.000    nDCG=1.000+-0.000    abstained=2.0
+      multi_hop      n=6   R@k=1.000+-0.000    nDCG=1.000+-0.000    abstained=0.5
+      comparative    n=4   R@k=1.000+-0.000    nDCG=1.000+-0.000    abstained=0.0
+      unanswerable   n=8   R@k=-               nDCG=-               abstained=8.0
+
+  cost: 0 text(s) embedded at the provider, 0 from cache, 60 generation call(s)
+

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import uuid
 
-from insightlm.governance.domain.audit import AuditAction
 from insightlm.identity.application.commands import AuthenticateCommand, AuthenticateResult
+from insightlm.identity.domain.audit_actions import IdentityAudit
 from insightlm.identity.domain.entities import normalise_email
 from insightlm.identity.ports.uow import IdentityUnitOfWorkFactory
 from insightlm.shared.domain.errors import AuthenticationError
@@ -97,7 +97,7 @@ class Authenticate:
             await audit_uow.audit.record(
                 tenant_id=membership.tenant_id,
                 actor_id=user.id,
-                action=AuditAction.USER_AUTHENTICATED,
+                action=IdentityAudit.USER_AUTHENTICATED,
                 subject_type="user",
                 subject_id=str(user.id),
                 payload={"role": membership.role.value},

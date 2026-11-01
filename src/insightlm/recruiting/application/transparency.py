@@ -26,7 +26,7 @@ from insightlm.recruiting.ports.repositories import RecruitingUnitOfWorkFactory
 from insightlm.shared.domain.errors import NotFoundError
 from insightlm.shared.domain.ids import CandidateId
 from insightlm.shared.domain.policy import Actor, require
-from insightlm.shared.domain.roles import Permission
+from insightlm.shared.domain.roles import PlatformPermission
 from insightlm.shared.ports.clock import Clock
 
 
@@ -51,7 +51,7 @@ class GetCandidateRecord:
         self._uow_factory = uow_factory
 
     async def execute(self, actor: Actor, candidate_id: CandidateId) -> CandidateRecord:
-        require(actor, Permission.TENANT_MANAGE)
+        require(actor, PlatformPermission.TENANT_MANAGE)
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             candidate = await uow.candidates.get(candidate_id)
             if candidate is None:
@@ -109,7 +109,7 @@ class FindExpiredCandidates:
         self._retention = retention
 
     async def execute(self, actor: Actor) -> list[Expired]:
-        require(actor, Permission.TENANT_MANAGE)
+        require(actor, PlatformPermission.TENANT_MANAGE)
         now = self._clock.now()
         expired: list[Expired] = []
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from insightlm.governance.domain.audit import AuditAction
 from insightlm.recruiting.application.pipeline import is_assignment_scoped
+from insightlm.recruiting.domain.audit_actions import RecruitingAudit
+from insightlm.recruiting.domain.roles import RecruitingPermission
 from insightlm.recruiting.domain.rubric import (
     Criterion,
     CriterionKind,
@@ -23,7 +24,7 @@ from insightlm.shared.domain.ids import (
     new_rubric_id,
 )
 from insightlm.shared.domain.policy import Actor, require
-from insightlm.shared.domain.roles import Permission, Role
+from insightlm.shared.domain.roles import PlatformRole
 from insightlm.shared.ports.clock import Clock
 
 
@@ -44,7 +45,7 @@ class CreateRequisition:
     async def execute(
         self, actor: Actor, *, title: str, description: str, blind_screening: bool = True
     ) -> Requisition:
-        require(actor, Permission.REQUISITION_MANAGE)
+        require(actor, RecruitingPermission.REQUISITION_MANAGE)
         requisition = Requisition(
             id=new_requisition_id(),
             tenant_id=actor.tenant_id,
@@ -59,7 +60,7 @@ class CreateRequisition:
             await uow.audit.record(
                 tenant_id=actor.tenant_id,
                 actor_id=actor.user_id,
-                action=AuditAction.REQUISITION_CREATED,
+                action=RecruitingAudit.REQUISITION_CREATED,
                 subject_type="requisition",
                 subject_id=str(requisition.id),
                 payload={"title": requisition.title, "blind_screening": blind_screening},
@@ -78,7 +79,7 @@ class ProposeRubric:
     async def execute(
         self, actor: Actor, requisition_id: RequisitionId, criteria: list[CriterionDraft]
     ) -> Rubric:
-        require(actor, Permission.RUBRIC_PROPOSE)
+        require(actor, RecruitingPermission.RUBRIC_PROPOSE)
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             if await uow.requisitions.get(requisition_id) is None:
                 raise NotFoundError("requisition not found")
@@ -105,7 +106,7 @@ class ProposeRubric:
             await uow.audit.record(
                 tenant_id=actor.tenant_id,
                 actor_id=actor.user_id,
-                action=AuditAction.RUBRIC_PROPOSED,
+                action=RecruitingAudit.RUBRIC_PROPOSED,
                 subject_type="rubric",
                 subject_id=str(rubric.id),
                 payload={"version": rubric.version, "criteria": [c.label for c in rubric.criteria]},
@@ -122,7 +123,7 @@ class ApproveRubric:
         self._clock = clock
 
     async def execute(self, actor: Actor, rubric_id: RubricId) -> Rubric:
-        require(actor, Permission.RUBRIC_APPROVE)
+        require(actor, RecruitingPermission.RUBRIC_APPROVE)
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             rubric = await uow.rubrics.get(rubric_id)
             if rubric is None:
@@ -131,7 +132,7 @@ class ApproveRubric:
             approved = rubric.approve(
                 by=actor.user_id,
                 at=self._clock.now(),
-                may_self_approve=actor.role is Role.OWNER,
+                may_self_approve=actor.role == PlatformRole.OWNER,
             )
             # One rubric in force per requisition. The previous one is superseded, not
             # deleted: assessments already run against it keep pointing at it.
@@ -142,7 +143,7 @@ class ApproveRubric:
             await uow.audit.record(
                 tenant_id=actor.tenant_id,
                 actor_id=actor.user_id,
-                action=AuditAction.RUBRIC_APPROVED,
+                action=RecruitingAudit.RUBRIC_APPROVED,
                 subject_type="rubric",
                 subject_id=str(rubric.id),
                 payload={
@@ -170,7 +171,7 @@ class ListRequisitions:
         self._uow_factory = uow_factory
 
     async def execute(self, actor: Actor) -> list[Requisition]:
-        require(actor, Permission.CANDIDATE_VIEW)
+        require(actor, RecruitingPermission.CANDIDATE_VIEW)
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             requisitions = await uow.requisitions.list_for_tenant(actor.tenant_id)
             if is_assignment_scoped(actor):
@@ -184,7 +185,7 @@ class GetRequisition:
         self._uow_factory = uow_factory
 
     async def execute(self, actor: Actor, requisition_id: RequisitionId) -> RequisitionDetail:
-        require(actor, Permission.CANDIDATE_VIEW)
+        require(actor, RecruitingPermission.CANDIDATE_VIEW)
         async with self._uow_factory(tenant_id=actor.tenant_id, user_id=actor.user_id) as uow:
             requisition = await uow.requisitions.get(requisition_id)
             if requisition is None:

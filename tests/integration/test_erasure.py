@@ -9,10 +9,10 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
 
-from insightlm.bootstrap import Container
+from insightlm.bootstrap import Container, build_role_catalogue
 from insightlm.retrieval.application.answer import AnswerRequest
 from insightlm.shared.domain.policy import Actor
-from insightlm.shared.domain.roles import Role
+from insightlm.shared.domain.roles import PlatformRole
 from tests.conftest import requires_docker
 from tests.integration.test_recruiting_flow import (
     STRONG_CV,
@@ -38,7 +38,9 @@ async def _used_candidate(client: AsyncClient, container: Container) -> dict[str
     added = await add_candidate(client, recruiter, requisition_id, "Asha Rao", document_id)
     application_id = added["application"]["id"]
     assert (
-        await client.post(f"/applications/{application_id}/assessments", headers=auth(recruiter))
+        await client.post(
+            f"/applications/{application_id}/assessments?wait=true", headers=auth(recruiter)
+        )
     ).status_code == 201
     await client.post(
         f"/applications/{application_id}/stage", json={"to": "screened"}, headers=auth(recruiter)
@@ -53,8 +55,13 @@ async def _used_candidate(client: AsyncClient, container: Container) -> dict[str
 
     # A saved answer that names her and cites her CV.
     claims = container.token_issuer.verify_access_token(owner)
-    actor = Actor(user_id=claims.user_id, tenant_id=claims.tenant_id, role=Role.OWNER)
-    await container.ask.ask(actor, AnswerRequest(question="Has Asha Rao run Kubernetes?"))
+    actor = Actor.of(
+        build_role_catalogue(),
+        user_id=claims.user_id,
+        tenant_id=claims.tenant_id,
+        role=PlatformRole.OWNER,
+    )
+    await container.retrieval.ask.ask(actor, AnswerRequest(question="Has Asha Rao run Kubernetes?"))
     return {
         "tokens": tokens,
         "actor": actor,
@@ -108,7 +115,9 @@ async def test_erasure_removes_every_trace_and_proves_it(
     )
 
     # Her CV can no longer be retrieved by anyone.
-    evidence = await container.ask.retrieve(actor, AnswerRequest(question="Kubernetes payments"))
+    evidence = await container.retrieval.ask.retrieve(
+        actor, AnswerRequest(question="Kubernetes payments")
+    )
     assert evidence.is_empty
 
     # The erasure itself is on the record, without naming her; the chain holds.

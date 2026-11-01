@@ -15,19 +15,31 @@ from dataclasses import dataclass
 
 from insightlm.shared.domain.errors import PermissionDeniedError
 from insightlm.shared.domain.ids import TenantId, UserId
-from insightlm.shared.domain.roles import ROLE_PERMISSIONS, Permission, Role
+from insightlm.shared.domain.roles import Permission, Role, RoleCatalogue
 
 
 @dataclass(frozen=True, slots=True)
 class Actor:
-    """The authenticated principal, always scoped to exactly one tenant."""
+    """The authenticated principal, always scoped to exactly one tenant.
+
+    Carries the permissions its role resolved to when it was authenticated, so a
+    decision needs no lookup table -- and no module has to know which other modules
+    declared which permissions.
+    """
 
     user_id: UserId
     tenant_id: TenantId
     role: Role
+    permissions: frozenset[Permission]
+
+    @classmethod
+    def of(
+        cls, catalogue: RoleCatalogue, *, user_id: UserId, tenant_id: TenantId, role: Role
+    ) -> Actor:
+        return cls(user_id, tenant_id, role, catalogue.permissions_for(role))
 
     def has(self, permission: Permission) -> bool:
-        return permission in ROLE_PERMISSIONS[self.role]
+        return permission in self.permissions
 
 
 def can(actor: Actor, permission: Permission, *, tenant_id: TenantId | None = None) -> bool:

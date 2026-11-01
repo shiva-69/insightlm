@@ -12,7 +12,7 @@ workspace and which step dominates spend, not for invoicing.
 from __future__ import annotations
 
 import time
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
 from typing import Any
 
@@ -21,7 +21,13 @@ from opentelemetry.trace import Span, Status, StatusCode
 from insightlm.recruiting.domain.rubric import Criterion
 from insightlm.recruiting.ports.judge import CriterionJudge, JudgeResult
 from insightlm.retrieval.domain.evidence import EvidenceBundle
-from insightlm.retrieval.ports.generation import GenerationResult, GroundedGenerator
+from insightlm.retrieval.ports.generation import (
+    ClaimProposed,
+    GenerationEvent,
+    GenerationFinished,
+    GenerationResult,
+    GroundedGenerator,
+)
 from insightlm.retrieval.ports.indexing import Embedder
 from insightlm.shared.observability.telemetry import (
     MODEL_CALLS,
@@ -35,6 +41,7 @@ from insightlm.shared.observability.telemetry import (
 # USD per million tokens (input, output), list prices at the time of writing.
 PRICES: dict[str, tuple[float, float]] = {
     "gemini-2.5-pro": (1.25, 10.00),
+    "gemini-2.5-flash": (0.30, 2.50),
     "gemini-embedding-001": (0.15, 0.0),
     "claude-opus-5": (5.00, 25.00),
 }
@@ -99,6 +106,31 @@ class ObservedGenerator:
             span.set_attribute("insightlm.refused", result.refused)
             _usage(span, "generate", self._model, result.input_tokens, result.output_tokens)
             return result
+
+    async def stream(
+        self, question: str, evidence: EvidenceBundle, *, feedback: str | None = None
+    ) -> AsyncIterator[GenerationEvent]:
+        """Streams pass through untouched; usage is recorded when the stream finishes,
+        so a streamed answer costs the same on the dashboard as a buffered one."""
+        native = getattr(self._inner, "stream", None)
+        if native is None:
+            result = await self.generate(question, evidence, feedback=feedback)
+            if not result.refused:
+                for claim in result.claims:
+                    yield ClaimProposed(claim)
+            yield GenerationFinished(result)
+            return
+        with _observed(
+            "generate",
+            self._model,
+            **{"insightlm.retry": feedback is not None, "insightlm.stream": True},
+        ) as span:
+            async for event in native(question, evidence, feedback=feedback):
+                if isinstance(event, GenerationFinished):
+                    result = event.result
+                    span.set_attribute("insightlm.refused", result.refused)
+                    _usage(span, "generate", self._model, result.input_tokens, result.output_tokens)
+                yield event
 
 
 class ObservedEmbedder:

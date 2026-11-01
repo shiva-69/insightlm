@@ -8,12 +8,24 @@ import { Empty, Spinner, Tag } from "./ui/primitives";
 interface Props {
   answer: Answer | null;
   pending: boolean;
+  /* Claims are still arriving: show them, and say the answer is not finished. */
+  streaming?: boolean;
+  /* Why the claims shown earlier were withdrawn, while the correction streams. */
+  notice?: string | null;
   question: string;
   activeLabel: string | null;
   onActivate: (label: string | null) => void;
 }
 
-export function AnswerPanel({ answer, pending, question, activeLabel, onActivate }: Props) {
+export function AnswerPanel({
+  answer,
+  pending,
+  streaming = false,
+  notice = null,
+  question,
+  activeLabel,
+  onActivate,
+}: Props) {
   const [showProvenance, setShowProvenance] = useState(false);
 
   if (pending) return <Thinking question={question} />;
@@ -59,12 +71,18 @@ export function AnswerPanel({ answer, pending, question, activeLabel, onActivate
               ))}
             </p>
           ))}
+          {streaming && (
+            <p className="flex items-center gap-2 text-[13px] text-[var(--ink-3)]" aria-live="polite">
+              <Spinner className="size-3" />
+              {notice ?? "Writing — each claim appears once its source is checked."}
+            </p>
+          )}
         </div>
       ) : (
         <Unsupported answer={answer} />
       )}
 
-      {(extractive || offlineEmbedder) && (
+      {!streaming && (extractive || offlineEmbedder) && (
         <OfflineNotice extractive={extractive} offlineEmbedder={offlineEmbedder} />
       )}
 
@@ -86,6 +104,7 @@ export function AnswerPanel({ answer, pending, question, activeLabel, onActivate
         </section>
       )}
 
+      {!streaming && (
       <footer className="rule-t mt-9 pt-4">
         <button
           onClick={() => setShowProvenance((v) => !v)}
@@ -131,6 +150,7 @@ export function AnswerPanel({ answer, pending, question, activeLabel, onActivate
           </dl>
         )}
       </footer>
+      )}
     </div>
   );
 }
