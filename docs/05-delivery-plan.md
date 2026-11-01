@@ -205,6 +205,10 @@
 > **Not done:** Helm packaging (plain manifests with kustomize instead); httpOnly-cookie
 > sessions and a CSP (docs/08, known gaps); the PDF viewer is desktop-only, though the
 > cited quotes show on phones.
+>
+> *Later:* the hardening work closed the last three: cookie sessions, a CSP and two-factor
+> sign-in (ADR-0023), and a document viewer that opens as a full-screen sheet on phones,
+> with zoom.
 
 ---
 

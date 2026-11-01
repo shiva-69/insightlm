@@ -90,7 +90,7 @@ Password for every demo account: `demo-password-change-me`. Owner `priya@`, recr
 
 ```bash
 make check          # ruff, mypy --strict, import-linter (9 architecture contracts)
-make test           # 393 tests; real Postgres via testcontainers
+make test           # 499 tests; real Postgres via testcontainers
 make coverage       # 89%, fails under 85% (as CI does)
 make eval-gate      # retrieval regression gate, offline, deterministic
 make eval-injection # red team: detection, false positives, effect on scores
@@ -132,12 +132,11 @@ Diagrams: [docs/11-diagrams.md](docs/11-diagrams.md). Kubernetes manifests: `dep
 | [09 SLOs and capacity](docs/09-slos-and-capacity.md) | Objectives, load tests, the bottleneck |
 | [10 Runbook](docs/10-runbook.md) | Deploy, trace a request, one section per symptom |
 | [11 Diagrams](docs/11-diagrams.md) | C4 context, containers, components; generated ER diagram |
-| [ADRs](docs/adr/README.md) | 22 decision records, including where the plan was wrong |
+| [ADRs](docs/adr/README.md) | 24 decision records, including where the plan was wrong |
 
 ## Limits, stated
 
 Synthetic data only, so external validity is untested. Scanned CVs are read by OCR
 without a recorded confidence score; they are labelled instead. Offline, reworded
 instructions are caught about a third of the time on a held-out set (most with a Gemini
-key), and ones that steer by insinuation not at all. The PDF viewer is desktop-only.
-Details in docs/08 and docs/05.
+key), and ones that steer by insinuation not at all. Details in docs/08 and docs/07.

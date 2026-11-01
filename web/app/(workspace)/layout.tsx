@@ -35,9 +35,9 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
   if (!ready) return null;
 
   return (
-    <div className="relative z-10 flex h-dvh overflow-hidden">
+    <div className="relative z-10 flex h-dvh flex-col-reverse overflow-hidden md:flex-row">
       <Rail />
-      <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
     </div>
   );
 }

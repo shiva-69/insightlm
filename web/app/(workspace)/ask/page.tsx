@@ -5,10 +5,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { AnswerPanel } from "@/components/answer-panel";
 import { DocumentViewer } from "@/components/document-viewer";
+import { SourceSheet } from "@/components/source-sheet";
 import { useToast } from "@/components/toast";
 import { Button, Kbd, Tag } from "@/components/ui/primitives";
 import { api, ApiError } from "@/lib/api";
 import type { Answer, Citation, Claim } from "@/lib/types";
+import { useNarrow } from "@/lib/use-narrow";
 
 export default function AskPage() {
   const { notify } = useToast();
@@ -25,6 +27,8 @@ export default function AskPage() {
   const [scope, setScope] = useState<string[]>([]);
   const [activeLabel, setActiveLabel] = useState<string | null>(null);
   const [openDocument, setOpenDocument] = useState<string | null>(null);
+  const narrow = useNarrow();
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // What the reader sees: the finished answer, or the part of it validated so far.
   const streaming = isStreaming(answer, claims, notice);
@@ -89,6 +93,13 @@ export default function AskPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // A citation can point into a different document from the one open; follow it.
+  function activate(label: string | null) {
+    setActiveLabel(label);
+    const citation = shown?.citations.find((c) => c.label === label);
+    if (citation) setOpenDocument(citation.document_id);
+  }
+
   function submit() {
     const question = draft.trim();
     if (!question || ask.isPending) return;
@@ -96,6 +107,9 @@ export default function AskPage() {
   }
 
   const scoped = scope.length > 0;
+  const sourceTitle = openDocument
+    ? (ready.find((d) => d.id === openDocument)?.title ?? "Document")
+    : "Source";
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -117,7 +131,7 @@ export default function AskPage() {
                 placeholder="Ask anything grounded in these documents…"
                 className={clsx(
                   "block w-full resize-none rounded-[var(--radius-sm)] border border-[var(--rule-strong)]",
-                  "bg-[var(--surface)] py-2 pl-3 pr-24 text-[14px] leading-6 text-[var(--ink)]",
+                  "bg-[var(--surface)] py-2 pl-3 pr-3 text-[14px] sm:pr-24 leading-6 text-[var(--ink)]",
                   "placeholder:text-[var(--ink-3)]",
                   "transition-colors duration-150 hover:border-[var(--ink-4)]",
                   "focus:border-[var(--ink)] focus:outline-none",
@@ -148,8 +162,8 @@ export default function AskPage() {
           )}
 
           {ready.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-0.5 text-[11.5px] text-[var(--ink-3)]">Search</span>
+            <div className="-mx-5 flex items-center gap-1.5 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+              <span className="mr-0.5 shrink-0 text-[11.5px] text-[var(--ink-3)]">Search</span>
               <ScopeChip
                 label={`All ${ready.length} document${ready.length === 1 ? "" : "s"}`}
                 active={!scoped}
@@ -183,17 +197,28 @@ export default function AskPage() {
             notice={notice}
             question={asked}
             activeLabel={activeLabel}
-            onActivate={setActiveLabel}
+            onActivate={activate}
+            onOpen={() => setSheetOpen(narrow)}
           />
         </section>
 
+        <SourceSheet
+          open={narrow && sheetOpen}
+          title={sourceTitle}
+          highlighted={shown?.citations.length ?? 0}
+          onClose={() => setSheetOpen(false)}
+        >
+          <DocumentViewer
+            documentId={openDocument}
+            citations={shown?.citations ?? []}
+            activeLabel={activeLabel}
+            onActivate={activate}
+          />
+        </SourceSheet>
+
         <section className="hidden min-h-0 lg:block">
           <div className="rule-b flex h-10 shrink-0 items-center justify-between bg-[var(--surface)] px-4">
-            <span className="truncate text-[12.5px] text-[var(--ink-2)]">
-              {openDocument
-                ? (ready.find((d) => d.id === openDocument)?.title ?? "Document")
-                : "Source"}
-            </span>
+            <span className="truncate text-[12.5px] text-[var(--ink-2)]">{sourceTitle}</span>
             {shown && shown.citations.length > 0 && (
               <Tag tone="evidence">
                 {shown.citations.length} highlighted
@@ -201,12 +226,14 @@ export default function AskPage() {
             )}
           </div>
           <div className="h-[calc(100%-2.5rem)]">
-            <DocumentViewer
-              documentId={openDocument}
-              citations={shown?.citations ?? []}
-              activeLabel={activeLabel}
-              onActivate={setActiveLabel}
-            />
+            {!narrow && (
+              <DocumentViewer
+                documentId={openDocument}
+                citations={shown?.citations ?? []}
+                activeLabel={activeLabel}
+                onActivate={activate}
+              />
+            )}
           </div>
         </section>
       </div>
@@ -227,7 +254,7 @@ function ScopeChip({
     <button
       onClick={onClick}
       className={clsx(
-        "max-w-[16rem] truncate rounded-[var(--radius-xs)] border px-2 py-[3px]",
+        "max-w-[16rem] shrink-0 truncate rounded-[var(--radius-xs)] border px-2 py-[3px]",
         "text-[11.5px] transition-colors duration-150",
         active
           ? "border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]"
