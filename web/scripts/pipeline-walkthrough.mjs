@@ -78,13 +78,15 @@ await call(owner, "POST", `/scorecards/${detail.scorecards.own.id}/submit`, {
 
 // -- browse ---------------------------------------------------------------------------
 const browser = await chromium.launch();
+const sessionCookies = (token) => [
+  { name: "insightlm_session", value: token, url: WEB, httpOnly: true, secure: true, sameSite: "Lax" },
+  { name: "insightlm_csrf", value: crypto.randomUUID(), url: WEB, secure: true, sameSite: "Lax" },
+];
 const problems = [];
 async function as(token, email) {
   const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 2 });
-  await context.addInitScript(([t, e]) => {
-    sessionStorage.setItem("insightlm.token", t);
-    sessionStorage.setItem("insightlm.email", e);
-  }, [token, email]);
+  // The session is an httpOnly cookie now; give the browser the one sign-in would set.
+  await context.addCookies(sessionCookies(token));
   const page = await context.newPage();
   page.on("console", (m) => { if (m.type() === "error") problems.push(`console: ${m.text()}`); });
   page.on("pageerror", (e) => problems.push(`pageerror: ${e.message}`));

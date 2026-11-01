@@ -31,6 +31,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from insightlm.api.session import credentials
 from insightlm.shared.observability.logging import get_logger
 from insightlm.shared.ports.limits import IdempotencyStore, RateLimiter, StoredResponse
 
@@ -106,8 +107,8 @@ class LimitsMiddleware(BaseHTTPMiddleware):
         limiter: RateLimiter = container.rate_limiter
         idempotency: IdempotencyStore = container.idempotency
 
-        auth = request.headers.get("authorization", "")
-        principal = _identify(container, auth[7:]) if auth.lower().startswith("bearer ") else None
+        found = credentials(request)
+        principal = _identify(container, found[0]) if found else None
         ip = self._client_ip(request, container.settings.trust_proxy_client_ip)
 
         rule = classify(request.method, request.url.path)

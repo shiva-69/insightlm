@@ -137,5 +137,4 @@ Diagrams: [docs/11-diagrams.md](docs/11-diagrams.md). Kubernetes manifests: `dep
 
 Synthetic data only, so external validity is untested. Scanned CVs skip the
 hidden-text defence until OCR exists. Paraphrased instructions evade the pattern scan
-(harmless in the measured cases, but unflagged). Access tokens live in `sessionStorage`,
-not an httpOnly cookie. The PDF viewer is desktop-only. Details in docs/08 and docs/05.
+(harmless in the measured cases, but unflagged). The PDF viewer is desktop-only. Details in docs/08 and docs/05.

@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     jwt_secret: SecretStr = SecretStr("dev-only-change-me")
     jwt_algorithm: Literal["HS256"] = "HS256"
     access_token_ttl_seconds: int = 900  # 15 minutes
+    # Browsers treat http://localhost as a secure context, so Secure cookies work in
+    # development too. Turn off only to serve the app over plain HTTP on another host.
+    session_cookie_secure: bool = True
     invitation_ttl_seconds: int = 604_800  # 7 days
 
     # --- models -------------------------------------------------------------

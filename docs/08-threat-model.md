@@ -88,8 +88,11 @@ models read.** Most of the Tampering rows follow from that.
 
 Stated so they are decisions, not surprises:
 
-- **Tokens live in `sessionStorage`,** readable by any script on the page. An httpOnly
-  cookie with CSRF protection is the production answer; a strict CSP is not yet set.
+- **Closed:** browser sessions used to keep the token in `sessionStorage`, readable by
+  any script on the page. It now lives in an httpOnly, Secure, SameSite=Lax cookie, and
+  cookie-authenticated writes must echo a CSRF cookie in `X-CSRF-Token`
+  (`api/session.py`, `tests/security/test_session_cookies.py`). Bearer tokens remain
+  for API clients.
 - **No MFA and no account lockout** beyond the per-IP rate limit.
 - **Text hidden under a shape drawn on top of it** isn't detected; scanned CVs skip the
   hidden-text check until OCR exists.

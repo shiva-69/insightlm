@@ -40,8 +40,8 @@ export default function LoginPage() {
           password,
         });
       }
-      const token = await api.login({ email: email.trim(), password });
-      startSession(token.access_token, email.trim());
+      await api.login({ email: email.trim(), password });
+      await startSession(email.trim());
       router.replace("/ask");
     } catch (error) {
       const failure = error as ApiError;

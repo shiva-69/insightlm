@@ -3,8 +3,8 @@
 import clsx from "clsx";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useSyncExternalStore } from "react";
-import { clearSession, currentClaims, getEmail, getToken, subscribe } from "@/lib/auth";
+import { useSyncExternalStore } from "react";
+import { clearSession, getEmail, getSession, subscribe } from "@/lib/auth";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/primitives";
 
@@ -35,9 +35,9 @@ export function Rail() {
   // The session is an external store; read it as one. The server snapshot is null,
   // so the first client render matches the HTML and the email fills in after.
   const email = useSyncExternalStore(subscribe, getEmail, () => null);
-  // The token string is the stable snapshot; the role is derived from it.
-  const token = useSyncExternalStore(subscribe, getToken, () => null);
-  const role = useMemo(() => (token ? currentClaims()?.role : undefined), [token]);
+  // The cached session is the stable snapshot; the role comes with it.
+  const session = useSyncExternalStore(subscribe, getSession, () => null);
+  const role = session?.role;
   const visible = NAV.filter((item) => !item.roles || (role !== undefined && item.roles.includes(role)));
 
   function signOut() {

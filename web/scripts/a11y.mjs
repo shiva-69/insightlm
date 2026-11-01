@@ -33,7 +33,12 @@ for (const [role, paths] of Object.entries(pages)) {
   const tok = email ? await token(email) : null;
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     const ctx = await browser.newContext({ viewport });
-    if (tok) await ctx.addInitScript(([t, e]) => { sessionStorage.setItem("insightlm.token", t); sessionStorage.setItem("insightlm.email", e); }, [tok, email]);
+    // The session is an httpOnly cookie now; give the browser the one sign-in would set.
+    if (tok)
+      await ctx.addCookies([
+        { name: "insightlm_session", value: tok, url: WEB, httpOnly: true, secure: true, sameSite: "Lax" },
+        { name: "insightlm_csrf", value: crypto.randomUUID(), url: WEB, secure: true, sameSite: "Lax" },
+      ]);
     const page = await ctx.newPage();
     for (const path of paths) {
       await page.goto(WEB + path, { waitUntil: "networkidle" });
