@@ -158,7 +158,7 @@ export const api = {
     password: string;
   }) => request<Registration>("/auth/register", { method: "POST", json: input }),
 
-  login: (input: { email: string; password: string; tenant_slug?: string }) =>
+  login: (input: { email: string; password: string; tenant_slug?: string; mfa_code?: string }) =>
     request<TokenResponse>("/auth/login", { method: "POST", json: input }),
 
   acceptInvitation: (input: {
@@ -168,6 +168,17 @@ export const api = {
   }) => request<Registration>("/auth/invitations/accept", { method: "POST", json: input }),
 
   roles: () => request<RoleInfo[]>("/members/roles"),
+
+  mfaStatus: () => request<{ enabled: boolean }>("/auth/mfa"),
+
+  mfaEnrol: () =>
+    request<{ secret: string; provisioning_uri: string }>("/auth/mfa/enrol", { method: "POST" }),
+
+  mfaConfirm: (code: string) =>
+    request<void>("/auth/mfa/confirm", { method: "POST", json: { code } }),
+
+  mfaDisable: (code: string) =>
+    request<void>("/auth/mfa/disable", { method: "POST", json: { code } }),
 
   playbooks: () => request<Playbook[]>("/playbooks"),
 

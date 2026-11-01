@@ -18,6 +18,9 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Set when the server says this account needs a code from an authenticator app.
+  const [needsCode, setNeedsCode] = useState(false);
+  const [code, setCode] = useState("");
   const [workspace, setWorkspace] = useState("");
   const [name, setName] = useState("");
 
@@ -40,11 +43,17 @@ export default function LoginPage() {
           password,
         });
       }
-      await api.login({ email: email.trim(), password });
+      await api.login({ email: email.trim(), password, mfa_code: needsCode ? code.trim() : undefined });
       await startSession(email.trim());
       router.replace("/ask");
     } catch (error) {
       const failure = error as ApiError;
+      if (failure.detail?.mfa_required && !needsCode) {
+        // Password accepted; the account has two-factor sign-in on. Ask for the code.
+        setNeedsCode(true);
+        setBusy(false);
+        return;
+      }
       notify(failure.message || "Something went wrong", {
         tone: "error",
         detail: failure.correlationId ? `ref ${failure.correlationId}` : undefined,
@@ -180,6 +189,20 @@ export default function LoginPage() {
                 required
               />
             </Field>
+
+            {needsCode && (
+              <Field label="Authenticator code" hint="The six digits your authenticator app shows for InsightLM.">
+                <Input
+                  autoFocus
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                  placeholder="123456"
+                  required
+                />
+              </Field>
+            )}
 
             <Button
               type="submit"

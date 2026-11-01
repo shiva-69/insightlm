@@ -14,3 +14,5 @@ class IdentityAudit:
     INVITATION_REVOKED = AuditAction("invitation.revoked")
     MEMBERSHIP_ROLE_CHANGED = AuditAction("membership.role_changed")
     MEMBERSHIP_REVOKED = AuditAction("membership.revoked")
+    MFA_ENABLED = AuditAction("user.mfa_enabled")
+    MFA_DISABLED = AuditAction("user.mfa_disabled")

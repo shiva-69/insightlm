@@ -5,12 +5,14 @@ from __future__ import annotations
 import uuid
 
 from insightlm.identity.application.commands import AuthenticateCommand, AuthenticateResult
+from insightlm.identity.domain import totp
 from insightlm.identity.domain.audit_actions import IdentityAudit
 from insightlm.identity.domain.entities import normalise_email
 from insightlm.identity.ports.uow import IdentityUnitOfWorkFactory
-from insightlm.shared.domain.errors import AuthenticationError
+from insightlm.shared.domain.errors import AuthenticationError, ConflictError
 from insightlm.shared.ports.clock import Clock
 from insightlm.shared.ports.password import PasswordHasher
+from insightlm.shared.ports.secrets import SecretBox
 from insightlm.shared.ports.tokens import TokenClaims, TokenIssuer
 
 
@@ -32,7 +34,9 @@ class Authenticate:
         clock: Clock,
         *,
         access_token_ttl_seconds: int,
+        box: SecretBox | None = None,
     ) -> None:
+        self._box = box
         self._uow_factory = uow_factory
         self._hasher = hasher
         self._tokens = tokens
@@ -55,6 +59,33 @@ class Authenticate:
                 raise AuthenticationError(self._GENERIC_FAILURE)
             if not user.is_active:
                 raise AuthenticationError(self._GENERIC_FAILURE)
+            if user.mfa_enabled:
+                # Asked for only after the password is right, so it reveals nothing to
+                # someone guessing passwords. A code is accepted once: its step is
+                # recorded, and the same or an older step is refused.
+                if not command.mfa_code:
+                    raise AuthenticationError(
+                        "enter the code from your authenticator app",
+                        detail={"mfa_required": True},
+                    )
+                if self._box is None or user.mfa_sealed_secret is None:
+                    raise AuthenticationError(self._GENERIC_FAILURE)
+                step = totp.verify(
+                    self._box.open(user.mfa_sealed_secret), command.mfa_code, self._clock.now()
+                )
+                if step is None:
+                    raise AuthenticationError(
+                        "that code did not match", detail={"mfa_required": True}
+                    )
+                try:
+                    user = user.accepting_step(step)
+                except ConflictError as error:
+                    raise AuthenticationError(
+                        "that code has already been used; wait for the next one",
+                        detail={"mfa_required": True},
+                    ) from error
+                await uow.users.update(user)
+                await uow.commit()
 
         # Step two: work out which workspace this login is for. Scoped to the *user*,
         # not a tenant -- which is precisely the case the self-service RLS policies

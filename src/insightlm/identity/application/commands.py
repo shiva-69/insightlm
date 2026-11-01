@@ -30,6 +30,8 @@ class AuthenticateCommand:
     password: str
     tenant_slug: str | None = None
     """Omitted when the user belongs to exactly one tenant."""
+    mfa_code: str | None = None
+    """Required once the user has turned on two-factor authentication."""
 
 
 @dataclass(frozen=True, slots=True)

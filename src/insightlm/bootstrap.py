@@ -43,7 +43,11 @@ from insightlm.documents.ports.storage import ObjectStore
 from insightlm.erasure import EraseCandidate
 from insightlm.governance.application.audit_queries import ListAuditEntries, VerifyAuditChain
 from insightlm.governance.ports.uow import GovernanceUnitOfWork
-from insightlm.identity.adapters.security import Argon2PasswordHasher, JwtTokenIssuer
+from insightlm.identity.adapters.security import (
+    AesGcmSecretBox,
+    Argon2PasswordHasher,
+    JwtTokenIssuer,
+)
 from insightlm.identity.adapters.uow import SqlAlchemyIdentityUnitOfWork
 from insightlm.identity.application.authenticate import Authenticate
 from insightlm.identity.application.invitations import AcceptInvitation, InviteMember
@@ -51,6 +55,12 @@ from insightlm.identity.application.members import (
     ChangeMemberRole,
     ListMembers,
     RevokeMembership,
+)
+from insightlm.identity.application.mfa import (
+    ConfirmMfaEnrolment,
+    DisableMfa,
+    MfaStatus,
+    StartMfaEnrolment,
 )
 from insightlm.identity.application.register import RegisterOwner
 from insightlm.identity.ports.uow import IdentityUnitOfWork
@@ -162,6 +172,10 @@ class IdentityServices:
     list_members: ListMembers
     change_member_role: ChangeMemberRole
     revoke_membership: RevokeMembership
+    start_mfa: StartMfaEnrolment
+    confirm_mfa: ConfirmMfaEnrolment
+    disable_mfa: DisableMfa
+    mfa_status: MfaStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,6 +281,7 @@ def build_container(settings: Settings, *, object_store: ObjectStore | None = No
 
     clock: Clock = SystemClock()
     roles = build_role_catalogue()
+    box = AesGcmSecretBox((settings.secret_box_key or settings.jwt_secret).get_secret_value())
     scanner = build_instruction_scanner()
     hasher: PasswordHasher = Argon2PasswordHasher()
     tokens: TokenIssuer = JwtTokenIssuer(
@@ -378,6 +393,7 @@ def build_container(settings: Settings, *, object_store: ObjectStore | None = No
                 tokens,
                 clock,
                 access_token_ttl_seconds=settings.access_token_ttl_seconds,
+                box=box,
             ),
             invite_member=InviteMember(
                 uow_factory, clock, roles, invitation_ttl_seconds=settings.invitation_ttl_seconds
@@ -386,6 +402,10 @@ def build_container(settings: Settings, *, object_store: ObjectStore | None = No
             list_members=ListMembers(uow_factory),
             change_member_role=ChangeMemberRole(uow_factory, clock, roles),
             revoke_membership=RevokeMembership(uow_factory, clock),
+            start_mfa=StartMfaEnrolment(uow_factory, box),
+            confirm_mfa=ConfirmMfaEnrolment(uow_factory, box, clock),
+            disable_mfa=DisableMfa(uow_factory, box, clock),
+            mfa_status=MfaStatus(uow_factory),
         ),
         governance=GovernanceServices(
             list_audit_entries=ListAuditEntries(governance_uow_factory),

@@ -96,7 +96,11 @@ Stated so they are decisions, not surprises:
 - **Closed:** there was no Content Security Policy. Pages now carry a strict per-request
   nonce policy (`web/proxy.ts`): only nonce-bearing scripts run, data goes only to this
   origin, and nothing may frame the app. API responses forbid all content and framing.
-- **No MFA and no account lockout** beyond the per-IP rate limit.
+- **Closed:** there was no second factor. Users can turn on authenticator-app codes
+  (TOTP, RFC 6238); secrets are encrypted at rest with AES-GCM, enrolment needs a
+  working code, each code is accepted once, and owners are urged to enable it
+  (`identity/domain/totp.py`, `tests/security/test_mfa.py`). Account lockout is still
+  only the per-IP sign-in rate limit.
 - **Text hidden under a shape drawn on top of it** isn't detected; scanned CVs skip the
   hidden-text check until OCR exists.
 - **Paraphrased instructions** evade the pattern scan (2 of 24 red-team cases). They're

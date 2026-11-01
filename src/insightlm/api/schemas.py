@@ -69,6 +69,7 @@ class LoginRequest(RequestModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
     tenant_slug: str | None = None
+    mfa_code: str | None = Field(default=None, min_length=6, max_length=8, pattern=r"^[0-9 ]+$")
 
 
 class TokenResponse(BaseModel):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from insightlm.api.deps import ActorDep, ContainerDep
 from insightlm.api.schemas import (
@@ -62,6 +62,7 @@ async def login(
             email=str(request.email),
             password=request.password,
             tenant_slug=request.tenant_slug,
+            mfa_code=request.mfa_code,
         )
     )
     set_session_cookies(
@@ -126,3 +127,53 @@ async def accept_invitation(
         user=UserResponse.model_validate(result.user),
         membership=MembershipResponse.model_validate(result.membership),
     )
+
+
+class MfaCodeRequest(BaseModel):
+    code: str = Field(min_length=6, max_length=8, pattern=r"^[0-9 ]+$")
+
+
+class MfaEnrolmentResponse(BaseModel):
+    secret: str
+    provisioning_uri: str
+
+
+class MfaStatusResponse(BaseModel):
+    enabled: bool
+
+
+@router.get("/mfa", response_model=MfaStatusResponse, summary="Whether two-factor sign-in is on")
+async def mfa_status(actor: ActorDep, container: ContainerDep) -> MfaStatusResponse:
+    return MfaStatusResponse(enabled=await container.identity.mfa_status.execute(actor))
+
+
+@router.post(
+    "/mfa/enrol",
+    response_model=MfaEnrolmentResponse,
+    summary="Start two-factor enrolment; the secret is shown once",
+)
+async def mfa_enrol(actor: ActorDep, container: ContainerDep) -> MfaEnrolmentResponse:
+    enrolment = await container.identity.start_mfa.execute(actor)
+    return MfaEnrolmentResponse(
+        secret=enrolment.secret, provisioning_uri=enrolment.provisioning_uri
+    )
+
+
+@router.post(
+    "/mfa/confirm",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Turn two-factor sign-in on with a code from the authenticator app",
+)
+async def mfa_confirm(body: MfaCodeRequest, actor: ActorDep, container: ContainerDep) -> Response:
+    await container.identity.confirm_mfa.execute(actor, body.code)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/mfa/disable",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Turn two-factor sign-in off; needs a current code",
+)
+async def mfa_disable(body: MfaCodeRequest, actor: ActorDep, container: ContainerDep) -> Response:
+    await container.identity.disable_mfa.execute(actor, body.code)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

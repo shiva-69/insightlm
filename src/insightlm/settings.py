@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     # Browsers treat http://localhost as a secure context, so Secure cookies work in
     # development too. Turn off only to serve the app over plain HTTP on another host.
     session_cookie_secure: bool = True
+    # Key material for encrypting authenticator secrets at rest. Unset, it is derived
+    # from the JWT secret (through HKDF, so the bytes differ); set it separately to be
+    # able to rotate the signing key without re-enrolling everyone's second factor.
+    secret_box_key: SecretStr | None = None
     invitation_ttl_seconds: int = 604_800  # 7 days
 
     # --- models -------------------------------------------------------------

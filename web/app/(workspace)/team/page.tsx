@@ -7,6 +7,7 @@ import { Loading, QueryError } from "@/components/query-state";
 import { useToast } from "@/components/toast";
 import { Button, Empty, Field, Input, Panel, Spinner, Tag } from "@/components/ui/primitives";
 import { api, ApiError } from "@/lib/api";
+import { currentClaims } from "@/lib/auth";
 import type { Invitation, Role } from "@/lib/types";
 
 /* Ownership is deliberately absent: it is transferred through its own flow, never
@@ -171,8 +172,106 @@ export default function TeamPage() {
             </ul>
           )}
         </section>
+
+        <TwoFactorPanel />
       </div>
     </div>
+  );
+}
+
+/* Two-factor sign-in for whoever is looking at this page. Owners are urged to turn it
+   on: an owner's account controls the workspace, its members and its erasure. */
+function TwoFactorPanel() {
+  const { notify } = useToast();
+  const queryClient = useQueryClient();
+  const status = useQuery({ queryKey: ["mfa"], queryFn: api.mfaStatus });
+  const [enrolment, setEnrolment] = useState<{ secret: string; provisioning_uri: string } | null>(null);
+  const [code, setCode] = useState("");
+  const owner = currentClaims()?.role === "owner";
+
+  const done = (message: string) => () => {
+    setEnrolment(null);
+    setCode("");
+    queryClient.invalidateQueries({ queryKey: ["mfa"] });
+    notify(message);
+  };
+  const failed = (error: unknown) => notify((error as ApiError).message || "That did not work", { tone: "error" });
+  const enrol = useMutation({ mutationFn: api.mfaEnrol, onSuccess: setEnrolment, onError: failed });
+  const confirm = useMutation({
+    mutationFn: () => api.mfaConfirm(code),
+    onSuccess: done("Two-factor sign-in is on"),
+    onError: failed,
+  });
+  const disable = useMutation({
+    mutationFn: () => api.mfaDisable(code),
+    onSuccess: done("Two-factor sign-in is off"),
+    onError: failed,
+  });
+
+  if (status.isPending || status.isError) return null;
+  const enabled = status.data.enabled;
+  const codeInput = (
+    <div className="w-32 shrink-0">
+    <Input
+      inputMode="numeric"
+      autoComplete="one-time-code"
+      aria-label="Authenticator code"
+      value={code}
+      onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+      placeholder="123456"
+    />
+    </div>
+  );
+
+  return (
+    <section className="mt-7">
+      <h2 className="mb-2.5 text-[11.5px] font-medium uppercase tracking-[0.07em] text-[var(--ink-3)]">
+        Two-factor sign-in
+      </h2>
+      <Panel className="p-4">
+        {enabled ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <Tag tone="positive">On</Tag>
+            <span className="flex-1 text-[13px] text-[var(--ink-2)]">Sign-in asks for a code from your authenticator app.</span>
+            {codeInput}
+            <Button variant="quiet" disabled={code.length !== 6} loading={disable.isPending} onClick={() => disable.mutate()}>
+              Turn off
+            </Button>
+          </div>
+        ) : enrolment ? (
+          <div className="space-y-3 text-[13px]">
+            <p>
+              Add this key to your authenticator app (or open the link on your phone), then enter the
+              code it shows. The key is shown only now.
+            </p>
+            <code className="data block break-all rounded-[var(--radius-sm)] bg-[var(--surface-sunk)] px-3 py-2">
+              {enrolment.secret}
+            </code>
+            <a className="block break-all text-[12px] underline" href={enrolment.provisioning_uri}>
+              Open in authenticator app
+            </a>
+            <div className="flex items-center gap-2">
+              {codeInput}
+              <Button variant="solid" disabled={code.length !== 6} loading={confirm.isPending} onClick={() => confirm.mutate()}>
+                Turn on
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            {owner && <Tag tone="caution">Recommended for owners</Tag>}
+            <span className="flex-1 text-[13px] text-[var(--ink-2)]">
+              {owner
+                ? "Your account controls this workspace. Protect it with a code from an authenticator app."
+                : "Protect your account with a code from an authenticator app."}
+            </span>
+            <Button variant="outline" loading={enrol.isPending} onClick={() => enrol.mutate()}>
+              Set up
+            </Button>
+          </div>
+        )}
+      </Panel>
+    </section>
   );
 }
 

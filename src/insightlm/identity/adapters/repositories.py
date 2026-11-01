@@ -39,6 +39,9 @@ def _to_user(row: UserRow) -> User:
         password_hash=row.password_hash,
         is_active=row.is_active,
         created_at=row.created_at,
+        mfa_sealed_secret=row.mfa_sealed_secret,
+        mfa_enabled=row.mfa_enabled,
+        mfa_last_step=row.mfa_last_step,
     )
 
 
@@ -104,6 +107,9 @@ class SqlAlchemyUserRepository:
                 password_hash=user.password_hash,
                 is_active=user.is_active,
                 created_at=user.created_at,
+                mfa_sealed_secret=user.mfa_sealed_secret,
+                mfa_enabled=user.mfa_enabled,
+                mfa_last_step=user.mfa_last_step,
             )
         )
 
@@ -124,6 +130,9 @@ class SqlAlchemyUserRepository:
         row.display_name = user.display_name
         row.password_hash = user.password_hash
         row.is_active = user.is_active
+        row.mfa_sealed_secret = user.mfa_sealed_secret
+        row.mfa_enabled = user.mfa_enabled
+        row.mfa_last_step = user.mfa_last_step
 
 
 class SqlAlchemyMembershipRepository:
