@@ -29,6 +29,12 @@ RECRUITING_INSTRUCTION_PATTERNS: tuple[str, ...] = (
     r"exceptional|outstanding)\s+(?:match|fit|candidate)",
 )
 
+RECRUITING_SUBJECTS: tuple[str, ...] = (
+    r"\b(?:this|the)\s+(?:candidate|applicant|cv|r[ée]sum[ée]|resume|profile|"
+    r"application|applicant's|candidate's)\b",
+)
+"""What a recruiting judgment is about, for the reworded-instruction detector."""
+
 
 # -- blind screening -----------------------------------------------------------------
 #

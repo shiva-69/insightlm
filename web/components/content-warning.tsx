@@ -13,6 +13,7 @@ const HOW: Record<FindingKind, string> = {
   off_page_text: "placed outside the page",
   metadata_instruction: "in the file's metadata",
   instruction_like_text: "visible, addressed to an AI",
+  resembles_instruction_text: "visible, reads like an attempt to steer an AI",
 };
 
 /* Shown wherever a person is about to trust a model's reading of these documents.
@@ -26,8 +27,16 @@ export function ContentWarning({ documentIds }: { documentIds: string[] }) {
       staleTime: 60_000,
     })),
   });
+  const statuses = useQueries({
+    queries: documentIds.map((id) => ({
+      queryKey: ["document-status", id],
+      queryFn: () => api.documentStatus(id),
+      staleTime: 60_000,
+    })),
+  });
   const findings: ContentFinding[] = results.flatMap((r) => r.data ?? []);
-  if (findings.length === 0) return null;
+  const scanned = statuses.some((s) => s.data?.read_by_ocr);
+  if (findings.length === 0) return scanned ? <ScanNote /> : null;
 
   const hidden = findings.filter((f) => f.excluded);
   const addressed = findings.filter((f) => !f.excluded && f.instruction_like);
@@ -73,10 +82,30 @@ export function ContentWarning({ documentIds }: { documentIds: string[] }) {
           ))}
         </ul>
       )}
+      {scanned && <ScanNote inline />}
       <p className="mt-2 text-[12px] leading-relaxed text-[var(--ink-3)]">
         This isn&rsquo;t proof of bad intent: templates and copy-paste leave odd text too.
         It&rsquo;s a reason to read the CV yourself.
       </p>
+    </aside>
+  );
+}
+
+/* A scan's text came from recognition, not the file. Usually right, sometimes not:
+   a misread digit or name is possible, so quotes are worth checking on the page. */
+function ScanNote({ inline = false }: { inline?: boolean }) {
+  const body = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Tag>Scanned CV</Tag>
+      <span className="text-[12.5px] text-[var(--ink-2)]">
+        Its text was read by OCR. Check quoted wording against the highlighted page.
+      </span>
+    </div>
+  );
+  if (inline) return <div className="mt-3">{body}</div>;
+  return (
+    <aside className="rounded-[var(--radius-md)] border border-[var(--rule)] bg-[var(--surface)] p-3.5">
+      {body}
     </aside>
   );
 }

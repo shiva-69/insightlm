@@ -97,3 +97,47 @@ class JwtTokenIssuer:
             )
         except (KeyError, ValueError) as exc:
             raise AuthenticationError("malformed access token claims") from exc
+
+
+class AesGcmSecretBox:
+    """AES-256-GCM with a fresh 96-bit nonce per secret, stored as ``v1.<base64>``.
+
+    The key is derived with HKDF from a configured key, so the encryption key is never the
+    same bytes as the token-signing key even when both come from one setting. The version
+    prefix lets a later key or algorithm be introduced without guessing what old rows
+    used.
+    """
+
+    _INFO = b"insightlm/secret-box/v1"
+
+    def __init__(self, key_material: str) -> None:
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+        key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=self._INFO).derive(
+            key_material.encode()
+        )
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        self._aead = AESGCM(key)
+
+    def seal(self, plaintext: str) -> str:
+        import base64
+        import os
+
+        nonce = os.urandom(12)
+        ciphertext = self._aead.encrypt(nonce, plaintext.encode(), self._INFO)
+        return "v1." + base64.urlsafe_b64encode(nonce + ciphertext).decode()
+
+    def open(self, sealed: str) -> str:
+        import base64
+
+        from cryptography.exceptions import InvalidTag
+
+        if not sealed.startswith("v1."):
+            raise AuthenticationError("unrecognised sealed secret")
+        raw = base64.urlsafe_b64decode(sealed[3:])
+        try:
+            return self._aead.decrypt(raw[:12], raw[12:], self._INFO).decode()
+        except InvalidTag as error:
+            raise AuthenticationError("sealed secret failed authentication") from error

@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from insightlm.api.session import credentials, require_csrf
 from insightlm.bootstrap import Container
 from insightlm.shared.domain.errors import AuthenticationError
 from insightlm.shared.domain.policy import Actor
@@ -24,19 +25,25 @@ ContainerDep = Annotated[Container, Depends(get_container)]
 
 
 async def get_actor(
+    request: Request,
     container: ContainerDep,
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    _bearer_scheme: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> Actor:
-    """Resolve the caller from their bearer token.
+    """Resolve the caller from a bearer token or the browser's session cookie.
 
     The tenant and role travel in the token, so the hot path needs no database round
     trip. The cost -- a role change takes effect at the next token issue -- is
-    acceptable at a 15-minute TTL and is recorded in ADR-0003.
+    acceptable at a 15-minute TTL and is recorded in ADR-0003. A cookie-authenticated
+    write must also pass the CSRF check (``api.session``).
     """
-    if credentials is None or not credentials.credentials:
-        raise AuthenticationError("missing bearer token")
+    found = credentials(request)
+    if found is None:
+        raise AuthenticationError("missing bearer token or session")
+    token, via_cookie = found
+    if via_cookie:
+        require_csrf(request)
 
-    claims = container.token_issuer.verify_access_token(credentials.credentials)
+    claims = container.token_issuer.verify_access_token(token)
     if not container.roles.is_known(claims.role):
         raise AuthenticationError("token carries an unknown role")
     role = container.roles.resolve(claims.role)

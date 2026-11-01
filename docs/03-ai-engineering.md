@@ -24,6 +24,7 @@ The UI half matters as much: clicking a citation must scroll and highlight the s
 - Layout understanding: a document-layout model to segment columns, headers, tables — so a two-column résumé does not interleave into nonsense.
 - Tables: extract to structured form, serialise as markdown into the chunk (tables embedded as flat text retrieve terribly).
 - Scanned/image PDFs: detect low text-density, fall back to OCR (PaddleOCR or Tesseract). **Record OCR confidence** and surface low-confidence documents — an unreadable résumé silently scoring zero is exactly the kind of failure that makes a system unfair.
+  - *As built:* a page with an image and under 60 visible characters is read by Tesseract through PyMuPDF at 300 dpi. Character boxes come back like a born-digital PDF's, so the citation contract holds. Any existing text layer is ignored for that page (its invisible text is reported as concealed), and the document is labelled "Scanned · OCR" wherever a reviewer relies on it. Per-word confidence is not recorded yet; the label is the surfacing. Without Tesseract installed, a scan is flagged as unread rather than ingested as silently empty.
 - DOCX, TXT, MD, and (for the document module) PPTX/HTML.
 
 **Sanitisation** — runs before anything else touches the text. See §6.

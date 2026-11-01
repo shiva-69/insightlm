@@ -88,13 +88,32 @@ models read.** Most of the Tampering rows follow from that.
 
 Stated so they are decisions, not surprises:
 
-- **Tokens live in `sessionStorage`,** readable by any script on the page. An httpOnly
-  cookie with CSRF protection is the production answer; a strict CSP is not yet set.
-- **No MFA and no account lockout** beyond the per-IP rate limit.
-- **Text hidden under a shape drawn on top of it** isn't detected; scanned CVs skip the
-  hidden-text check until OCR exists.
-- **Paraphrased instructions** evade the pattern scan (2 of 24 red-team cases). They're
-  harmless in the measured cases, but nothing flags them.
+- **Closed:** browser sessions used to keep the token in `sessionStorage`, readable by
+  any script on the page. It now lives in an httpOnly, Secure, SameSite=Lax cookie, and
+  cookie-authenticated writes must echo a CSRF cookie in `X-CSRF-Token`
+  (`api/session.py`, `tests/security/test_session_cookies.py`). Bearer tokens remain
+  for API clients.
+- **Closed:** there was no Content Security Policy. Pages now carry a strict per-request
+  nonce policy (`web/proxy.ts`): only nonce-bearing scripts run, data goes only to this
+  origin, and nothing may frame the app. API responses forbid all content and framing.
+- **Closed:** there was no second factor. Users can turn on authenticator-app codes
+  (TOTP, RFC 6238); secrets are encrypted at rest with AES-GCM, enrolment needs a
+  working code, each code is accepted once, and owners are urged to enable it
+  (`identity/domain/totp.py`, `tests/security/test_mfa.py`). Account lockout is still
+  only the per-IP sign-in rate limit.
+- **Closed:** scanned CVs were ingested as empty, so they skipped every content check.
+  A page with an image and no visible text is now read by Tesseract OCR, with
+  character boxes, so citations still highlight and the instruction scan runs on what
+  was read. The parser trusts pixels, not layers: an invisible text layer over a scan
+  is excluded as concealed text and the page is read from what is drawn
+  (`documents/adapters/pymupdf_parser.py`, `tests/unit/test_ocr.py`). OCR'd documents
+  are labelled for reviewers. Recognition confidence is not recorded.
+- **Text hidden under a shape drawn on top of it** isn't detected.
+- **Partly closed:** paraphrased instructions used to evade the pattern scan entirely.
+  A shape detector now flags 36% of a held-out set of reworded attacks with no false
+  flags, and with a Gemini key an embedding classifier flags 89% as an advisory second
+  opinion (Finding 25). Instructions that steer by insinuation still pass; CV text is
+  still only ever quoted as data, which is the control that holds regardless.
 - **Secrets come from environment variables,** not a secret manager.
 - **The API port is published in `compose.yaml`** for local development, which is why
   trusting the proxy's IP header there is a development convenience only.

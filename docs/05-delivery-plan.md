@@ -167,8 +167,8 @@
 >
 > **Not done:** PII *detection* in free text beyond the known name (we redact what we
 > know, not what we'd have to guess); consent capture from the candidate directly (the
-> owner records self-identification on their behalf); OCR, so scanned CVs skip the
-> hidden-text defence.
+> owner records self-identification on their behalf). (OCR for scanned CVs followed in
+> the hardening work; see docs/08.)
 
 ---
 
@@ -205,6 +205,10 @@
 > **Not done:** Helm packaging (plain manifests with kustomize instead); httpOnly-cookie
 > sessions and a CSP (docs/08, known gaps); the PDF viewer is desktop-only, though the
 > cited quotes show on phones.
+>
+> *Later:* the hardening work closed the last three: cookie sessions, a CSP and two-factor
+> sign-in (ADR-0023), and a document viewer that opens as a full-screen sheet on phones,
+> with zoom.
 
 ---
 

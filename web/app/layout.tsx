@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Inter, JetBrains_Mono, Newsreader } from "next/font/google";
 import { Providers } from "@/components/providers";
 import "./globals.css";
@@ -38,7 +39,10 @@ export const viewport: Viewport = {
 /* Runs before paint so a dark-mode user never sees a white flash. */
 const themeBootstrap = `(function(){try{var t=localStorage.getItem("insightlm.theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // The per-request nonce from proxy.ts. Reading it also makes every page render per
+  // request, which a nonce requires: a prerendered page would carry a stale one.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     /* The font variables go on <html>, not <body>.
        `--font-sans` is declared on :root and its value is `var(--font-inter), …`.
@@ -52,7 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${inter.variable} ${newsreader.variable} ${mono.variable}`}
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
       <body className="grain antialiased">
         <Providers>{children}</Providers>

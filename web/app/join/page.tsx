@@ -35,8 +35,8 @@ function Join() {
         display_name: name.trim(),
         password,
       });
-      const session = await api.login({ email: joined.user.email, password });
-      startSession(session.access_token, joined.user.email);
+      await api.login({ email: joined.user.email, password });
+      await startSession(joined.user.email);
       router.replace(joined.membership.role === "interviewer" ? "/interviews" : "/ask");
     } catch (error) {
       const failure = error as ApiError;

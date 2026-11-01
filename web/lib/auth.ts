@@ -1,17 +1,26 @@
 "use client";
 
-/** Session storage.
+/** The browser's view of the session.
  *
- *  The access token lives in `sessionStorage`, not `localStorage`: it expires in
- *  fifteen minutes anyway, and scoping it to the tab means closing the tab ends the
- *  session. Neither is a substitute for an httpOnly cookie, which is what this would
- *  use in production — noted here rather than pretended otherwise.
+ *  The token itself lives in an httpOnly cookie set by the API at sign-in. No script on
+ *  the page can read it, which is the point: an injected script can no longer copy the
+ *  session out of storage. What this module keeps is only what the interface needs to
+ *  shape itself -- who is signed in and their role -- fetched from `/auth/session` and
+ *  cached in `sessionStorage` so a reload paints without waiting. None of it grants
+ *  access; the server authorises every request.
  */
 
-const TOKEN_KEY = "insightlm.token";
-const EMAIL_KEY = "insightlm.email";
+const SESSION_KEY = "insightlm.session";
+const CSRF_COOKIE = "insightlm_csrf";
+
+export interface Session {
+  userId: string;
+  role: string;
+  email: string | null;
+}
 
 const listeners = new Set<() => void>();
+let cached: Session | null | undefined;
 
 function notify() {
   for (const listener of listeners) listener();
@@ -22,58 +31,77 @@ export function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
+function store(session: Session | null): void {
+  cached = session;
   try {
-    return sessionStorage.getItem(TOKEN_KEY);
+    if (session) sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    else sessionStorage.removeItem(SESSION_KEY);
   } catch {
-    return null;
+    /* private mode: the in-memory copy still serves this tab */
   }
+  notify();
+}
+
+/** The cached session, or null. A stable reference between changes, so it can be read
+ *  with useSyncExternalStore. */
+export function getSession(): Session | null {
+  if (typeof window === "undefined") return null;
+  if (cached === undefined) {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      cached = raw ? (JSON.parse(raw) as Session) : null;
+    } catch {
+      cached = null;
+    }
+  }
+  return cached;
 }
 
 export function getEmail(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return sessionStorage.getItem(EMAIL_KEY);
-  } catch {
-    return null;
-  }
+  return getSession()?.email ?? null;
 }
 
-export function startSession(token: string, email: string): void {
-  try {
-    sessionStorage.setItem(TOKEN_KEY, token);
-    sessionStorage.setItem(EMAIL_KEY, email);
-  } catch {
-    /* private mode — the app still works for this tab, just not across reloads */
-  }
-  notify();
-}
-
-export function clearSession(): void {
-  try {
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(EMAIL_KEY);
-  } catch {
-    /* nothing to clear */
-  }
-  notify();
-}
-
-/** Who the token says we are -- for shaping the UI only.
- *
- *  Decoded, not verified: the browser has no key to verify with, and does not need
- *  one. Hiding a button someone cannot use is a courtesy; the server refusing the
- *  request is the control.
- */
 export function currentClaims(): { userId: string; role: string } | null {
-  const token = getToken();
-  if (!token) return null;
+  const session = getSession();
+  return session ? { userId: session.userId, role: session.role } : null;
+}
+
+/** The CSRF value the API set beside the session cookie. Echoed on every write. */
+export function csrfToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]!) : null;
+}
+
+/** Ask the server who the cookie belongs to. Null when there is no live session. */
+export async function refreshSession(email?: string): Promise<Session | null> {
   try {
-    const payload = token.split(".")[1] ?? "";
-    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
-    return { userId: String(json.sub), role: String(json.role) };
+    const response = await fetch("/api/auth/session", { cache: "no-store" });
+    if (!response.ok) {
+      store(null);
+      return null;
+    }
+    const body = (await response.json()) as { user_id: string; role: string };
+    const session = { userId: body.user_id, role: body.role, email: email ?? getEmail() };
+    store(session);
+    return session;
   } catch {
-    return null;
+    return getSession();
   }
+}
+
+/** After a successful sign-in: the cookie is already set; learn who it belongs to. */
+export async function startSession(email: string): Promise<void> {
+  await refreshSession(email);
+}
+
+/** Forget the session locally, without telling the server (it already knows: a 401). */
+export function forgetSession(): void {
+  store(null);
+}
+
+/** Sign out: clear the cookies on the server and the cache here. */
+export function clearSession(): void {
+  store(null);
+  void fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
 }

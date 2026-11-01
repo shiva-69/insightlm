@@ -61,3 +61,28 @@ class CorrelationMiddleware(BaseHTTPMiddleware):
                 duration_ms=round(elapsed_ms, 2),
             )
             return response
+
+
+_API_POLICY = "default-src 'none'; frame-ancestors 'none'"
+# The interactive API docs load Swagger UI and ReDoc from a CDN; they keep FastAPI's
+# defaults rather than an exception carved into the policy everything else gets.
+_DOC_PATHS = ("/docs", "/redoc", "/openapi.json")
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Headers that make an API response useless as anything but data.
+
+    The API serves JSON and PDFs, never pages, so its policy forbids every kind of
+    content and every frame: a response opened directly in a browser cannot run script,
+    and cannot be embedded to trick a user into acting on it. ``nosniff`` stops a
+    browser second-guessing a declared content type.
+    """
+
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        if not request.url.path.startswith(_DOC_PATHS):
+            response.headers.setdefault("Content-Security-Policy", _API_POLICY)
+        return response

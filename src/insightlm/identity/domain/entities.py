@@ -59,12 +59,37 @@ class User:
     password_hash: str
     created_at: datetime
     is_active: bool = True
+    mfa_sealed_secret: str | None = None
+    """The authenticator secret, encrypted by a SecretBox. Opaque to the domain."""
+    mfa_enabled: bool = False
+    mfa_last_step: int = 0
+    """The time step of the last code accepted. A code is never accepted twice."""
 
     def __post_init__(self) -> None:
         if self.email != self.email.strip().lower():
             raise ValidationError("email must be stored normalised")
         if not self.display_name.strip():
             raise ValidationError("display name must not be blank")
+
+    def with_pending_mfa(self, sealed_secret: str) -> Self:
+        """A new secret, not yet in force: sign-in is unchanged until it is confirmed."""
+        if self.mfa_enabled:
+            raise ConflictError("two-factor authentication is already on; turn it off first")
+        return replace(self, mfa_sealed_secret=sealed_secret)
+
+    def with_mfa_confirmed(self, step: int) -> Self:
+        if self.mfa_sealed_secret is None:
+            raise ConflictError("start two-factor enrolment before confirming it")
+        return replace(self, mfa_enabled=True, mfa_last_step=step)
+
+    def without_mfa(self) -> Self:
+        return replace(self, mfa_enabled=False, mfa_sealed_secret=None, mfa_last_step=0)
+
+    def accepting_step(self, step: int) -> Self:
+        """Record a used code's step, refusing any step already used or older."""
+        if step <= self.mfa_last_step:
+            raise ConflictError("that code has already been used")
+        return replace(self, mfa_last_step=step)
 
 
 @dataclass(frozen=True, slots=True)

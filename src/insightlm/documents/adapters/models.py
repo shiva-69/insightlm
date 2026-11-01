@@ -88,6 +88,7 @@ class DocumentTextRow(Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     page_count: Mapped[int] = mapped_column(nullable=False, default=1)
     warnings: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
+    ocr_used: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
     # Concealed and instruction-like content found at parse time. Kept with the text
     # it was found in, so it follows the same version and the same erasure.
     findings: Mapped[list[Any]] = mapped_column(

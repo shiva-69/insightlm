@@ -9,7 +9,7 @@ committed): rerunning costs nothing until a case, prompt, rendering or model cha
 | --- | --- | ---: | --- |
 | `retrieval.json` | `insightlm-eval --corpus generated --count 40 --out …` | 0 (embeddings cached) | 4–11, 22 |
 | `judge.json` | `insightlm-eval-judge --judge gemini --set all --out …` | 0 | 12, 19 |
-| `injection.json` | `insightlm-eval-injection --assess --judge gemini --out …` | 27 | 14–15 |
+| `injection.json` | `insightlm-eval-injection --assess --judge gemini --embedding --out …` | 0 (judge and embeddings cached) | 14–15, 25 |
 | `fairness.json` | `insightlm-eval-fairness --judge gemini --bases ambiguous --samples 5 --out …` | 300 | 17, 21 |
 | `ask-model-flash.json`, `ask-model-pro.json` | `GEMINI_ASK_MODEL=… insightlm-eval --config C-dense-enriched --generate --runs 2 --out …` | 60 each | 23 |
 | `contracts.json` | `insightlm-eval-contracts --judge gemini --out …` | 30 | 24 |

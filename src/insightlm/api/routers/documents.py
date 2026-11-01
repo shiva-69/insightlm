@@ -80,7 +80,9 @@ async def document_status(
             # 404 rather than 403: another tenant's document must not be distinguishable
             # from one that does not exist.
             raise NotFoundError("document not found")
-    return DocumentVersionResponse.model_validate(version)
+        warnings, ocr_used = await uow.versions.load_notes(version.id)
+    response = DocumentVersionResponse.model_validate(version)
+    return response.model_copy(update={"warnings": list(warnings), "read_by_ocr": ocr_used})
 
 
 @router.get(

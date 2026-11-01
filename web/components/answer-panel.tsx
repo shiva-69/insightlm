@@ -15,6 +15,8 @@ interface Props {
   question: string;
   activeLabel: string | null;
   onActivate: (label: string | null) => void;
+  /* A deliberate tap or click on a citation, as opposed to hovering over it. */
+  onOpen?: (label: string) => void;
 }
 
 export function AnswerPanel({
@@ -25,6 +27,7 @@ export function AnswerPanel({
   question,
   activeLabel,
   onActivate,
+  onOpen,
 }: Props) {
   const [showProvenance, setShowProvenance] = useState(false);
 
@@ -34,7 +37,7 @@ export function AnswerPanel({
     return (
       <Empty
         title="Ask something"
-        body="Answers come back split into claims, each carrying the passage it was drawn from. Click a citation to see it in the document."
+        body="Answers come back split into claims, each carrying the passage it was drawn from. Tap or click a citation to see it in the document."
       />
     );
   }
@@ -50,7 +53,7 @@ export function AnswerPanel({
   const offlineEmbedder = answer.embedding_model.startsWith("hashing");
 
   return (
-    <div className="mx-auto max-w-[44rem] px-7 py-7">
+    <div className="mx-auto max-w-[44rem] px-5 py-6 sm:px-7 sm:py-7">
       <p className="mb-5 font-serif text-[15px] italic leading-snug text-[var(--ink-3)]">
         {question}
       </p>
@@ -67,6 +70,7 @@ export function AnswerPanel({
                   citation={byLabel.get(label)}
                   active={activeLabel === label}
                   onActivate={onActivate}
+                  onOpen={onOpen}
                 />
               ))}
             </p>
@@ -98,6 +102,7 @@ export function AnswerPanel({
                 citation={citation}
                 active={activeLabel === citation.label}
                 onActivate={onActivate}
+                onOpen={onOpen}
               />
             ))}
           </ul>
@@ -160,15 +165,20 @@ function CitationChip({
   citation,
   active,
   onActivate,
+  onOpen,
 }: {
   label: string;
   citation: Citation | undefined;
   active: boolean;
   onActivate: (label: string | null) => void;
+  onOpen?: (label: string) => void;
 }) {
   return (
     <button
-      onClick={() => onActivate(label)}
+      onClick={() => {
+        onActivate(label);
+        onOpen?.(label);
+      }}
       onMouseEnter={() => onActivate(label)}
       title={citation ? `${citation.document_title} · page ${citation.page + 1}` : label}
       className={clsx(
@@ -189,15 +199,20 @@ function EvidenceRow({
   citation,
   active,
   onActivate,
+  onOpen,
 }: {
   citation: Citation;
   active: boolean;
   onActivate: (label: string | null) => void;
+  onOpen?: (label: string) => void;
 }) {
   return (
     <li>
       <button
-        onClick={() => onActivate(citation.label)}
+        onClick={() => {
+          onActivate(citation.label);
+          onOpen?.(citation.label);
+        }}
         onMouseEnter={() => onActivate(citation.label)}
         className={clsx(
           "flex w-full gap-2.5 rounded-[var(--radius-sm)] border p-2.5 text-left",
@@ -248,7 +263,7 @@ function Unsupported({ answer }: { answer: Answer }) {
 
 function Thinking({ question }: { question: string }) {
   return (
-    <div className="mx-auto max-w-[44rem] px-7 py-7">
+    <div className="mx-auto max-w-[44rem] px-5 py-6 sm:px-7 sm:py-7">
       <p className="mb-6 font-serif text-[15px] italic leading-snug text-[var(--ink-3)]">
         {question}
       </p>

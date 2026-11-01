@@ -39,7 +39,7 @@ import type {
   RetentionRun,
   SelectionReport,
 } from "./types";
-import { getToken, clearSession } from "./auth";
+import { csrfToken, forgetSession } from "./auth";
 
 /** Carries the server's error code and correlation id through to the UI, so a
  *  failure can be reported with something an operator can actually grep for. */
@@ -63,8 +63,11 @@ async function request<T>(
   const { json, ...rest } = init;
   const headers = new Headers(rest.headers);
 
-  const token = getToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  // The session travels in an httpOnly cookie the browser attaches by itself; a write
+  // also carries the CSRF value to prove it came from this page.
+  const method = (rest.method ?? "GET").toUpperCase();
+  const csrf = csrfToken();
+  if (csrf && method !== "GET" && method !== "HEAD") headers.set("X-CSRF-Token", csrf);
   if (json !== undefined) {
     headers.set("Content-Type", "application/json");
     rest.body = JSON.stringify(json);
@@ -72,10 +75,10 @@ async function request<T>(
 
   const response = await fetch(`/api${path}`, { ...rest, headers });
 
-  if (response.status === 401 && token) {
-    // The token expired underneath us. Drop it rather than leaving the app in a
+  if (response.status === 401) {
+    // The session expired underneath us. Forget it rather than leaving the app in a
     // half-authenticated state where every subsequent call fails the same way.
-    clearSession();
+    forgetSession();
   }
 
   if (!response.ok) throw await errorFrom(response);
@@ -111,14 +114,14 @@ async function askStream(
   handlers: AnswerStreamHandlers,
 ): Promise<Answer> {
   const headers = new Headers({ "Content-Type": "application/json", Accept: "text/event-stream" });
-  const token = getToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const csrf = csrfToken();
+  if (csrf) headers.set("X-CSRF-Token", csrf);
   const response = await fetch("/api/ask/stream", {
     method: "POST",
     headers,
     body: JSON.stringify(input),
   });
-  if (response.status === 401 && token) clearSession();
+  if (response.status === 401) forgetSession();
   if (!response.ok || !response.body) throw await errorFrom(response);
 
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -155,7 +158,7 @@ export const api = {
     password: string;
   }) => request<Registration>("/auth/register", { method: "POST", json: input }),
 
-  login: (input: { email: string; password: string; tenant_slug?: string }) =>
+  login: (input: { email: string; password: string; tenant_slug?: string; mfa_code?: string }) =>
     request<TokenResponse>("/auth/login", { method: "POST", json: input }),
 
   acceptInvitation: (input: {
@@ -165,6 +168,17 @@ export const api = {
   }) => request<Registration>("/auth/invitations/accept", { method: "POST", json: input }),
 
   roles: () => request<RoleInfo[]>("/members/roles"),
+
+  mfaStatus: () => request<{ enabled: boolean }>("/auth/mfa"),
+
+  mfaEnrol: () =>
+    request<{ secret: string; provisioning_uri: string }>("/auth/mfa/enrol", { method: "POST" }),
+
+  mfaConfirm: (code: string) =>
+    request<void>("/auth/mfa/confirm", { method: "POST", json: { code } }),
+
+  mfaDisable: (code: string) =>
+    request<void>("/auth/mfa/disable", { method: "POST", json: { code } }),
 
   playbooks: () => request<Playbook[]>("/playbooks"),
 
@@ -301,10 +315,7 @@ export const api = {
 
   /** The raw file, for the viewer. Returns bytes, not JSON. */
   documentBytes: async (documentId: string): Promise<ArrayBuffer> => {
-    const token = getToken();
-    const response = await fetch(`/api/documents/${documentId}/raw`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const response = await fetch(`/api/documents/${documentId}/raw`);
     if (!response.ok) throw new ApiError(response.status, "fetch_failed", "Could not load the document");
     return response.arrayBuffer();
   },

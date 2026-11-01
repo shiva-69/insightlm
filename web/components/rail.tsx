@@ -3,14 +3,17 @@
 import clsx from "clsx";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useSyncExternalStore } from "react";
-import { clearSession, currentClaims, getEmail, getToken, subscribe } from "@/lib/auth";
+import { useSyncExternalStore } from "react";
+import { clearSession, getEmail, getSession, subscribe } from "@/lib/auth";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/primitives";
 
 /* A 68px rail rather than a 240px sidebar. The main view is two documents side by
    side; every pixel the chrome takes is a pixel of reading width. Labels sit under
-   the icons so nothing depends on a hover tooltip to be discoverable. */
+   the icons so nothing depends on a hover tooltip to be discoverable.
+
+   On a phone the same items become a bar along the bottom, within reach of a thumb,
+   and scroll sideways when a role sees more of them than fit. */
 
 /* Who sees which destination. Mirrors the server's permissions so nobody is offered a
    page that will only refuse them; the server still decides. */
@@ -35,9 +38,9 @@ export function Rail() {
   // The session is an external store; read it as one. The server snapshot is null,
   // so the first client render matches the HTML and the email fills in after.
   const email = useSyncExternalStore(subscribe, getEmail, () => null);
-  // The token string is the stable snapshot; the role is derived from it.
-  const token = useSyncExternalStore(subscribe, getToken, () => null);
-  const role = useMemo(() => (token ? currentClaims()?.role : undefined), [token]);
+  // The cached session is the stable snapshot; the role comes with it.
+  const session = useSyncExternalStore(subscribe, getSession, () => null);
+  const role = session?.role;
   const visible = NAV.filter((item) => !item.roles || (role !== undefined && item.roles.includes(role)));
 
   function signOut() {
@@ -46,25 +49,25 @@ export function Rail() {
   }
 
   return (
-    <nav className="rule-r flex w-[68px] shrink-0 flex-col items-center bg-[var(--surface-sunk)] py-3">
+    <nav className="flex w-full shrink-0 flex-row items-center border-t border-[var(--rule)] bg-[var(--surface-sunk)] pb-[env(safe-area-inset-bottom)] md:w-[68px] md:flex-col md:border-t-0 md:border-r md:py-3 md:pb-3">
       <Link
         href="/ask"
-        className="mb-4 flex size-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--ink)] text-[var(--paper)]"
+        className="mb-4 hidden size-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--ink)] text-[var(--paper)] md:flex"
         aria-label="InsightLM"
       >
         <span className="font-serif text-[15px] leading-none">I</span>
       </Link>
 
-      <ul className="flex w-full flex-1 flex-col items-center gap-0.5">
+      <ul className="flex min-w-0 flex-1 flex-row items-center gap-0.5 overflow-x-auto px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:w-full md:flex-col md:overflow-visible md:p-0">
         {visible.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href);
           return (
-            <li key={href} className="w-full px-2">
+            <li key={href} className="shrink-0 md:w-full md:px-2">
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={clsx(
-                  "group flex flex-col items-center gap-1 rounded-[var(--radius-sm)] py-2",
+                  "group flex min-w-[60px] flex-col items-center gap-1 rounded-[var(--radius-sm)] px-1.5 py-1.5 md:min-w-0 md:px-0 md:py-2",
                   "transition-colors duration-150",
                   active
                     ? "bg-[var(--surface)] text-[var(--ink)] shadow-[inset_0_0_0_1px_var(--rule)]"
@@ -79,7 +82,7 @@ export function Rail() {
         })}
       </ul>
 
-      <div className="flex flex-col items-center gap-1.5 pt-3">
+      <div className="flex shrink-0 flex-row items-center gap-1 px-1.5 md:flex-col md:gap-1.5 md:px-0 md:pt-3">
         <ThemeToggle />
         <Button
           variant="quiet"

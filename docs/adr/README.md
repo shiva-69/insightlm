@@ -51,5 +51,7 @@ made — listed so the vocabulary is designed rather than accreted.
 | [0020](0020-assessments-run-as-jobs.md) | Assessments run as jobs in the worker | 9 |
 | [0021](0021-streamed-answers-keep-the-citation-contract.md) | Streamed answers, without weakening the citation contract | 9 |
 | [0022](0022-a-second-vertical-without-touching-the-engine.md) | Contract review as a second vertical, built without touching the engine | 10 |
+| [0023](0023-browser-sessions-cookies-csp-and-a-second-factor.md) | Browser sessions in httpOnly cookies, a nonce CSP, and a second factor | 11 |
+| [0024](0024-untrusted-text-in-layers-measured-on-held-out-data.md) | Untrusted text in layers: trust the pixels, measure detectors on held-out data | 11 |
 
 Add records as real decisions arise. Superseded ADRs stay in the repo with their status updated — **the trail of a changed mind is evidence of engineering judgment, not of error.**

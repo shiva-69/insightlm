@@ -90,6 +90,9 @@ export interface DocumentVersion {
   page_count: number | null;
   char_count: number | null;
   failure_reason: string | null;
+  /** What a reader should know about the extraction, such as pages read by OCR. */
+  warnings: string[];
+  read_by_ocr: boolean;
 }
 
 export interface UploadResult {
@@ -384,7 +387,8 @@ export type FindingKind =
   | "micro_text"
   | "off_page_text"
   | "metadata_instruction"
-  | "instruction_like_text";
+  | "instruction_like_text"
+  | "resembles_instruction_text";
 
 export interface ContentFinding {
   kind: FindingKind;

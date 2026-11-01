@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     jwt_secret: SecretStr = SecretStr("dev-only-change-me")
     jwt_algorithm: Literal["HS256"] = "HS256"
     access_token_ttl_seconds: int = 900  # 15 minutes
+    # Browsers treat http://localhost as a secure context, so Secure cookies work in
+    # development too. Turn off only to serve the app over plain HTTP on another host.
+    session_cookie_secure: bool = True
+    # Key material for encrypting authenticator secrets at rest. Unset, it is derived
+    # from the JWT secret (through HKDF, so the bytes differ); set it separately to be
+    # able to rotate the signing key without re-enrolling everyone's second factor.
+    secret_box_key: SecretStr | None = None
     invitation_ttl_seconds: int = 604_800  # 7 days
 
     # --- models -------------------------------------------------------------
@@ -110,6 +117,9 @@ class Settings(BaseSettings):
     # Keep text a reader can't see (white-on-white, 1pt, transparent) out of the index.
     # Off only to measure or demonstrate the undefended baseline.
     exclude_concealed_text: bool = True
+    # With a Gemini key, also flag sentences whose embedding sits near known attempts to
+    # steer a model (Finding 25). Advisory: flagged text stays in the document.
+    instruction_classifier: bool = True
     # Rejected candidates are erased (with verification) after this long without activity.
     candidate_retention_days: int = 365
     # Talent search returns people within this fraction of the best match. Applies to

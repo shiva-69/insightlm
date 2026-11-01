@@ -69,6 +69,7 @@ class LoginRequest(RequestModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
     tenant_slug: str | None = None
+    mfa_code: str | None = Field(default=None, min_length=6, max_length=8, pattern=r"^[0-9 ]+$")
 
 
 class TokenResponse(BaseModel):
@@ -219,6 +220,9 @@ class DocumentVersionResponse(_FromDomain):
     page_count: int | None = None
     char_count: int | None = None
     failure_reason: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+    """What a reader should know about the extraction, such as pages read by OCR."""
+    read_by_ocr: bool = False
 
 
 class UploadResponse(BaseModel):

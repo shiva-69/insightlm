@@ -4,8 +4,10 @@ import clsx from "clsx";
 import { useMemo, useState } from "react";
 import { ContentWarning } from "@/components/content-warning";
 import { DocumentViewer } from "@/components/document-viewer";
+import { SourceSheet } from "@/components/source-sheet";
 import { Button, Empty, Tag } from "@/components/ui/primitives";
 import type { Citation, Criterion, Rubric, ShortlistEntry, Verdict } from "@/lib/types";
+import { useNarrow } from "@/lib/use-narrow";
 import { FLAG_LABEL } from "./candidates-panel";
 import { KIND_LABEL } from "./rubric-panel";
 
@@ -49,13 +51,27 @@ export function AssessmentView({
     citations[0]?.document_id ??
     entry.candidate.document_ids[0] ??
     null;
+  const narrow = useNarrow();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const documentTitle =
+    citations.find((c) => c.document_id === openDocument)?.document_title ?? "Candidate document";
+  const viewer = openDocument ? (
+    <DocumentViewer
+      documentId={openDocument}
+      citations={citations}
+      activeLabel={activeLabel}
+      onActivate={setActiveLabel}
+    />
+  ) : (
+    <Empty title="No document" body="This candidate has no documents attached." />
+  );
   const offline = assessment.model_version === OFFLINE_JUDGE;
   const outdated = rubric?.status === "superseded";
 
   return (
     <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
       <section className="rule-r min-h-0 overflow-auto">
-        <div className="px-7 py-6">
+        <div className="px-5 py-6 sm:px-7">
           <Button variant="quiet" size="sm" onClick={onBack} className="-ml-2.5 mb-3">
             ← All candidates
           </Button>
@@ -159,7 +175,10 @@ export function AssessmentView({
                             {judgment.evidence.map((evidence) => (
                               <li key={evidence.label}>
                                 <button
-                                  onClick={() => setActiveLabel(evidence.label)}
+                                  onClick={() => {
+                                    setActiveLabel(evidence.label);
+                                    setSheetOpen(narrow);
+                                  }}
                                   onMouseEnter={() => setActiveLabel(evidence.label)}
                                   className={clsx(
                                     "flex w-full gap-2.5 rounded-[var(--radius-sm)] border p-2.5 text-left transition-colors",
@@ -209,25 +228,21 @@ export function AssessmentView({
         </div>
       </section>
 
+      <SourceSheet
+        open={narrow && sheetOpen}
+        title={documentTitle}
+        highlighted={citations.length}
+        onClose={() => setSheetOpen(false)}
+      >
+        {viewer}
+      </SourceSheet>
+
       <section className="hidden min-h-0 lg:block">
         <div className="rule-b flex h-10 items-center justify-between bg-[var(--surface)] px-4">
-          <span className="truncate text-[12.5px] text-[var(--ink-2)]">
-            {citations.find((c) => c.document_id === openDocument)?.document_title ?? "Candidate document"}
-          </span>
+          <span className="truncate text-[12.5px] text-[var(--ink-2)]">{documentTitle}</span>
           {citations.length > 0 && <Tag tone="evidence">{citations.length} highlighted</Tag>}
         </div>
-        <div className="h-[calc(100%-2.5rem)]">
-          {openDocument ? (
-            <DocumentViewer
-              documentId={openDocument}
-              citations={citations}
-              activeLabel={activeLabel}
-              onActivate={setActiveLabel}
-            />
-          ) : (
-            <Empty title="No document" body="This candidate has no documents attached." />
-          )}
-        </div>
+        <div className="h-[calc(100%-2.5rem)]">{!narrow && viewer}</div>
       </section>
     </div>
   );

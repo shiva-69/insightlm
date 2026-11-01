@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
@@ -21,9 +22,12 @@ from pathlib import Path
 from typing import Any
 
 from insightlm.bootstrap import build_instruction_scanner
+from insightlm.documents.adapters.directive_classifier import EXEMPLARS, embed_all, knn_score
 from insightlm.documents.adapters.pymupdf_parser import PyMuPdfParser
+from insightlm.documents.domain.directives import sentence_spans
 from insightlm.documents.domain.entities import MediaType, ParsedDocument
 from insightlm.documents.domain.findings import ContentFinding
+from insightlm.evaluation.adapters.cohort import build_cohort
 from insightlm.evaluation.adapters.judge_cache import CachedJudge, JudgmentStore
 from insightlm.evaluation.adapters.redteam import Expectation, RedTeamDoc, build_redteam_v1
 from insightlm.recruiting.adapters.judges import (
@@ -37,6 +41,8 @@ from insightlm.recruiting.domain.assessment import aggregate
 from insightlm.recruiting.domain.rubric import Criterion, CriterionKind, Rubric
 from insightlm.recruiting.ports.judge import CriterionJudge
 from insightlm.retrieval.adapters.chunker import StructureAwareChunker
+from insightlm.retrieval.adapters.embedding import GeminiEmbedder
+from insightlm.retrieval.adapters.embedding_cache import CachingEmbedder, EmbeddingStore
 from insightlm.retrieval.domain.evidence import (
     EvidenceBundle,
     EvidenceQuery,
@@ -57,6 +63,16 @@ from insightlm.shared.domain.ids import (
 
 # Production's scanner: the engine's phrases plus recruiting's.
 SCANNER = build_instruction_scanner()
+# The same phrases without the reworded-instruction detector: the baseline it must beat.
+PATTERNS_ONLY = re.compile("|".join(f"(?:{p})" for p in SCANNER.patterns), re.IGNORECASE)
+
+SENTENCE_SETS = (
+    # Written by the detector's designer, tuned on, and shipped as the classifier's
+    # exemplars. Scores on it are not evidence.
+    ("dev", EXEMPLARS),
+    # Written by a model from a brief that never saw the rules; never tuned on.
+    ("held-out", Path("eval/datasets/redteam-heldout-v1.json")),
+)
 
 
 def _normal(text: str) -> str:
@@ -197,6 +213,123 @@ def _print_assessment(name: str, results: dict[str, dict[str, float]]) -> None:
     )
 
 
+# -- reworded instructions, sentence by sentence ------------------------------------------
+
+
+def _reworded() -> dict[str, Any]:
+    """Recall on attacks and false flags on honest sentences, per set and domain.
+
+    The dev set says only that the rules do what they were written to do. The held-out
+    set is the measurement.
+    """
+    report: dict[str, Any] = {}
+    for name, path in SENTENCE_SETS:
+        if not path.exists():
+            continue
+        items = json.loads(path.read_text())["items"]
+        rows: dict[str, dict[str, Any]] = {}
+        misses: list[str] = []
+        false_flags: list[str] = []
+        for item in items:
+            text, attack = item["text"], item["label"] == "attack"
+            row = rows.setdefault(
+                f"{item['domain']}/{item['label']}",
+                {"total": 0, "patterns": 0, "patterns+detector": 0},
+            )
+            row["total"] += 1
+            by_patterns = bool(PATTERNS_ONLY.search(" ".join(text.split())))
+            combined = SCANNER.matches(text)
+            row["patterns"] += by_patterns
+            row["patterns+detector"] += combined
+            if attack and not combined:
+                misses.append(text)
+            if not attack and combined:
+                false_flags.append(text)
+        report[name] = {"rows": rows, "misses": misses, "false_flags": false_flags}
+    return report
+
+
+async def _embedding_classifier(embedder: CachingEmbedder) -> dict[str, Any]:
+    """A nearest-neighbour classifier over embeddings, fitted on the dev set only.
+
+    The threshold is chosen by leave-one-out on dev (best accuracy, ties to the higher
+    threshold so honest sentences win). The held-out set is then scored once with it.
+    """
+    sets = {name: json.loads(path.read_text())["items"] for name, path in SENTENCE_SETS}
+    vectors = {
+        name: await embed_all(embedder.embed_documents, [i["text"] for i in items])
+        for name, items in sets.items()
+    }
+    dev, dev_vecs = sets["dev"], vectors["dev"]
+
+    loo: list[tuple[float, bool]] = []
+    for k, (item, vec) in enumerate(zip(dev, dev_vecs, strict=True)):
+        rest = [(i, v) for j, (i, v) in enumerate(zip(dev, dev_vecs, strict=True)) if j != k]
+        attacks = [v for i, v in rest if i["label"] == "attack"]
+        benign = [v for i, v in rest if i["label"] == "benign"]
+        loo.append((knn_score(vec, attacks, benign), item["label"] == "attack"))
+    candidates = sorted({score for score, _ in loo})
+    threshold = max(candidates, key=lambda t: (sum((s >= t) == a for s, a in loo), t))
+
+    attacks = [v for i, v in zip(dev, dev_vecs, strict=True) if i["label"] == "attack"]
+    benign = [v for i, v in zip(dev, dev_vecs, strict=True) if i["label"] == "benign"]
+    rows: dict[str, dict[str, int]] = {}
+    for item, vec in zip(sets["held-out"], vectors["held-out"], strict=True):
+        row = rows.setdefault(
+            f"{item['domain']}/{item['label']}", {"total": 0, "embedding": 0, "all": 0}
+        )
+        by_embedding = knn_score(vec, attacks, benign) >= threshold
+        row["total"] += 1
+        row["embedding"] += by_embedding
+        row["all"] += by_embedding or SCANNER.matches(item["text"])
+    # Honest CVs, whole: how many would carry a warning? Hard negatives above overstate
+    # the false-flag rate a real applicant faces; this is the rate they face.
+    parser = PyMuPdfParser(scanner=SCANNER)
+    flagged_cvs = 0
+    cohort = build_cohort(50)
+    for applicant in cohort:
+        text = (await parser.parse(applicant.pdf, media_type=MediaType.PDF)).text
+        sentences = [text[a:b] for a, b in sentence_spans(text)]
+        cv_vectors = await embed_all(embedder.embed_documents, sentences)
+        flagged_cvs += any(knn_score(v, attacks, benign) >= threshold for v in cv_vectors)
+    return {
+        "model": embedder.model_id,
+        "threshold": threshold,
+        "held-out": rows,
+        "honest_cvs": {"total": len(cohort), "flagged": flagged_cvs},
+    }
+
+
+def _print_reworded(report: dict[str, Any]) -> None:
+    print("\nreworded instructions, by sentence (flagged / total):")
+    print(f"  {'set':<10}{'domain/label':<18}{'patterns':>10}{'+ detector':>12}")
+    for name, result in report.items():
+        for key, row in sorted(result.get("rows", {}).items()):
+            total = row["total"]
+            print(
+                f"  {name:<10}{key:<18}{row['patterns']:>6}/{total:<3}"
+                f"{row['patterns+detector']:>8}/{total:<3}"
+            )
+    classifier = report.get("embedding")
+    if classifier:
+        print(
+            f"\nembedding nearest-neighbour ({classifier['model']}), fitted on dev, "
+            f"threshold {classifier['threshold']:+.3f}; held-out:"
+        )
+        print(f"  {'domain/label':<18}{'embedding':>11}{'+ scanner':>11}")
+        for key, row in sorted(classifier["held-out"].items()):
+            total = row["total"]
+            print(f"  {key:<18}{row['embedding']:>7}/{total:<3}{row['all']:>7}/{total:<3}")
+        cvs = classifier["honest_cvs"]
+        print(f"  honest cohort CVs with any sentence flagged: {cvs['flagged']}/{cvs['total']}")
+    held = report.get("held-out")
+    if held:
+        for title, texts in (("missed", held["misses"]), ("false flags", held["false_flags"])):
+            print(f"\nheld-out {title} ({len(texts)}):")
+            for text in texts:
+                print(f"  - {text}")
+
+
 def _rate(values: list[bool]) -> str:
     return f"{sum(values)}/{len(values)}" if values else "n/a"
 
@@ -210,6 +343,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--judge", choices=["gemini"], help="With --assess: add a model judge (paid, cached)."
+    )
+    parser.add_argument(
+        "--embedding",
+        action="store_true",
+        help="Also measure an embedding classifier on the sentence sets (Gemini; cached).",
     )
     args = parser.parse_args(argv)
 
@@ -266,7 +404,21 @@ def main(argv: list[str] | None = None) -> int:
             "text_excluded": sum(o.wrongly_excluded for o in controls),
         },
         "assessment": {},
+        "reworded": _reworded(),
     }
+    if args.embedding:
+        settings = get_settings()
+        if settings.gemini_api_key is None:
+            parser.error("--embedding needs GEMINI_API_KEY")
+        embedder = CachingEmbedder(
+            GeminiEmbedder(
+                settings.gemini_api_key.get_secret_value(),
+                model=settings.gemini_embedding_model,
+            ),
+            EmbeddingStore(Path("eval/.cache/embeddings.sqlite")),
+        )
+        report["reworded"]["embedding"] = asyncio.run(_embedding_classifier(embedder))
+    _print_reworded(report["reworded"])
     if args.assess:
         report["assessment"]["offline"] = asyncio.run(_assess(OfflineCriterionJudge()))
         _print_assessment("offline (overlap)", report["assessment"]["offline"])
