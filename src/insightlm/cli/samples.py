@@ -83,6 +83,20 @@ def _cv(lines: list[str]) -> bytes:
     return payload
 
 
+def _scan(pdf: bytes) -> bytes:
+    """The same CV as a flatbed scan: one greyscale image per page, no text layer."""
+    source = pymupdf.open(stream=pdf, filetype="pdf")
+    doc = pymupdf.open()
+    for number in range(source.page_count):
+        original = source.load_page(number)
+        page = doc.new_page(width=original.rect.width, height=original.rect.height)
+        page.insert_image(page.rect, pixmap=original.get_pixmap(dpi=150, colorspace="GRAY"))
+    payload: bytes = doc.tobytes(garbage=4, deflate=True)
+    doc.close()
+    source.close()
+    return payload
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="insightlm-samples", description=__doc__)
     parser.add_argument("--out", type=Path, default=Path("samples"))
@@ -94,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
 
     for name, lines in _CVS.items():
         (args.out / name).write_bytes(_cv(lines))
+    (args.out / "04-asha-rao-scanned.pdf").write_bytes(_scan(_cv(_CVS["01-asha-rao-strong.pdf"])))
     for doc in build_redteam_v1():
         if doc.id in _ATTACKS:
             (args.out / _ATTACKS[doc.id]).write_bytes(doc.pdf)

@@ -220,6 +220,9 @@ class DocumentVersionResponse(_FromDomain):
     page_count: int | None = None
     char_count: int | None = None
     failure_reason: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+    """What a reader should know about the extraction, such as pages read by OCR."""
+    read_by_ocr: bool = False
 
 
 class UploadResponse(BaseModel):

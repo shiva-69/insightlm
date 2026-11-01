@@ -167,8 +167,8 @@
 >
 > **Not done:** PII *detection* in free text beyond the known name (we redact what we
 > know, not what we'd have to guess); consent capture from the candidate directly (the
-> owner records self-identification on their behalf); OCR, so scanned CVs skip the
-> hidden-text defence.
+> owner records self-identification on their behalf). (OCR for scanned CVs followed in
+> the hardening work; see docs/08.)
 
 ---
 

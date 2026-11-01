@@ -12,6 +12,8 @@ import pymupdf
 import pytest
 
 from insightlm.bootstrap import Container, build_role_catalogue
+from insightlm.cli.samples import _scan
+from insightlm.documents.adapters.pymupdf_parser import tesseract_available
 from insightlm.documents.application.upload import UploadDocument
 from insightlm.documents.domain.entities import DocumentStatus, IngestionStep
 from insightlm.identity.application.commands import RegisterOwnerCommand
@@ -391,3 +393,56 @@ async def test_the_api_returns_citations_with_highlight_geometry(
     raw = await http.get(f"/documents/{document_id}/raw", headers=auth)
     assert raw.status_code == 200
     assert raw.content[:4] == b"%PDF"
+
+
+@pytest.mark.skipif(not tesseract_available(), reason="Tesseract not installed")
+async def test_a_scanned_cv_is_answerable_with_highlights_and_labelled_as_ocr(
+    container: Container, client: object
+) -> None:
+    """A CV that is only a picture: read by OCR, cited with geometry, and said so."""
+    from uuid import UUID
+
+    from httpx import AsyncClient
+
+    from insightlm.shared.domain.ids import DocumentVersionId, TenantId
+
+    http: AsyncClient = client  # type: ignore[assignment]
+    register = await http.post(
+        "/auth/register",
+        json={
+            "tenant_name": "Scans",
+            "tenant_slug": "scans",
+            "email": "owner@scans.example.com",
+            "display_name": "Owner",
+            "password": PASSWORD,
+        },
+    )
+    login = await http.post(
+        "/auth/login", json={"email": "owner@scans.example.com", "password": PASSWORD}
+    )
+    auth = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    upload = await http.post(
+        "/documents",
+        headers=auth,
+        files={"file": ("scan.pdf", _scan(build_resume_pdf()), "application/pdf")},
+    )
+    assert upload.status_code == 201, upload.text
+    outcome = await container.documents.ingestion.run(
+        tenant_id=TenantId(UUID(register.json()["tenant"]["id"])),
+        version_id=DocumentVersionId(UUID(upload.json()["version"]["id"])),
+    )
+    assert outcome.completed, outcome.error
+
+    status = (
+        await http.get(f"/documents/{upload.json()['document']['id']}/status", headers=auth)
+    ).json()
+    assert status["status"] == "ready"
+    assert status["read_by_ocr"] is True
+    assert any("read by OCR" in w for w in status["warnings"])
+
+    answer = await http.post(
+        "/ask", headers=auth, json={"question": "What payment systems experience is there?"}
+    )
+    body = answer.json()
+    assert body["outcome"] == "answered", body
+    assert body["citations"][0]["rects"], "a citation into a scan must still highlight"

@@ -59,6 +59,8 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
       - run: uv sync --all-groups --frozen
+      - name: Tesseract (OCR for scanned CVs)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng
 
       - name: Unit and architecture tests
         run: uv run pytest tests/unit tests/architecture -q

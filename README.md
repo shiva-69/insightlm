@@ -135,6 +135,6 @@ Diagrams: [docs/11-diagrams.md](docs/11-diagrams.md). Kubernetes manifests: `dep
 
 ## Limits, stated
 
-Synthetic data only, so external validity is untested. Scanned CVs skip the
-hidden-text defence until OCR exists. Paraphrased instructions evade the pattern scan
+Synthetic data only, so external validity is untested. Scanned CVs are read by OCR
+without a recorded confidence score; they are labelled instead. Paraphrased instructions evade the pattern scan
 (harmless in the measured cases, but unflagged). The PDF viewer is desktop-only. Details in docs/08 and docs/05.

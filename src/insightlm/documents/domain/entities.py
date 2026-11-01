@@ -271,6 +271,8 @@ class ExtractedText:
     page_count: int
     warnings: tuple[str, ...] = ()
     findings: tuple[ContentFinding, ...] = ()
+    ocr_used: bool = False
+    """Some of ``text`` was recognised from a scanned image rather than read from the file."""
 
     def excerpt(self, char_start: int, char_end: int, *, padding: int = 0) -> str:
         start = max(0, char_start - padding)

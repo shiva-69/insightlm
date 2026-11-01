@@ -51,4 +51,11 @@ CMD ["uvicorn", "insightlm.api.app:create_app", "--factory", \
 
 
 FROM runtime AS worker
+# Tesseract reads scanned CVs. Only the worker parses, so only the worker carries it.
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+USER app
+RUN python -c "import pymupdf; print('tessdata', pymupdf.get_tessdata())"
 CMD ["arq", "insightlm.worker.main.WorkerSettings"]

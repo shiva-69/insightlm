@@ -211,6 +211,7 @@ class SqlAlchemyDocumentVersionRepository:
                     page_count=extracted.page_count,
                     warnings=list(extracted.warnings),
                     findings=[_finding_to_json(f) for f in extracted.findings],
+                    ocr_used=extracted.ocr_used,
                 )
             )
         else:
@@ -221,6 +222,7 @@ class SqlAlchemyDocumentVersionRepository:
             existing.page_count = extracted.page_count
             existing.warnings = list(extracted.warnings)
             existing.findings = [_finding_to_json(f) for f in extracted.findings]
+            existing.ocr_used = extracted.ocr_used
 
     async def load_text(self, version_id: DocumentVersionId) -> ExtractedText | None:
         row = await self._session.get(DocumentTextRow, version_id)
@@ -232,7 +234,18 @@ class SqlAlchemyDocumentVersionRepository:
             page_count=row.page_count,
             warnings=tuple(row.warnings),
             findings=tuple(_finding_from_json(f) for f in row.findings),
+            ocr_used=row.ocr_used,
         )
+
+    async def load_notes(self, version_id: DocumentVersionId) -> tuple[tuple[str, ...], bool]:
+        row = (
+            await self._session.execute(
+                select(DocumentTextRow.warnings, DocumentTextRow.ocr_used).where(
+                    DocumentTextRow.document_version_id == version_id
+                )
+            )
+        ).one_or_none()
+        return (tuple(row.warnings), row.ocr_used) if row else ((), False)
 
 
 class SqlAlchemyIngestionJobRepository:

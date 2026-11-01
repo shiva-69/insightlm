@@ -54,6 +54,10 @@ class DocumentVersionRepository(Protocol):
 
     async def load_text(self, version_id: DocumentVersionId) -> ExtractedText | None: ...
 
+    async def load_notes(self, version_id: DocumentVersionId) -> tuple[tuple[str, ...], bool]:
+        """The parse warnings and whether OCR was used, without loading the text."""
+        ...
+
 
 class IngestionJobRepository(Protocol):
     async def add(self, job: IngestionJob) -> None: ...

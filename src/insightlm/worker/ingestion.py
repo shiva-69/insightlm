@@ -181,6 +181,7 @@ class IngestionPipeline:
                     page_count=parsed.page_count,
                     warnings=parsed.warnings,
                     findings=parsed.findings + instructions,
+                    ocr_used=parsed.ocr_used,
                 )
             )
             await uow.commit()

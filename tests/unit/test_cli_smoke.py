@@ -50,5 +50,5 @@ def test_talent_harness_runs_offline(capsys: pytest.CaptureFixture[str]) -> None
 
 def test_samples_are_written(tmp_path: Path) -> None:
     assert samples.main(["--out", str(tmp_path / "s"), "--cohort", "3"]) == 0
-    assert len(list((tmp_path / "s").glob("*.pdf"))) == 9
+    assert len(list((tmp_path / "s").glob("*.pdf"))) == 10  # including one scanned
     assert len(list((tmp_path / "s" / "cohort").glob("*.pdf"))) == 3

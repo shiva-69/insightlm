@@ -101,8 +101,14 @@ Stated so they are decisions, not surprises:
   working code, each code is accepted once, and owners are urged to enable it
   (`identity/domain/totp.py`, `tests/security/test_mfa.py`). Account lockout is still
   only the per-IP sign-in rate limit.
-- **Text hidden under a shape drawn on top of it** isn't detected; scanned CVs skip the
-  hidden-text check until OCR exists.
+- **Closed:** scanned CVs were ingested as empty, so they skipped every content check.
+  A page with an image and no visible text is now read by Tesseract OCR, with
+  character boxes, so citations still highlight and the instruction scan runs on what
+  was read. The parser trusts pixels, not layers: an invisible text layer over a scan
+  is excluded as concealed text and the page is read from what is drawn
+  (`documents/adapters/pymupdf_parser.py`, `tests/unit/test_ocr.py`). OCR'd documents
+  are labelled for reviewers. Recognition confidence is not recorded.
+- **Text hidden under a shape drawn on top of it** isn't detected.
 - **Paraphrased instructions** evade the pattern scan (2 of 24 red-team cases). They're
   harmless in the measured cases, but nothing flags them.
 - **Secrets come from environment variables,** not a secret manager.

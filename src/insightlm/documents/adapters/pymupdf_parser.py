@@ -38,9 +38,11 @@ from insightlm.shared.observability.logging import get_logger
 _logger = get_logger(__name__)
 
 _MIN_CHARS_PER_PAGE = 60
-"""Below this, a PDF is almost certainly scanned images. Phase 6 adds the OCR
-fallback; Phase 1 records the warning so the document is visibly degraded rather
-than silently empty."""
+"""Below this many visible characters, a page carrying an image is treated as a scan
+and read by OCR instead."""
+
+_OCR_DPI = 300
+"""Tesseract's accuracy falls off sharply below ~300 dpi on body-size type."""
 
 _HEADING_SIZE_RATIO = 1.15
 """A span whose font is this much larger than the document's median is treated as a
@@ -54,13 +56,27 @@ class PyMuPdfParser:
     see is kept out of the parsed text and reported as a finding instead. It is a
     switch only so the undefended baseline can be measured and demonstrated; nothing
     in production turns it off.
+
+    A page with an image and no visible text is a scan, and is read by OCR. The rule is
+    to trust the pixels, not the layers: an invisible text layer laid over a scan (which
+    scanner software adds, and which an attacker can add too) is excluded like any other
+    concealed text, and the page is read from what is actually drawn. OCR keeps
+    per-character boxes, so citations on a scanned CV still highlight. ``ocr`` is off
+    only where Tesseract is not installed; the document is then flagged, not dropped.
     """
 
     def __init__(
-        self, *, exclude_concealed: bool = True, scanner: InstructionScanner = ENGINE_SCANNER
+        self,
+        *,
+        exclude_concealed: bool = True,
+        scanner: InstructionScanner = ENGINE_SCANNER,
+        ocr: bool | None = None,
+        ocr_language: str = "eng",
     ) -> None:
         self._exclude_concealed = exclude_concealed
         self._scanner = scanner
+        self._ocr = tesseract_available() if ocr is None else ocr
+        self._ocr_language = ocr_language
 
     def supports(self, media_type: MediaType) -> bool:
         return media_type in {
@@ -103,30 +119,34 @@ class PyMuPdfParser:
             findings: list[ContentFinding] = self._metadata_findings(doc)
             cursor = 0
 
+            ocr_pages: list[int] = []
+            unread_scans: list[int] = []
+
             for page_number in range(doc.page_count):
                 page = doc.load_page(page_number)
                 fills = self._filled_regions(page)
                 findings.extend(self._off_page_findings(page, page_number))
-                for block in page.get_text("rawdict")["blocks"]:
-                    if block.get("type") != 0:  # 0 = text; 1 = image
-                        continue
-                    for line in block["lines"]:
-                        line_text, line_rects, max_size = self._read_line(
-                            line, page, page_number, fills, findings
-                        )
-                        if not line_text.strip():
-                            continue
+                lines = self._read_page(page, page_number, fills, findings, median_size)
 
-                        if self._looks_like_heading(line_text, max_size, median_size):
-                            sections.append((cursor, line_text.strip()))
+                if sum(len(t.strip()) for t, _, _ in lines) < _MIN_CHARS_PER_PAGE and (
+                    page.get_images()
+                ):
+                    if self._ocr:
+                        lines = self._ocr_page(page, page_number, findings)
+                        ocr_pages.append(page_number)
+                    else:
+                        unread_scans.append(page_number)
 
-                        pieces.append(line_text)
-                        rects.extend(line_rects)
-                        cursor += len(line_text)
+                for line_text, line_rects, heading in lines:
+                    if heading:
+                        sections.append((cursor, line_text.strip()))
+                    pieces.append(line_text)
+                    rects.extend(line_rects)
+                    cursor += len(line_text)
 
-                        pieces.append("\n")
-                        rects.append(None)
-                        cursor += 1
+                    pieces.append("\n")
+                    rects.append(None)
+                    cursor += 1
 
                 # Page break, so chunk boundaries can respect pages later.
                 pieces.append("\n")
@@ -137,25 +157,75 @@ class PyMuPdfParser:
             warnings: list[str] = []
             page_count = doc.page_count
 
-            if page_count and len(text.strip()) < _MIN_CHARS_PER_PAGE * page_count:
+            if ocr_pages:
                 warnings.append(
-                    "very little extractable text -- this document is probably scanned "
-                    "and needs OCR"
+                    f"text on {_pages(ocr_pages)} was read by OCR from a scanned image; "
+                    "check quoted wording against the highlighted page"
                 )
-                _logger.warning(
-                    "document_probably_scanned", pages=page_count, chars=len(text.strip())
+                _logger.info("document_ocr", pages=len(ocr_pages), chars=len(text.strip()))
+            if unread_scans:
+                warnings.append(
+                    f"{_pages(unread_scans)} looks scanned and OCR is not installed here, "
+                    "so its text could not be read"
                 )
+                _logger.warning("document_scanned_without_ocr", pages=len(unread_scans))
+            elif page_count and len(text.strip()) < _MIN_CHARS_PER_PAGE * page_count:
+                warnings.append("very little extractable text in this document")
+                _logger.warning("document_little_text", pages=page_count, chars=len(text.strip()))
 
             return ParsedDocument(
                 text=text,
                 char_rects=tuple(rects),
                 page_count=page_count,
                 section_offsets=tuple(sections),
+                ocr_used=bool(ocr_pages),
                 warnings=tuple(warnings),
                 findings=tuple(findings),
             )
         finally:
             doc.close()
+
+    def _read_page(
+        self,
+        page: pymupdf.Page,
+        page_number: int,
+        fills: list[tuple[pymupdf.Rect, RGB]],
+        findings: list[ContentFinding],
+        median_size: float,
+        *,
+        textpage: pymupdf.TextPage | None = None,
+    ) -> list[tuple[str, list[PageRect | None], bool]]:
+        """A page's non-empty lines in reading order, each flagged if it is a heading."""
+        lines: list[tuple[str, list[PageRect | None], bool]] = []
+        for block in page.get_text("rawdict", textpage=textpage)["blocks"]:
+            if block.get("type") != 0:  # 0 = text; 1 = image
+                continue
+            for line in block["lines"]:
+                line_text, line_rects, max_size = self._read_line(
+                    line, page, page_number, fills, findings, recognised=textpage is not None
+                )
+                if line_text.strip():
+                    heading = self._looks_like_heading(line_text, max_size, median_size)
+                    lines.append((line_text, line_rects, heading))
+        return lines
+
+    def _ocr_page(
+        self, page: pymupdf.Page, page_number: int, findings: list[ContentFinding]
+    ) -> list[tuple[str, list[PageRect | None], bool]]:
+        """Read a scanned page from its pixels. ``full`` ignores any existing text layer."""
+        textpage = page.get_textpage_ocr(language=self._ocr_language, dpi=_OCR_DPI, full=True)
+        # Recognised type sizes are estimates, so headings are judged against this page's
+        # own median rather than the born-digital text elsewhere in the document.
+        sizes = [
+            float(span["size"])
+            for block in page.get_text("dict", textpage=textpage)["blocks"]
+            if block.get("type") == 0
+            for line in block["lines"]
+            for span in line["spans"]
+            if span["text"].strip()
+        ]
+        median = statistics.median(sizes) if sizes else 10.0
+        return self._read_page(page, page_number, [], findings, median, textpage=textpage)
 
     # ------------------------------------------------------- concealment
     @staticmethod
@@ -246,6 +316,8 @@ class PyMuPdfParser:
         page_number: int,
         fills: list[tuple[pymupdf.Rect, RGB]],
         findings: list[ContentFinding],
+        *,
+        recognised: bool = False,
     ) -> tuple[str, list[PageRect | None], float]:
         chars: list[str] = []
         rects: list[PageRect | None] = []
@@ -257,14 +329,20 @@ class PyMuPdfParser:
                 continue
             x0, y0, x1, y1 = span["bbox"]
             span_rect = PageRect(page=page_number, x0=x0, y0=y0, x1=x1, y1=y1)
-            hidden = concealment(
-                alpha=span.get("alpha", 255) / 255,
-                color=self._rgb(int(span.get("color", 0))),
-                background=self._background(fills, span["bbox"]),
-                size=float(span.get("size", 10.0)),
-                rect=span_rect,
-                page_width=page.rect.width,
-                page_height=page.rect.height,
+            # OCR output is an invisible layer by construction (alpha 0), but it was read
+            # from what is drawn, so it is visible by definition.
+            hidden = (
+                None
+                if recognised
+                else concealment(
+                    alpha=span.get("alpha", 255) / 255,
+                    color=self._rgb(int(span.get("color", 0))),
+                    background=self._background(fills, span["bbox"]),
+                    size=float(span.get("size", 10.0)),
+                    rect=span_rect,
+                    page_width=page.rect.width,
+                    page_height=page.rect.height,
+                )
             )
             if hidden is not None:
                 text = "".join(c["c"] for c in span_chars).strip()
@@ -356,6 +434,28 @@ class PyMuPdfParser:
             page_count=1,
             section_offsets=tuple(sections),
         )
+
+
+def tesseract_available() -> bool:
+    """Whether PyMuPDF can find Tesseract's language data on this machine."""
+    try:
+        return bool(pymupdf.get_tessdata())
+    except RuntimeError:
+        return False
+
+
+def _pages(numbers: list[int]) -> str:
+    """Zero-based page numbers as a reader would say them: "page 2", "pages 1-3, 5"."""
+    ranges: list[str] = []
+    start = prev = numbers[0]
+    for n in [*numbers[1:], None]:
+        if n is not None and n == prev + 1:
+            prev = n
+            continue
+        ranges.append(f"{start + 1}" if start == prev else f"{start + 1}-{prev + 1}")
+        if n is not None:
+            start = prev = n
+    return ("page " if len(numbers) == 1 else "pages ") + ", ".join(ranges)
 
 
 def _line_offsets(body: str) -> list[tuple[int, str]]:

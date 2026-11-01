@@ -53,8 +53,10 @@ release, so the previous code runs on the new schema.
 
 ### Dead letters rising
 - **Look:** "Dead-lettered documents (24h)"; `dead_letters` table has step and error.
-- `no text could be extracted`: scanned or image-only PDF. Expected until OCR exists;
-  tell the user.
+- `no text could be extracted`: an image-only PDF that OCR read nothing from (blank,
+  or a photo too poor to recognise). Tell the user. If a worker logs
+  `document_scanned_without_ocr`, Tesseract is missing from its image: rebuild the
+  `worker` target.
 - `could not be opened`: corrupt or encrypted file. Expected; the user is shown why.
 - Anything else, in bulk: a code or dependency problem. Fix, then re-drive with the
   reaper by resetting `status='failed', attempts=0` on the affected jobs.
