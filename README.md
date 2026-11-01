@@ -30,6 +30,9 @@ MCA final-year project: a working system, and a dissertation built on measuremen
   sees name, contact details, institution or demographics); a counterfactual fairness
   harness; a four-fifths selection-rate report from voluntary self-identification;
   erasure that searches every store afterwards to prove nothing identifying is left.
+- **Review contracts, on the same engine.** Counsel approve a playbook of clause
+  positions; each contract is checked clause by clause, every finding cited, critical gaps
+  sent to counsel. Built as a second vertical without changing the engine (ADR-0022).
 - **Defend it.** CVs are written by the people being judged. Hidden text (white-on-white,
   1pt, transparent, off-page) is kept out of the index and shown to reviewers; prompt
   sources are escaped so a CV can't forge instructions (ADR-0012).
@@ -123,12 +126,12 @@ Diagrams: [docs/11-diagrams.md](docs/11-diagrams.md). Kubernetes manifests: `dep
 | [04 Recruiting and governance](docs/04-recruiting-and-governance.md) | Domain rules, roles, fairness, candidate rights |
 | [05 Delivery plan](docs/05-delivery-plan.md) | Phases, what each delivered, what was carried forward |
 | [06 Engineering standards](docs/06-engineering-standards.md) | Testing, CI, definition of done |
-| [07 Evaluation findings](docs/07-evaluation-findings.md) | **The results: Findings 1–23** |
+| [07 Evaluation findings](docs/07-evaluation-findings.md) | **The results: Findings 1–24** |
 | [08 Threat model](docs/08-threat-model.md) | STRIDE, each control pointing at its test |
 | [09 SLOs and capacity](docs/09-slos-and-capacity.md) | Objectives, load tests, the bottleneck |
 | [10 Runbook](docs/10-runbook.md) | Deploy, trace a request, one section per symptom |
 | [11 Diagrams](docs/11-diagrams.md) | C4 context, containers, components; generated ER diagram |
-| [ADRs](docs/adr/README.md) | 21 decision records, including where the plan was wrong |
+| [ADRs](docs/adr/README.md) | 22 decision records, including where the plan was wrong |
 
 ## Limits, stated
 

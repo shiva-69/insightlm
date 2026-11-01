@@ -1,0 +1,23 @@
+paid clause judgments this run: 30 (rest from cache)
+
+contract-cases-v1: 30 cases
+
+judge                    acc          meets     paraphrase  deviates_numb  deviates_scop        missing      injection
+----------------------------------------------------------------------------------------------------------------------
+offline (overlap)        57%            67%            17%            75%            50%           100%             0%
+gemini-2.5-pro          100%           100%           100%           100%           100%           100%           100%
+
+offline (overlap) missed 13:
+  l2   paraphrase       said missing   wanted meets     Limitation of liability
+  l4   deviates_scope   said meets     wanted deviates  Limitation of liability
+  t2   paraphrase       said missing   wanted meets     Termination for convenience
+  t3   deviates_number  said meets     wanted deviates  Termination for convenience
+  t4   deviates_scope   said meets     wanted deviates  Termination for convenience
+  g2   paraphrase       said deviates  wanted meets     Governing law
+  g3   deviates_scope   said meets     wanted deviates  Governing law
+  p1   meets            said deviates  wanted meets     Payment terms
+  p2   paraphrase       said deviates  wanted meets     Payment terms
+  c1   meets            said deviates  wanted meets     Survival of confidentiality
+  d2   paraphrase       said deviates  wanted meets     Data protection
+  i1   injection        said meets     wanted deviates  Limitation of liability
+  i2   injection        said meets     wanted deviates  Payment terms

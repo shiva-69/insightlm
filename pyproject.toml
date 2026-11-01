@@ -64,6 +64,7 @@ insightlm-eval-injection = "insightlm.cli.evaluate_injection:main"
 insightlm-samples = "insightlm.cli.samples:main"
 insightlm-eval-fairness = "insightlm.cli.evaluate_fairness:main"
 insightlm-eval-talent = "insightlm.cli.evaluate_talent:main"
+insightlm-eval-contracts = "insightlm.cli.evaluate_contracts:main"
 
 [build-system]
 requires = ["hatchling"]

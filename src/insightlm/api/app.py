@@ -19,6 +19,7 @@ from insightlm.api.routers import (
     ask,
     audit,
     auth,
+    contracts,
     documents,
     governance,
     health,
@@ -103,6 +104,7 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
     app.include_router(recruiting.router)
     app.include_router(pipeline.router)
     app.include_router(governance.router)
+    app.include_router(contracts.router)
     _document_error_envelope(app)
     if resolved.otel_enabled:
         instrument_app(app)

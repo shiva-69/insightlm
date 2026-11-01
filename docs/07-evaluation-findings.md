@@ -695,3 +695,29 @@ reverts answers in one line.
 questions per run, too small to call significant. Judging was not re-measured on
 Flash and should not be moved without running the judge benchmark first.
 
+## Finding 24 — the second vertical's judge clears the obvious traps; the set is too easy to say more
+
+Contract review has its own labelled set (`contract-cases-v1`, 30 cases): six playbook
+positions, each tested with a passage that meets the standard, a paraphrase that meets
+it, a deviation in a number, a deviation in scope or obligation (a missing carve-out, a
+one-sided right, a different governing law), an unrelated passage that should be found
+missing, and two clauses that deviate while claiming to be compliant.
+
+| | accuracy | meets | paraphrase | number | scope | missing | injection |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| offline (overlap) | 57% | 67% | 17% | 75% | 50% | 100% | 0% |
+| gemini-2.5-pro | **100%** | 100% | 100% | 100% | 100% | 100% | 100% |
+
+The baseline fails where it was built to fail: it cannot read paraphrase, cannot tell 36
+months from 12, and takes a clause's word that it is compliant. The model judge does all
+three. A live review of a synthetic services agreement through the full pipeline found
+all three planted problems -- a 24-month liability cap against a 12-month standard,
+45-day payment terms against 30, and no data-protection clause -- and flagged the
+contract for counsel.
+
+**Caveat, stated plainly.** A perfect score on 30 cases written by the same person who
+wrote the prompt means the set has saturated, as Finding 10 said of retrieval. It shows
+the judge handles the obvious traps; it does not show where the judge breaks. A harder,
+held-out set -- defined terms, cross-references between clauses, carve-outs buried in
+schedules -- is the next measurement before any claim about contract-review accuracy.
+

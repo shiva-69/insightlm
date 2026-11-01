@@ -24,6 +24,7 @@ const NAV: { href: string; label: string; icon: () => React.JSX.Element; roles?:
   { href: "/interviews", label: "Interviews", icon: InterviewsIcon, roles: PANELS },
   { href: "/talent", label: "Talent", icon: TalentIcon, roles: SCORES },
   { href: "/team", label: "Team", icon: TeamIcon },
+  { href: "/contracts", label: "Contracts", icon: LibraryIcon, roles: ["owner", "contract_manager", "counsel", "auditor"] },
   { href: "/audit", label: "Audit", icon: AuditIcon },
   { href: "/governance", label: "Fairness", icon: GovernanceIcon, roles: ["owner", "auditor"] },
 ];

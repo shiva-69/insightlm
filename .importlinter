@@ -26,12 +26,14 @@ containers =
     insightlm.documents
     insightlm.retrieval
     insightlm.recruiting
+    insightlm.contracts
     insightlm.governance
     insightlm.evaluation
 exhaustive = false
 
 # --------------------------------------------------------------- module graph
-# Delivery sits above the modules; the shared kernel sits below everything.
+# Delivery sits above the modules; the shared kernel sits below everything. The
+# verticals share a layer and are independent (`|`): neither may import the other.
 # `governance` is deliberately low: every module audits, so everything may depend
 # on it, and it may depend on nothing but shared.
 [importlinter:contract:module-dependency-direction]
@@ -39,7 +41,7 @@ name = Module dependencies point one way
 type = layers
 layers =
     insightlm.api : insightlm.worker
-    insightlm.recruiting
+    insightlm.recruiting | insightlm.contracts
     insightlm.retrieval
     insightlm.documents
     insightlm.identity
@@ -56,6 +58,7 @@ source_modules =
     insightlm.documents.domain
     insightlm.retrieval.domain
     insightlm.recruiting.domain
+    insightlm.contracts.domain
     insightlm.governance.domain
     insightlm.evaluation.domain
     insightlm.shared.domain
@@ -84,6 +87,7 @@ source_modules =
     insightlm.documents.ports
     insightlm.retrieval.ports
     insightlm.recruiting.ports
+    insightlm.contracts.ports
     insightlm.governance.ports
     insightlm.evaluation.ports
     insightlm.shared.ports
@@ -111,6 +115,7 @@ type = forbidden
 source_modules =
     insightlm.identity
     insightlm.recruiting
+    insightlm.contracts
     insightlm.retrieval
     insightlm.documents
     insightlm.evaluation
@@ -119,11 +124,13 @@ forbidden_modules =
     insightlm.documents.adapters
     insightlm.retrieval.adapters
     insightlm.recruiting.adapters
+    insightlm.contracts.adapters
     insightlm.identity.application
     insightlm.governance.application
     insightlm.documents.application
     insightlm.retrieval.application
     insightlm.recruiting.application
+    insightlm.contracts.application
 allow_indirect_imports = false
 
 # ------------------------------------------------ the shared kernel is a leaf
@@ -137,6 +144,7 @@ forbidden_modules =
     insightlm.documents
     insightlm.retrieval
     insightlm.recruiting
+    insightlm.contracts
     insightlm.governance
     insightlm.evaluation
     insightlm.api
@@ -173,6 +181,9 @@ source_modules =
     insightlm.recruiting.domain
     insightlm.recruiting.ports
     insightlm.recruiting.application
+    insightlm.contracts.domain
+    insightlm.contracts.ports
+    insightlm.contracts.application
     insightlm.governance.domain
     insightlm.governance.ports
     insightlm.governance.application
@@ -194,6 +205,7 @@ source_modules =
     insightlm.documents
     insightlm.retrieval
     insightlm.recruiting
+    insightlm.contracts
     insightlm.governance
     insightlm.evaluation
     insightlm.shared

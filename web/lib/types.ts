@@ -2,13 +2,26 @@
  *  from OpenAPI would pull in every field the API happens to expose, and the point
  *  of a client type is to say what this app actually consumes. */
 
+/* The roles the interface knows by name, plus any a vertical declares on the server:
+   the team page reads the full list from GET /members/roles. */
 export type Role =
   | "owner"
   | "recruiter"
   | "hiring_manager"
   | "interviewer"
   | "coordinator"
-  | "auditor";
+  | "auditor"
+  | "contract_manager"
+  | "counsel"
+  | (string & {});
+
+export interface RoleInfo {
+  role: Role;
+  label: string;
+  description: string;
+  assignable: boolean;
+  permissions: string[];
+}
 
 export type DocumentStatus = "pending" | "processing" | "ready" | "failed";
 
@@ -420,4 +433,61 @@ export interface RetentionRun {
   dry_run: boolean;
   expired: { candidate_id: string; last_activity: string }[];
   erased: ErasureReport[];
+}
+
+/* -- contract review ------------------------------------------------------------- */
+
+export type Severity = "critical" | "major" | "minor";
+export type ClauseFinding = "meets" | "deviates" | "missing";
+export type ReviewFlag = "critical_gap" | "major_gap" | "low_confidence";
+
+export interface Position {
+  id: string;
+  clause: string;
+  standard: string;
+  severity: Severity;
+  evidence_hint: string;
+}
+
+export interface Playbook {
+  id: string;
+  name: string;
+  version: number;
+  status: "draft" | "approved" | "superseded";
+  positions: Position[];
+  proposed_by: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+}
+
+export interface ClauseEvidence {
+  label: string;
+  chunk_id: string;
+  document_id: string;
+  document_title: string;
+  page: number;
+  char_start: number;
+  char_end: number;
+  quoted_text: string;
+}
+
+export interface PositionFinding {
+  position_id: string;
+  finding: ClauseFinding;
+  confidence: number;
+  rationale: string;
+  evidence: ClauseEvidence[];
+}
+
+export interface ContractReview {
+  id: string;
+  title: string;
+  document_ids: string[];
+  playbook_id: string;
+  playbook_version: number;
+  findings: PositionFinding[];
+  summary: { meets: number; deviates: number; missing: number; flags: ReviewFlag[]; needs_counsel: boolean };
+  model_version: string;
+  created_at: string;
 }

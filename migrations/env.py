@@ -16,6 +16,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 # Imported for their side effect of registering tables on Base.metadata.
+from insightlm.contracts.adapters import models as _contracts_models  # noqa: F401
 from insightlm.documents.adapters import models as _documents_models  # noqa: F401
 from insightlm.governance.adapters import models as _governance_models  # noqa: F401
 from insightlm.identity.adapters import models as _identity_models  # noqa: F401
