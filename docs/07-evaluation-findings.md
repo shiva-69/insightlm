@@ -662,3 +662,36 @@ the HNSW index spans every workspace and filters by tenant only after collecting
 candidates, so a workspace crowded out by others could get fewer results than it asked
 for. At this data size the planner doesn't use the index, but a large workspace would.
 Vector search now enables pgvector 0.8's iterative scans in strict order.
+
+## Finding 23 — a faster model answers better on this set, at the cost of some caution
+
+Streaming made the wait visible but could not shorten it: a live answer on Gemini 2.5
+Pro spent 27 seconds before its first token, most of it thinking. Answers now have their
+own model setting, so the same golden set was answered by Pro and by 2.5 Flash with
+thinking off. Configuration C, 30 questions, 2 runs each, retrieval identical
+(embeddings cached), 120 generation calls in all:
+
+| | Gemini 2.5 Pro | 2.5 Flash, no thinking |
+| --- | ---: | ---: |
+| median answer time | 9.3 s | **1.4 s** |
+| citation precision | 0.84 | **1.00** |
+| unanswerable questions refused | 4 of 8 | **8 of 8** |
+| answerable questions wrongly refused | **1.0 of 22** | 2.5 of 22 |
+| citation contract violations | 0 | 0 |
+
+Flash is 6.6 times faster and better on two of three quality measures. Pro answered
+half of the unanswerable questions with citations that resolved but did not support
+the answer -- the failure Finding 6 described, still present. Flash is more cautious in
+both directions: it never answered an unanswerable question, and it refused about one
+more answerable question per run than Pro did.
+
+That is a trade, not a free improvement, and it is reported as one. For an assistant
+whose central promise is not to say more than the documents support, abstaining too
+often is the better error. Compose now answers on Flash with thinking off; judging
+stays on Pro, where Finding 12 measured its accuracy. `GEMINI_ASK_MODEL=gemini-2.5-pro`
+reverts answers in one line.
+
+**Caveats.** Thirty synthetic questions and two runs: the over-refusal gap is 1.5
+questions per run, too small to call significant. Judging was not re-measured on
+Flash and should not be moved without running the judge benchmark first.
+

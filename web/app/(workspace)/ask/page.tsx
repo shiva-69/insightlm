@@ -8,7 +8,7 @@ import { DocumentViewer } from "@/components/document-viewer";
 import { useToast } from "@/components/toast";
 import { Button, Kbd, Tag } from "@/components/ui/primitives";
 import { api, ApiError } from "@/lib/api";
-import type { Answer } from "@/lib/types";
+import type { Answer, Citation, Claim } from "@/lib/types";
 
 export default function AskPage() {
   const { notify } = useToast();
@@ -17,19 +17,44 @@ export default function AskPage() {
   const [draft, setDraft] = useState("");
   const [asked, setAsked] = useState("");
   const [answer, setAnswer] = useState<Answer | null>(null);
+  // While the answer streams: the passages it may cite, the claims validated so far,
+  // and why earlier claims were withdrawn if a corrected attempt is under way.
+  const [passages, setPassages] = useState<Citation[]>([]);
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const [scope, setScope] = useState<string[]>([]);
   const [activeLabel, setActiveLabel] = useState<string | null>(null);
   const [openDocument, setOpenDocument] = useState<string | null>(null);
+
+  // What the reader sees: the finished answer, or the part of it validated so far.
+  const streaming = isStreaming(answer, claims, notice);
+  const shown: Answer | null = answer ?? (streaming ? partialAnswer(claims, passages) : null);
 
   const documents = useQuery({ queryKey: ["documents"], queryFn: api.documents });
   const ready = documents.data ?? [];
 
   const ask = useMutation({
     mutationFn: (question: string) =>
-      api.ask({ question, top_k: 8, document_ids: scope.length ? scope : undefined }),
+      api.askStream(
+        { question, top_k: 8, document_ids: scope.length ? scope : undefined },
+        {
+          onEvidence: setPassages,
+          onClaim: (claim) => {
+            setNotice(null);
+            setClaims((current) => [...current, claim]);
+          },
+          onWithdrawn: (reason) => {
+            setClaims([]);
+            setNotice(`Rewriting: ${reason}.`);
+          },
+        },
+      ),
     onMutate: (question) => {
       setAsked(question);
       setAnswer(null);
+      setPassages([]);
+      setClaims([]);
+      setNotice(null);
       setActiveLabel(null);
     },
     onSuccess: (result) => {
@@ -152,8 +177,10 @@ export default function AskPage() {
       <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         <section className="rule-r min-h-0 overflow-auto">
           <AnswerPanel
-            answer={answer}
-            pending={ask.isPending}
+            answer={shown}
+            pending={ask.isPending && !streaming}
+            streaming={ask.isPending && streaming}
+            notice={notice}
             question={asked}
             activeLabel={activeLabel}
             onActivate={setActiveLabel}
@@ -167,16 +194,16 @@ export default function AskPage() {
                 ? (ready.find((d) => d.id === openDocument)?.title ?? "Document")
                 : "Source"}
             </span>
-            {answer && answer.citations.length > 0 && (
+            {shown && shown.citations.length > 0 && (
               <Tag tone="evidence">
-                {answer.citations.length} highlighted
+                {shown.citations.length} highlighted
               </Tag>
             )}
           </div>
           <div className="h-[calc(100%-2.5rem)]">
             <DocumentViewer
               documentId={openDocument}
-              citations={answer?.citations ?? []}
+              citations={shown?.citations ?? []}
               activeLabel={activeLabel}
               onActivate={setActiveLabel}
             />
@@ -210,4 +237,31 @@ function ScopeChip({
       {label}
     </button>
   );
+}
+
+/* Streaming has visible content once the first claim arrives, or while a withdrawn
+   attempt is being rewritten. Before that, the "thinking" state shows instead. */
+function isStreaming(answer: Answer | null, claims: Claim[], notice: string | null): boolean {
+  return answer === null && (claims.length > 0 || notice !== null);
+}
+
+/* The answer so far, shaped like a finished one so the same panel renders it. Only
+   passages a shown claim cites are listed as evidence. */
+function partialAnswer(claims: Claim[], passages: Citation[]): Answer {
+  const cited = new Set(claims.flatMap((c) => c.citations));
+  return {
+    outcome: "answered",
+    text: claims.map((c) => c.text).join(" "),
+    claims,
+    citations: passages.filter((p) => cited.has(p.label)),
+    refusal_reason: null,
+    strategy: "",
+    retrieval_config_hash: "",
+    model_version: "",
+    prompt_version: "",
+    embedding_model: "",
+    latency_ms: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+  };
 }

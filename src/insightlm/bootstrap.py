@@ -268,7 +268,7 @@ def build_container(settings: Settings, *, object_store: ObjectStore | None = No
     if not isinstance(_unwrap(embedder), HashingEmbedder):
         embedder = ObservedEmbedder(embedder)
     if not isinstance(generator, ExtractiveGenerator):
-        generator = ObservedGenerator(generator, _generation_model(settings))
+        generator = ObservedGenerator(generator, _ask_model(settings))
 
     def documents_uow(
         *, tenant_id: TenantId | None = None, user_id: UserId | None = None
@@ -465,9 +465,17 @@ def _build_generator(settings: Settings) -> GroundedGenerator:
     if provider in ("auto", "gemini") and settings.gemini_api_key is not None:
         from insightlm.retrieval.adapters.gemini_generator import GeminiGroundedGenerator
 
-        _logger.info("using_generator", provider="gemini", model=settings.gemini_model)
+        model = settings.gemini_ask_model or settings.gemini_model
+        _logger.info(
+            "using_generator",
+            provider="gemini",
+            model=model,
+            thinking_budget=settings.gemini_ask_thinking_budget,
+        )
         return GeminiGroundedGenerator(
-            settings.gemini_api_key.get_secret_value(), model=settings.gemini_model
+            settings.gemini_api_key.get_secret_value(),
+            model=model,
+            thinking_budget=settings.gemini_ask_thinking_budget,
         )
 
     if provider != "auto":
@@ -509,6 +517,13 @@ def _unwrap(embedder: Embedder) -> Embedder:
     """The provider behind any caching wrapper."""
     inner = getattr(embedder, "_inner", None)
     return _unwrap(inner) if inner is not None else embedder
+
+
+def _ask_model(settings: Settings) -> str:
+    """The model answers use, for labelling their telemetry."""
+    if _generation_model(settings) == settings.gemini_model:
+        return settings.gemini_ask_model or settings.gemini_model
+    return settings.generation_model
 
 
 def _generation_model(settings: Settings) -> str:

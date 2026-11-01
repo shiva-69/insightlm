@@ -25,6 +25,8 @@ from insightlm.retrieval.adapters.search import (
     PostgresLexicalSearch,
 )
 from insightlm.retrieval.application.answer import (
+    Answered,
+    AnswerEvent,
     AnswerOutput,
     AnswerQuestion,
     AnswerRequest,
@@ -106,30 +108,34 @@ class AskService:
         )
 
     async def ask(self, actor: Actor, request: AnswerRequest) -> AnswerOutput:
-        # Charged up front, before anything is spent: a refused request costs nothing.
+        async for event in self.ask_stream(actor, request):
+            if isinstance(event, Answered):
+                return event.output
+        raise RuntimeError("the answer stream ended without an answer")  # pragma: no cover
+
+    async def ask_stream(self, actor: Actor, request: AnswerRequest) -> AsyncIterator[AnswerEvent]:
+        """The answer as events, with provenance written once the answer is final.
+
+        Budget is charged before anything is spent, so a refused request costs nothing.
+        The session stays open for the life of the stream; a reader who disconnects
+        part-way closes the generator, the transaction rolls back, and no provenance is
+        recorded for an answer that was never delivered.
+        """
         await self._budget.charge(actor.tenant_id, 1)
         async with self._session_factory() as session:
             await session.begin()
             await set_tenant_context(session, actor.tenant_id)
             await set_actor_context(session, actor.user_id)
-
-            evidence = HybridEvidenceService(
-                embedder=self._embedder,
-                vector_search=PgVectorSearch(session, embedding_model=self._embedder.model_id),
-                lexical_search=PostgresLexicalSearch(session),
-                hydrate=ChunkHydrator(session),
-                tenant_id=actor.tenant_id,
-                rrf_k=self._rrf_k,
-            )
             use_case = AnswerQuestion(
-                evidence, self._generator, embedding_model=self._embedder.model_id
+                self._evidence(session, actor),
+                self._generator,
+                embedding_model=self._embedder.model_id,
             )
-            output = await use_case.execute(actor, request)
-
-            session.add(_provenance_row(actor, request, output))
-            await session.commit()
-
-        return output
+            async for event in use_case.stream(actor, request):
+                if isinstance(event, Answered):
+                    session.add(_provenance_row(actor, request, event.output))
+                    await session.commit()
+                yield event
 
 
 def _provenance_row(actor: Actor, request: AnswerRequest, output: AnswerOutput) -> AnswerRow:

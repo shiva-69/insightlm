@@ -29,6 +29,9 @@ x-app-env: &app-env
   # Safe because every limit, budget and idempotency key lives in Redis, not in-process.
   WEB_CONCURRENCY: ${API_WORKERS:-4}
   GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-pro}
+  # Answers on Flash with thinking off, judging on GEMINI_MODEL: docs/07 Finding 23.
+  GEMINI_ASK_MODEL: ${GEMINI_ASK_MODEL:-gemini-2.5-flash}
+  GEMINI_ASK_THINKING_BUDGET: ${GEMINI_ASK_THINKING_BUDGET:-0}
   GENERATION_MODEL: ${GENERATION_MODEL:-claude-opus-5}
   GENERATION_EFFORT: ${GENERATION_EFFORT:-medium}
   ENVIRONMENT: local

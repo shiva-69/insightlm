@@ -69,7 +69,14 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     voyage_api_key: SecretStr | None = None
 
-    @field_validator("anthropic_api_key", "gemini_api_key", "voyage_api_key", mode="before")
+    @field_validator(
+        "anthropic_api_key",
+        "gemini_api_key",
+        "voyage_api_key",
+        "gemini_ask_model",
+        "gemini_ask_thinking_budget",
+        mode="before",
+    )
     @classmethod
     def _blank_is_absent(cls, value: object) -> object:
         """An empty value means "not configured", not "configured as empty".
@@ -87,6 +94,12 @@ class Settings(BaseSettings):
     # Per provider, because the identifiers are not interchangeable.
     generation_model: str = "claude-opus-5"
     gemini_model: str = "gemini-2.5-pro"
+    # Answers can use a faster model than judging: a reader waits on an answer, while
+    # a judgment runs in the worker and its accuracy decides a score. Unset, answers use
+    # gemini_model. The thinking budget applies to answers only; 0 turns thinking off on
+    # models that allow it (Flash), which is most of what makes them fast.
+    gemini_ask_model: str | None = None
+    gemini_ask_thinking_budget: int | None = None
     gemini_embedding_model: str = "gemini-embedding-001"
     generation_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
 

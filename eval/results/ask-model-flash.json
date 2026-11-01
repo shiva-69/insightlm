@@ -1,0 +1,2099 @@
+{
+  "dataset": "generated-40",
+  "runs": [
+    {
+      "config": {
+        "name": "C - dense + context",
+        "strategy": "dense",
+        "top_k": 8,
+        "generator": "configured",
+        "embedder": "configured",
+        "chunker": "structure-aware",
+        "enrich_with_title": true,
+        "notes": "Adds the document title to each chunk before embedding. Isolates the fix for the measured multi-hop failure: a passage describing an achievement says nothing about whose it is."
+      },
+      "started_at": "2026-11-01T11:17:13.307356+00:00",
+      "summary": {
+        "items": 30,
+        "errors": 0,
+        "recall_at_k": 1.0,
+        "precision_at_k": 0.175,
+        "mrr": 1.0,
+        "ndcg_at_k": 1.0,
+        "map_score": 1.0,
+        "hit_rate": 1.0,
+        "citation_precision": 1.0,
+        "citation_recall": 0.9545454545454546,
+        "unresolvable_citations": 0,
+        "uncited_claims": 0,
+        "unmatched_quotes": 0,
+        "abstention": {
+          "answerable_items": 22,
+          "unanswerable_items": 8,
+          "correct_abstention_rate": 1.0,
+          "over_refusal_rate": 0.045454545454545456,
+          "hallucination_risk_rate": 0.0
+        },
+        "median_latency_ms": 1393.0,
+        "total_input_tokens": 30772,
+        "total_output_tokens": 2546,
+        "contract_held": true
+      },
+      "by_kind": {
+        "factual": {
+          "items": 12,
+          "errors": 0,
+          "recall_at_k": 1.0,
+          "precision_at_k": 0.125,
+          "mrr": 1.0,
+          "ndcg_at_k": 1.0,
+          "map_score": 1.0,
+          "hit_rate": 1.0,
+          "citation_precision": 1.0,
+          "citation_recall": 0.9166666666666666,
+          "unresolvable_citations": 0,
+          "uncited_claims": 0,
+          "unmatched_quotes": 0,
+          "abstention": {
+            "answerable_items": 12,
+            "unanswerable_items": 0,
+            "correct_abstention_rate": null,
+            "over_refusal_rate": 0.08333333333333333,
+            "hallucination_risk_rate": null
+          },
+          "median_latency_ms": 1356.0,
+          "total_input_tokens": 12964,
+          "total_output_tokens": 841,
+          "contract_held": true
+        },
+        "multi_hop": {
+          "items": 6,
+          "errors": 0,
+          "recall_at_k": 1.0,
+          "precision_at_k": 0.125,
+          "mrr": 1.0,
+          "ndcg_at_k": 1.0,
+          "map_score": 1.0,
+          "hit_rate": 1.0,
+          "citation_precision": 1.0,
+          "citation_recall": 1.0,
+          "unresolvable_citations": 0,
+          "uncited_claims": 0,
+          "unmatched_quotes": 0,
+          "abstention": {
+            "answerable_items": 6,
+            "unanswerable_items": 0,
+            "correct_abstention_rate": null,
+            "over_refusal_rate": 0.0,
+            "hallucination_risk_rate": null
+          },
+          "median_latency_ms": 1492.5,
+          "total_input_tokens": 7767,
+          "total_output_tokens": 596,
+          "contract_held": true
+        },
+        "comparative": {
+          "items": 4,
+          "errors": 0,
+          "recall_at_k": 1.0,
+          "precision_at_k": 0.75,
+          "mrr": 1.0,
+          "ndcg_at_k": 1.0,
+          "map_score": 1.0,
+          "hit_rate": 1.0,
+          "citation_precision": 1.0,
+          "citation_recall": 1.0,
+          "unresolvable_citations": 0,
+          "uncited_claims": 0,
+          "unmatched_quotes": 0,
+          "abstention": {
+            "answerable_items": 4,
+            "unanswerable_items": 0,
+            "correct_abstention_rate": null,
+            "over_refusal_rate": 0.0,
+            "hallucination_risk_rate": null
+          },
+          "median_latency_ms": 1652.0,
+          "total_input_tokens": 2800,
+          "total_output_tokens": 684,
+          "contract_held": true
+        },
+        "unanswerable": {
+          "items": 8,
+          "errors": 0,
+          "recall_at_k": null,
+          "precision_at_k": 0.0,
+          "mrr": null,
+          "ndcg_at_k": null,
+          "map_score": null,
+          "hit_rate": null,
+          "citation_precision": null,
+          "citation_recall": null,
+          "unresolvable_citations": 0,
+          "uncited_claims": 0,
+          "unmatched_quotes": 0,
+          "abstention": {
+            "answerable_items": 0,
+            "unanswerable_items": 8,
+            "correct_abstention_rate": 1.0,
+            "over_refusal_rate": null,
+            "hallucination_risk_rate": 0.0
+          },
+          "median_latency_ms": 1319.5,
+          "total_input_tokens": 7241,
+          "total_output_tokens": 425,
+          "contract_held": true
+        }
+      },
+      "items": [
+        {
+          "item_id": "g-fact-cv-divya-sinha-06",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 2190,
+          "input_tokens": 1041,
+          "output_tokens": 67,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-aryan-sinha-22",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1265,
+          "input_tokens": 1121,
+          "output_tokens": 64,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-sneha-chopra-08",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1352,
+          "input_tokens": 1075,
+          "output_tokens": 66,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-zoya-nair-21",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": 0.0,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1673,
+          "input_tokens": 1068,
+          "output_tokens": 116,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-arjun-iyer-25",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1360,
+          "input_tokens": 1123,
+          "output_tokens": 66,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-sameer-bose-17",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1560,
+          "input_tokens": 1111,
+          "output_tokens": 65,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-rohan-desai-03",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1293,
+          "input_tokens": 1135,
+          "output_tokens": 71,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-ananya-pillai-04",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1392,
+          "input_tokens": 1082,
+          "output_tokens": 65,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-rohan-sharma-27",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1309,
+          "input_tokens": 999,
+          "output_tokens": 73,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-meera-rao-02",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1310,
+          "input_tokens": 994,
+          "output_tokens": 59,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-nisha-rao-34",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1281,
+          "input_tokens": 1009,
+          "output_tokens": 61,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-priya-mehta-00",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1384,
+          "input_tokens": 1206,
+          "output_tokens": 68,
+          "error": null
+        },
+        {
+          "item_id": "g-hop-cv-kavya-pillai-20",
+          "kind": "multi_hop",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 2,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1582,
+          "input_tokens": 1317,
+          "output_tokens": 96,
+          "error": null
+        },
+        {
+          "item_id": "g-hop-cv-imran-nair-37",
+          "kind": "multi_hop",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 2,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1528,
+          "input_tokens": 1241,
+          "output_tokens": 105,
+          "error": null
+        },
+        {
+          "item_id": "g-hop-cv-arjun-bose-01",
+          "kind": "multi_hop",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 2,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1431,
+          "input_tokens": 1264,
+          "output_tokens": 106,
+          "error": null
+        },
+        {
+          "item_id": "g-hop-cv-priya-chopra-24",
+          "kind": "multi_hop",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 2,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1416,
+          "input_tokens": 1324,
+          "output_tokens": 94,
+          "error": null
+        },
+        {
+          "item_id": "g-hop-cv-priya-mehta-00",
+          "kind": "multi_hop",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 2,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1531,
+          "input_tokens": 1329,
+          "output_tokens": 103,
+          "error": null
+        },
+        {
+          "item_id": "g-hop-cv-meera-rao-02",
+          "kind": "multi_hop",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 2,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1457,
+          "input_tokens": 1292,
+          "output_tokens": 92,
+          "error": null
+        },
+        {
+          "item_id": "g-cmp-cv-vikram-kulkarni-29",
+          "kind": "comparative",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.75,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 6
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 6,
+            "claims_uncited": 0,
+            "citations_total": 6,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1487,
+          "input_tokens": 696,
+          "output_tokens": 132,
+          "error": null
+        },
+        {
+          "item_id": "g-cmp-cv-zoya-nair-21",
+          "kind": "comparative",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.75,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 6
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 6,
+            "claims_uncited": 0,
+            "citations_total": 6,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1724,
+          "input_tokens": 709,
+          "output_tokens": 211,
+          "error": null
+        },
+        {
+          "item_id": "g-cmp-cv-imran-nair-37",
+          "kind": "comparative",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.75,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 6
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 6,
+            "claims_uncited": 0,
+            "citations_total": 6,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1844,
+          "input_tokens": 686,
+          "output_tokens": 198,
+          "error": null
+        },
+        {
+          "item_id": "g-cmp-cv-meera-reddy-26",
+          "kind": "comparative",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.75,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 6
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 6,
+            "claims_uncited": 0,
+            "citations_total": 6,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1580,
+          "input_tokens": 709,
+          "output_tokens": 143,
+          "error": null
+        },
+        {
+          "item_id": "g-denial-cv-priya-mehta-00",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1394,
+          "input_tokens": 897,
+          "output_tokens": 52,
+          "error": null
+        },
+        {
+          "item_id": "g-denial-cv-divya-sinha-06",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1361,
+          "input_tokens": 901,
+          "output_tokens": 76,
+          "error": null
+        },
+        {
+          "item_id": "g-denial-cv-lakshmi-gupta-12",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1352,
+          "input_tokens": 913,
+          "output_tokens": 43,
+          "error": null
+        },
+        {
+          "item_id": "g-denial-cv-ishita-rao-18",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1445,
+          "input_tokens": 899,
+          "output_tokens": 57,
+          "error": null
+        },
+        {
+          "item_id": "g-absent-0",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1223,
+          "input_tokens": 976,
+          "output_tokens": 40,
+          "error": null
+        },
+        {
+          "item_id": "g-absent-1",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1227,
+          "input_tokens": 857,
+          "output_tokens": 45,
+          "error": null
+        },
+        {
+          "item_id": "g-absent-2",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1287,
+          "input_tokens": 1052,
+          "output_tokens": 51,
+          "error": null
+        },
+        {
+          "item_id": "g-absent-3",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1230,
+          "input_tokens": 746,
+          "output_tokens": 61,
+          "error": null
+        }
+      ]
+    },
+    {
+      "config": {
+        "name": "C - dense + context",
+        "strategy": "dense",
+        "top_k": 8,
+        "generator": "configured",
+        "embedder": "configured",
+        "chunker": "structure-aware",
+        "enrich_with_title": true,
+        "notes": "Adds the document title to each chunk before embedding. Isolates the fix for the measured multi-hop failure: a passage describing an achievement says nothing about whose it is."
+      },
+      "started_at": "2026-11-01T11:18:00.371982+00:00",
+      "summary": {
+        "items": 30,
+        "errors": 0,
+        "recall_at_k": 1.0,
+        "precision_at_k": 0.175,
+        "mrr": 1.0,
+        "ndcg_at_k": 1.0,
+        "map_score": 1.0,
+        "hit_rate": 1.0,
+        "citation_precision": 1.0,
+        "citation_recall": 0.8181818181818182,
+        "unresolvable_citations": 0,
+        "uncited_claims": 0,
+        "unmatched_quotes": 0,
+        "abstention": {
+          "answerable_items": 22,
+          "unanswerable_items": 8,
+          "correct_abstention_rate": 1.0,
+          "over_refusal_rate": 0.18181818181818182,
+          "hallucination_risk_rate": 0.0
+        },
+        "median_latency_ms": 1412.5,
+        "total_input_tokens": 30772,
+        "total_output_tokens": 2489,
+        "contract_held": true
+      },
+      "by_kind": {
+        "factual": {
+          "items": 12,
+          "errors": 0,
+          "recall_at_k": 1.0,
+          "precision_at_k": 0.125,
+          "mrr": 1.0,
+          "ndcg_at_k": 1.0,
+          "map_score": 1.0,
+          "hit_rate": 1.0,
+          "citation_precision": 1.0,
+          "citation_recall": 0.75,
+          "unresolvable_citations": 0,
+          "uncited_claims": 0,
+          "unmatched_quotes": 0,
+          "abstention": {
+            "answerable_items": 12,
+            "unanswerable_items": 0,
+            "correct_abstention_rate": null,
+            "over_refusal_rate": 0.25,
+            "hallucination_risk_rate": null
+          },
+          "median_latency_ms": 1354.0,
+          "total_input_tokens": 12964,
+          "total_output_tokens": 856,
+          "contract_held": true
+        },
+        "multi_hop": {
+          "items": 6,
+          "errors": 0,
+          "recall_at_k": 1.0,
+          "precision_at_k": 0.125,
+          "mrr": 1.0,
+          "ndcg_at_k": 1.0,
+          "map_score": 1.0,
+          "hit_rate": 1.0,
+          "citation_precision": 1.0,
+          "citation_recall": 0.8333333333333334,
+          "unresolvable_citations": 0,
+          "uncited_claims": 0,
+          "unmatched_quotes": 0,
+          "abstention": {
+            "answerable_items": 6,
+            "unanswerable_items": 0,
+            "correct_abstention_rate": null,
+            "over_refusal_rate": 0.16666666666666666,
+            "hallucination_risk_rate": null
+          },
+          "median_latency_ms": 1468.5,
+          "total_input_tokens": 7767,
+          "total_output_tokens": 623,
+          "contract_held": true
+        },
+        "comparative": {
+          "items": 4,
+          "errors": 0,
+          "recall_at_k": 1.0,
+          "precision_at_k": 0.75,
+          "mrr": 1.0,
+          "ndcg_at_k": 1.0,
+          "map_score": 1.0,
+          "hit_rate": 1.0,
+          "citation_precision": 1.0,
+          "citation_recall": 1.0,
+          "unresolvable_citations": 0,
+          "uncited_claims": 0,
+          "unmatched_quotes": 0,
+          "abstention": {
+            "answerable_items": 4,
+            "unanswerable_items": 0,
+            "correct_abstention_rate": null,
+            "over_refusal_rate": 0.0,
+            "hallucination_risk_rate": null
+          },
+          "median_latency_ms": 1570.5,
+          "total_input_tokens": 2800,
+          "total_output_tokens": 616,
+          "contract_held": true
+        },
+        "unanswerable": {
+          "items": 8,
+          "errors": 0,
+          "recall_at_k": null,
+          "precision_at_k": 0.0,
+          "mrr": null,
+          "ndcg_at_k": null,
+          "map_score": null,
+          "hit_rate": null,
+          "citation_precision": null,
+          "citation_recall": null,
+          "unresolvable_citations": 0,
+          "uncited_claims": 0,
+          "unmatched_quotes": 0,
+          "abstention": {
+            "answerable_items": 0,
+            "unanswerable_items": 8,
+            "correct_abstention_rate": 1.0,
+            "over_refusal_rate": null,
+            "hallucination_risk_rate": 0.0
+          },
+          "median_latency_ms": 1331.0,
+          "total_input_tokens": 7241,
+          "total_output_tokens": 394,
+          "contract_held": true
+        }
+      },
+      "items": [
+        {
+          "item_id": "g-fact-cv-divya-sinha-06",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1315,
+          "input_tokens": 1041,
+          "output_tokens": 47,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-aryan-sinha-22",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1307,
+          "input_tokens": 1121,
+          "output_tokens": 60,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-sneha-chopra-08",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1381,
+          "input_tokens": 1075,
+          "output_tokens": 72,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-zoya-nair-21",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": 0.0,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1454,
+          "input_tokens": 1068,
+          "output_tokens": 105,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-arjun-iyer-25",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1379,
+          "input_tokens": 1123,
+          "output_tokens": 64,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-sameer-bose-17",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1329,
+          "input_tokens": 1111,
+          "output_tokens": 65,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-rohan-desai-03",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1300,
+          "input_tokens": 1135,
+          "output_tokens": 59,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-ananya-pillai-04",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1551,
+          "input_tokens": 1082,
+          "output_tokens": 71,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-rohan-sharma-27",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": 0.0,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1818,
+          "input_tokens": 999,
+          "output_tokens": 149,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-meera-rao-02",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1496,
+          "input_tokens": 994,
+          "output_tokens": 60,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-nisha-rao-34",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 1,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1232,
+          "input_tokens": 1009,
+          "output_tokens": 61,
+          "error": null
+        },
+        {
+          "item_id": "g-fact-cv-priya-mehta-00",
+          "kind": "factual",
+          "answerable": true,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": 0.0,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1220,
+          "input_tokens": 1206,
+          "output_tokens": 43,
+          "error": null
+        },
+        {
+          "item_id": "g-hop-cv-kavya-pillai-20",
+          "kind": "multi_hop",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 2,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1455,
+          "input_tokens": 1317,
+          "output_tokens": 118,
+          "error": null
+        },
+        {
+          "item_id": "g-hop-cv-imran-nair-37",
+          "kind": "multi_hop",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 2,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1482,
+          "input_tokens": 1241,
+          "output_tokens": 103,
+          "error": null
+        },
+        {
+          "item_id": "g-hop-cv-arjun-bose-01",
+          "kind": "multi_hop",
+          "answerable": true,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": 0.0,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1425,
+          "input_tokens": 1264,
+          "output_tokens": 92,
+          "error": null
+        },
+        {
+          "item_id": "g-hop-cv-priya-chopra-24",
+          "kind": "multi_hop",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 2,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1422,
+          "input_tokens": 1324,
+          "output_tokens": 94,
+          "error": null
+        },
+        {
+          "item_id": "g-hop-cv-priya-mehta-00",
+          "kind": "multi_hop",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 2,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1499,
+          "input_tokens": 1329,
+          "output_tokens": 110,
+          "error": null
+        },
+        {
+          "item_id": "g-hop-cv-meera-rao-02",
+          "kind": "multi_hop",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.125,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 1
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 2,
+            "claims_uncited": 0,
+            "citations_total": 1,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1503,
+          "input_tokens": 1292,
+          "output_tokens": 106,
+          "error": null
+        },
+        {
+          "item_id": "g-cmp-cv-vikram-kulkarni-29",
+          "kind": "comparative",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.75,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 6
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 6,
+            "claims_uncited": 0,
+            "citations_total": 6,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 2006,
+          "input_tokens": 696,
+          "output_tokens": 200,
+          "error": null
+        },
+        {
+          "item_id": "g-cmp-cv-zoya-nair-21",
+          "kind": "comparative",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.75,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 6
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 6,
+            "claims_uncited": 0,
+            "citations_total": 6,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1612,
+          "input_tokens": 709,
+          "output_tokens": 143,
+          "error": null
+        },
+        {
+          "item_id": "g-cmp-cv-imran-nair-37",
+          "kind": "comparative",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.75,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 6
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 6,
+            "claims_uncited": 0,
+            "citations_total": 6,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1469,
+          "input_tokens": 686,
+          "output_tokens": 130,
+          "error": null
+        },
+        {
+          "item_id": "g-cmp-cv-meera-reddy-26",
+          "kind": "comparative",
+          "answerable": true,
+          "abstained": false,
+          "retrieval": {
+            "k": 8,
+            "recall": 1.0,
+            "precision": 0.75,
+            "mrr": 1.0,
+            "ndcg": 1.0,
+            "average_precision": 1.0,
+            "hit_rate": 1.0,
+            "retrieved_count": 8,
+            "relevant_count": 6
+          },
+          "citations": {
+            "citation_precision": 1.0,
+            "citation_recall": 1.0,
+            "claims_total": 6,
+            "claims_uncited": 0,
+            "citations_total": 6,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1529,
+          "input_tokens": 709,
+          "output_tokens": 143,
+          "error": null
+        },
+        {
+          "item_id": "g-denial-cv-priya-mehta-00",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1403,
+          "input_tokens": 897,
+          "output_tokens": 45,
+          "error": null
+        },
+        {
+          "item_id": "g-denial-cv-divya-sinha-06",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1359,
+          "input_tokens": 901,
+          "output_tokens": 61,
+          "error": null
+        },
+        {
+          "item_id": "g-denial-cv-lakshmi-gupta-12",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1364,
+          "input_tokens": 913,
+          "output_tokens": 46,
+          "error": null
+        },
+        {
+          "item_id": "g-denial-cv-ishita-rao-18",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1254,
+          "input_tokens": 899,
+          "output_tokens": 45,
+          "error": null
+        },
+        {
+          "item_id": "g-absent-0",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1303,
+          "input_tokens": 976,
+          "output_tokens": 40,
+          "error": null
+        },
+        {
+          "item_id": "g-absent-1",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1207,
+          "input_tokens": 857,
+          "output_tokens": 45,
+          "error": null
+        },
+        {
+          "item_id": "g-absent-2",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1242,
+          "input_tokens": 1052,
+          "output_tokens": 36,
+          "error": null
+        },
+        {
+          "item_id": "g-absent-3",
+          "kind": "unanswerable",
+          "answerable": false,
+          "abstained": true,
+          "retrieval": {
+            "k": 8,
+            "recall": null,
+            "precision": 0.0,
+            "mrr": null,
+            "ndcg": null,
+            "average_precision": null,
+            "hit_rate": null,
+            "retrieved_count": 8,
+            "relevant_count": 0
+          },
+          "citations": {
+            "citation_precision": null,
+            "citation_recall": null,
+            "claims_total": 0,
+            "claims_uncited": 0,
+            "citations_total": 0,
+            "citations_unresolvable": 0
+          },
+          "unmatched_quotes": [],
+          "latency_ms": 1430,
+          "input_tokens": 746,
+          "output_tokens": 76,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

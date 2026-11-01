@@ -55,7 +55,7 @@ MODEL = Rule("model", limit=30, window_s=60, by="tenant")
 DEFAULT = Rule("default", limit=300, window_s=60, by="user")
 
 _CREDENTIAL_PATHS = re.compile(r"^/auth/(login|register|invitations/accept)$")
-_MODEL_PATHS = re.compile(r"^/(ask|applications/[^/]+/assessments|talent/search)$")
+_MODEL_PATHS = re.compile(r"^/(ask(/stream)?|applications/[^/]+/assessments|talent/search)$")
 
 
 def _identify(container: object, token: str) -> tuple[str, str] | None:
