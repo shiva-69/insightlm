@@ -15,6 +15,22 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from insightlm.ask_service import AskService, EvidenceProviderAdapter
+from insightlm.contracts.adapters.judges import GeminiClauseJudge, OfflineClauseJudge
+from insightlm.contracts.adapters.uow import SqlAlchemyContractsUnitOfWork
+from insightlm.contracts.application.playbooks import (
+    ApprovePlaybook,
+    ListPlaybooks,
+    ProposePlaybook,
+)
+from insightlm.contracts.application.review import (
+    GetContractReview,
+    ListContractReviews,
+    ReviewContract,
+)
+from insightlm.contracts.domain.roles import CONTRACT_PERMISSIONS, CONTRACT_ROLES
+from insightlm.contracts.domain.screening import CONTRACT_INSTRUCTION_PATTERNS
+from insightlm.contracts.ports.judge import ClauseJudge
+from insightlm.contracts.ports.repositories import ContractsUnitOfWork
 from insightlm.document_readiness import DocumentReadinessAdapter
 from insightlm.documents.adapters.pymupdf_parser import PyMuPdfParser
 from insightlm.documents.adapters.s3_store import S3ObjectStore
@@ -38,7 +54,12 @@ from insightlm.identity.application.members import (
 )
 from insightlm.identity.application.register import RegisterOwner
 from insightlm.identity.ports.uow import IdentityUnitOfWork
-from insightlm.instrumented import ObservedEmbedder, ObservedGenerator, ObservedJudge
+from insightlm.instrumented import (
+    ObservedClauseJudge,
+    ObservedEmbedder,
+    ObservedGenerator,
+    ObservedJudge,
+)
 from insightlm.recruiting.adapters.judges import (
     AnthropicCriterionJudge,
     GeminiCriterionJudge,
@@ -110,7 +131,9 @@ _logger = get_logger(__name__)
 
 def build_instruction_scanner() -> InstructionScanner:
     """The engine's scanner plus every vertical's phrases."""
-    return ENGINE_SCANNER.extended(RECRUITING_INSTRUCTION_PATTERNS)
+    return ENGINE_SCANNER.extended(RECRUITING_INSTRUCTION_PATTERNS).extended(
+        CONTRACT_INSTRUCTION_PATTERNS
+    )
 
 
 def build_role_catalogue() -> RoleCatalogue:
@@ -120,8 +143,13 @@ def build_role_catalogue() -> RoleCatalogue:
     every module -- and nowhere else.
     """
     return RoleCatalogue(
-        roles=(*PLATFORM_ROLES, *RECRUITING_ROLES),
-        permissions=(*PLATFORM_PERMISSIONS, *DOCUMENT_PERMISSIONS, *RECRUITING_PERMISSIONS),
+        roles=(*PLATFORM_ROLES, *RECRUITING_ROLES, *CONTRACT_ROLES),
+        permissions=(
+            *PLATFORM_PERMISSIONS,
+            *DOCUMENT_PERMISSIONS,
+            *RECRUITING_PERMISSIONS,
+            *CONTRACT_PERMISSIONS,
+        ),
     )
 
 
@@ -183,6 +211,16 @@ class RecruitingServices:
 
 
 @dataclass(frozen=True, slots=True)
+class ContractServices:
+    propose_playbook: ProposePlaybook
+    approve_playbook: ApprovePlaybook
+    list_playbooks: ListPlaybooks
+    review_contract: ReviewContract
+    get_review: GetContractReview
+    list_reviews: ListContractReviews
+
+
+@dataclass(frozen=True, slots=True)
 class Container:
     """Everything the delivery layers need, already wired.
 
@@ -209,6 +247,7 @@ class Container:
     documents: DocumentServices
     retrieval: RetrievalServices
     recruiting: RecruitingServices
+    contracts: ContractServices
 
     async def dispose(self) -> None:
         await self.engine.dispose()
@@ -302,6 +341,17 @@ def build_container(settings: Settings, *, object_store: ObjectStore | None = No
         rrf_k=settings.rrf_k,
         budget=budget,
     )
+
+    def contracts_uow(
+        *, tenant_id: TenantId | None = None, user_id: UserId | None = None
+    ) -> ContractsUnitOfWork:
+        return SqlAlchemyContractsUnitOfWork(
+            session_factory, clock, tenant_id=tenant_id, user_id=user_id
+        )
+
+    clause_judge = _build_clause_judge(settings)
+    if not isinstance(clause_judge, OfflineClauseJudge):
+        clause_judge = ObservedClauseJudge(clause_judge, _generation_model(settings))
     run_assessment = RunAssessment(
         recruiting_uow, EvidenceProviderAdapter(ask), judge, clock, budget
     )
@@ -402,6 +452,16 @@ def build_container(settings: Settings, *, object_store: ObjectStore | None = No
             find_expired_candidates=FindExpiredCandidates(
                 recruiting_uow, clock, timedelta(days=settings.candidate_retention_days)
             ),
+        ),
+        contracts=ContractServices(
+            propose_playbook=ProposePlaybook(contracts_uow, clock),
+            approve_playbook=ApprovePlaybook(contracts_uow, clock),
+            list_playbooks=ListPlaybooks(contracts_uow),
+            review_contract=ReviewContract(
+                contracts_uow, EvidenceProviderAdapter(ask), clause_judge, clock, budget
+            ),
+            get_review=GetContractReview(contracts_uow),
+            list_reviews=ListContractReviews(contracts_uow),
         ),
     )
 
@@ -511,6 +571,17 @@ def _build_judge(settings: Settings) -> CriterionJudge:
             settings.gemini_api_key.get_secret_value(), model=settings.gemini_model
         )
     return OfflineCriterionJudge()
+
+
+def _build_clause_judge(settings: Settings) -> ClauseJudge:
+    """Gemini when it is configured, the offline baseline otherwise. Contract review
+    has no Anthropic adapter yet, so that provider falls back to the baseline, labelled
+    as such on every review."""
+    if settings.generation_provider in ("auto", "gemini") and settings.gemini_api_key is not None:
+        return GeminiClauseJudge(
+            settings.gemini_api_key.get_secret_value(), model=settings.gemini_model
+        )
+    return OfflineClauseJudge()
 
 
 def _unwrap(embedder: Embedder) -> Embedder:

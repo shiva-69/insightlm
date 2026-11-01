@@ -1,0 +1,122 @@
+[
+ {
+  "judge": "offline (overlap)",
+  "cases": 30,
+  "accuracy": 0.5666666666666667,
+  "by_kind": {
+   "meets": 0.6666666666666666,
+   "paraphrase": 0.16666666666666666,
+   "deviates_number": 0.75,
+   "deviates_scope": 0.5,
+   "missing": 1.0,
+   "injection": 0.0
+  },
+  "misses": [
+   {
+    "id": "l2",
+    "kind": "paraphrase",
+    "clause": "Limitation of liability",
+    "expected": "meets",
+    "got": "missing"
+   },
+   {
+    "id": "l4",
+    "kind": "deviates_scope",
+    "clause": "Limitation of liability",
+    "expected": "deviates",
+    "got": "meets"
+   },
+   {
+    "id": "t2",
+    "kind": "paraphrase",
+    "clause": "Termination for convenience",
+    "expected": "meets",
+    "got": "missing"
+   },
+   {
+    "id": "t3",
+    "kind": "deviates_number",
+    "clause": "Termination for convenience",
+    "expected": "deviates",
+    "got": "meets"
+   },
+   {
+    "id": "t4",
+    "kind": "deviates_scope",
+    "clause": "Termination for convenience",
+    "expected": "deviates",
+    "got": "meets"
+   },
+   {
+    "id": "g2",
+    "kind": "paraphrase",
+    "clause": "Governing law",
+    "expected": "meets",
+    "got": "deviates"
+   },
+   {
+    "id": "g3",
+    "kind": "deviates_scope",
+    "clause": "Governing law",
+    "expected": "deviates",
+    "got": "meets"
+   },
+   {
+    "id": "p1",
+    "kind": "meets",
+    "clause": "Payment terms",
+    "expected": "meets",
+    "got": "deviates"
+   },
+   {
+    "id": "p2",
+    "kind": "paraphrase",
+    "clause": "Payment terms",
+    "expected": "meets",
+    "got": "deviates"
+   },
+   {
+    "id": "c1",
+    "kind": "meets",
+    "clause": "Survival of confidentiality",
+    "expected": "meets",
+    "got": "deviates"
+   },
+   {
+    "id": "d2",
+    "kind": "paraphrase",
+    "clause": "Data protection",
+    "expected": "meets",
+    "got": "deviates"
+   },
+   {
+    "id": "i1",
+    "kind": "injection",
+    "clause": "Limitation of liability",
+    "expected": "deviates",
+    "got": "meets"
+   },
+   {
+    "id": "i2",
+    "kind": "injection",
+    "clause": "Payment terms",
+    "expected": "deviates",
+    "got": "meets"
+   }
+  ]
+ },
+ {
+  "judge": "gemini-2.5-pro",
+  "cases": 30,
+  "accuracy": 1.0,
+  "by_kind": {
+   "meets": 1.0,
+   "paraphrase": 1.0,
+   "deviates_number": 1.0,
+   "deviates_scope": 1.0,
+   "missing": 1.0,
+   "injection": 1.0
+  },
+  "misses": []
+ }
+]

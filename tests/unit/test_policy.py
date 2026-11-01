@@ -33,14 +33,18 @@ def actor(role: Role) -> Actor:
     return Actor.of(CATALOGUE, user_id=new_user_id(), tenant_id=new_tenant_id(), role=role)
 
 
-def test_the_six_roles_are_assembled_from_their_modules() -> None:
+def test_the_roles_are_assembled_from_their_modules() -> None:
     assert {r.value for r in ALL_ROLES} == {
         "owner",
+        "auditor",
+        # recruiting
         "recruiter",
         "hiring_manager",
         "interviewer",
         "coordinator",
-        "auditor",
+        # contract review
+        "contract_manager",
+        "counsel",
     }
 
 
@@ -76,6 +80,8 @@ def test_the_auditor_sees_exactly_what_it_saw_before_the_catalogue() -> None:
         "document.read",
         "score.view",
         "candidate.view",
+        # added by contract review, with no change to the kernel
+        "contract.review_view",
     }
 
 

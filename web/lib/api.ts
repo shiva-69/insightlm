@@ -1,5 +1,9 @@
 import type {
   Answer,
+  ContractReview,
+  Playbook,
+  RoleInfo,
+  Severity,
   Citation,
   Claim,
   AuditEntry,
@@ -159,6 +163,22 @@ export const api = {
     display_name: string;
     password: string;
   }) => request<Registration>("/auth/invitations/accept", { method: "POST", json: input }),
+
+  roles: () => request<RoleInfo[]>("/members/roles"),
+
+  playbooks: () => request<Playbook[]>("/playbooks"),
+
+  proposePlaybook: (input: {
+    name: string;
+    positions: { clause: string; standard: string; severity: Severity; evidence_hint?: string }[];
+  }) => request<Playbook>("/playbooks", { method: "POST", json: input }),
+
+  approvePlaybook: (id: string) => request<Playbook>(`/playbooks/${id}/approve`, { method: "POST" }),
+
+  reviewContract: (input: { title: string; playbook_id: string; document_ids: string[] }) =>
+    request<ContractReview>("/contracts/reviews", { method: "POST", json: input }),
+
+  contractReviews: () => request<ContractReview[]>("/contracts/reviews"),
 
   members: () => request<Member[]>("/members"),
 

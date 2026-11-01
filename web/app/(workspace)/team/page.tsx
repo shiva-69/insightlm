@@ -12,23 +12,6 @@ import type { Invitation, Role } from "@/lib/types";
 /* Ownership is deliberately absent: it is transferred through its own flow, never
    handed out by invitation. The server refuses it too — this list just avoids
    offering something that would be rejected. */
-const INVITABLE: { role: Role; label: string; description: string }[] = [
-  { role: "recruiter", label: "Recruiter", description: "Sources candidates, proposes rubrics, moves people through stages" },
-  { role: "hiring_manager", label: "Hiring manager", description: "Approves rubrics and makes the call" },
-  { role: "interviewer", label: "Interviewer", description: "Submits scorecards; cannot see others' before their own" },
-  { role: "coordinator", label: "Coordinator", description: "Scheduling only" },
-  { role: "auditor", label: "Auditor", description: "Reads everything, writes nothing" },
-];
-
-const ROLE_LABEL: Record<Role, string> = {
-  owner: "Owner",
-  recruiter: "Recruiter",
-  hiring_manager: "Hiring manager",
-  interviewer: "Interviewer",
-  coordinator: "Coordinator",
-  auditor: "Auditor",
-};
-
 export default function TeamPage() {
   const { notify } = useToast();
   const queryClient = useQueryClient();
@@ -37,6 +20,13 @@ export default function TeamPage() {
   const [issued, setIssued] = useState<Invitation | null>(null);
 
   const members = useQuery({ queryKey: ["members"], queryFn: api.members });
+  // Roles come from the server, assembled from every vertical's declarations, so a new
+  // vertical's roles appear here without a change to this page.
+  const roles = useQuery({ queryKey: ["roles"], queryFn: api.roles, staleTime: Infinity });
+  const INVITABLE = (roles.data ?? []).filter((r) => r.assignable);
+  const ROLE_LABEL: Record<string, string> = Object.fromEntries(
+    (roles.data ?? []).map((r) => [r.role, r.label]),
+  );
 
   const invite = useMutation({
     mutationFn: () => api.invite({ email: email.trim(), role }),
@@ -174,7 +164,7 @@ export default function TeamPage() {
                     <span className="data mt-0.5 block truncate">{member.user.email}</span>
                   </span>
                   <Tag tone={member.membership.role === "owner" ? "neutral" : "neutral"}>
-                    {ROLE_LABEL[member.membership.role]}
+                    {ROLE_LABEL[member.membership.role] ?? member.membership.role}
                   </Tag>
                 </li>
               ))}

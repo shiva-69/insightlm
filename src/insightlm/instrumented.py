@@ -18,6 +18,8 @@ from typing import Any
 
 from opentelemetry.trace import Span, Status, StatusCode
 
+from insightlm.contracts.domain.playbook import Position
+from insightlm.contracts.ports.judge import ClauseJudge, ClauseJudgment
 from insightlm.recruiting.domain.rubric import Criterion
 from insightlm.recruiting.ports.judge import CriterionJudge, JudgeResult
 from insightlm.retrieval.domain.evidence import EvidenceBundle
@@ -88,6 +90,21 @@ class ObservedJudge:
             result = await self._inner.judge(criterion, evidence)
             span.set_attribute("insightlm.verdict", result.verdict.value)
             _usage(span, "judge", self._model, result.input_tokens, result.output_tokens)
+            return result
+
+
+class ObservedClauseJudge:
+    def __init__(self, inner: ClauseJudge, model: str) -> None:
+        self._inner = inner
+        self._model = model
+
+    async def judge(self, position: Position, evidence: EvidenceBundle) -> ClauseJudgment:
+        with _observed(
+            "clause_judge", self._model, **{"insightlm.passages": len(evidence.spans)}
+        ) as span:
+            result = await self._inner.judge(position, evidence)
+            span.set_attribute("insightlm.finding", result.finding.value)
+            _usage(span, "clause_judge", self._model, result.input_tokens, result.output_tokens)
             return result
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sys
 
+import insightlm.contracts.adapters.models
 import insightlm.documents.adapters.models
 import insightlm.governance.adapters.models
 import insightlm.identity.adapters.models
